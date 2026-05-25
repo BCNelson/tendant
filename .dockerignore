@@ -1,0 +1,10 @@
+.git/
+.devenv/
+.direnv/
+node_modules/
+*.log
+.env*
+tendant
+coverage/
+.github/
+.claude/

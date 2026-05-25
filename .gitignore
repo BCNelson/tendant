@@ -1,0 +1,26 @@
+# Devenv / Nix
+.devenv/
+.direnv/
+result
+result-*
+
+# Go
+/tmp/
+/bin/
+/tendant
+*.exe
+*.test
+*.out
+
+# sqlc-generated code is regenerated on build; commit policy varies — leave it tracked by default
+
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Coverage
+coverage/
+coverage.out
+coverage.html

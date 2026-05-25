@@ -1,0 +1,3 @@
+cmd/tendant/
+internal/db/gen/
+internal/testutil/

@@ -1,0 +1,11 @@
+targets:
+  $default:
+    sources:
+      - lib/**
+      - $package$
+    builders:
+      # Enable when adding ferry_generator / drift_dev:
+      # ferry_generator|graphql_builder:
+      #   enabled: true
+      # drift_dev|preparing_builder:
+      #   enabled: true

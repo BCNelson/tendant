@@ -1,0 +1,27 @@
+name: tendant
+description: Flutter client for tendant.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  # Common deps to enable when needed:
+  # go_router: ^17.0.0
+  # flutter_riverpod: ^3.0.0
+  # ferry: ^0.16.0           # GraphQL client (with ferry_generator)
+  # drift: ^2.33.0           # SQLite ORM (with drift_dev)
+  # flutter_secure_storage: ^10.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  # build_runner: ^2.15.0    # required for ferry / drift codegen
+
+flutter:
+  uses-material-design: true
