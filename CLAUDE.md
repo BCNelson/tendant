@@ -84,3 +84,8 @@ process-compose MCP is configured separately at the devenv layer — devenv expo
 - `internal/` for non-exported packages; nothing under `pkg/` until a second consumer exists.
 - sqlc-generated queries, not hand-written `database/sql`. Edit `internal/db/queries/*.sql` and regenerate.
 - No package-level mutable state. No `init()` for behavior — only registration of types.
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
