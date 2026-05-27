@@ -86,6 +86,9 @@ process-compose MCP is configured separately at the devenv layer — devenv expo
 - No package-level mutable state. No `init()` for behavior — only registration of types.
 
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+Active feature: **001-foundations-scaffolding** (Phase 0). For technologies, project
+structure, startup order, and decisions (DBOS, gqlgen, goose, sqlc, go.work layout, Go 1.25
+bump, AES-256-GCM credential seam), read the current plan:
+`specs/001-foundations-scaffolding/plan.md` (+ `research.md`, `data-model.md`,
+`contracts/graphql.v1.graphqls`, `quickstart.md`).
 <!-- SPECKIT END -->

@@ -1,6 +1,33 @@
 <!--
 SYNC IMPACT REPORT
-Version change: (none) → 1.0.0   [initial ratification]
+Version change: 1.1.0 → 1.2.0   [MINOR — Principle VIII scope narrowed; constraint relaxed, non-breaking]
+Amendment (1.2.0): Principle VIII (Federation-Shaped From Day One) — the globalUri
+  obligation is narrowed from "every persisted entity" to "every addressable top-level
+  resource (principal, task, tool)". Sub-resources (audit / inbox / ledger rows) are
+  addressed via their parent and reference actors by globalUri; they need not carry an
+  own-row globalUri.
+  Rationale: federation addresses resources, not every ledger/join row; the blanket wording
+  over-reached relative to the v2 schema (Appendix A), which carries global_uri on
+  principals/tasks/tools only. Relaxing a MUST is backward-compatible — no previously-
+  compliant artifact breaks.
+  Migration note: no schema change (data-model.md already scopes global_uri to
+  principals/tasks/tools); plan.md Constitution Check row VIII annotated to match.
+  Templates re-checked: plan-template.md, spec-template.md, tasks-template.md,
+  constitution-template.md — generic placeholders, no Principle-VIII references, no edits.
+
+--- Amendment 1.0.0 → 1.1.0 ---
+Version change: 1.0.0 → 1.1.0   [MINOR — workflow rule relaxed, additive]
+Amendment (1.1.0): Development Workflow & Quality Gates — the first bullet now permits a
+  spec to NAME the constitutionally-fixed stack (Technology Constraints) as constraints.
+  Un-ratified technology choices and detailed design still belong in plan.md, and Success
+  Criteria stay technology-agnostic and measurable.
+  Rationale: foundations/infrastructure phases are inherently about ratified tech; restating
+  a fixed constraint is not leaking an implementation choice.
+  Migration note: no template edits required — spec-template Success-Criteria guidance still
+  mandates tech-agnostic, measurable outcomes; the change only widens what non-SC sections
+  may reference. Templates re-checked: spec-template.md, plan-template.md, tasks-template.md
+  — all still aligned.
+--- Initial ratification (1.0.0) ---
 Modified principles: n/a (initial)
 Added sections:
   - Core Principles (I–IX)
@@ -98,9 +125,11 @@ specs and `contracts/`, NOT in this constitution.
 is a first-order concern (CC-2).*
 
 ### VIII. Federation-Shaped From Day One
-Every persisted entity MUST carry a `globalUri`; every actor MUST be modeled as a
-`Principal`. These MUST NOT be stripped because the system is currently single-household.
-The sub-agent message protocol is the federation substrate: a local sub-agent and a remote
+Every **addressable top-level resource** (principal, task, tool) MUST carry a `globalUri`;
+every actor MUST be modeled as a `Principal`. Sub-resources (audit / inbox / ledger rows)
+are addressed via their parent and reference actors by `globalUri`, so they need not carry
+their own. These MUST NOT be stripped because the system is currently single-household. The
+sub-agent message protocol is the federation substrate: a local sub-agent and a remote
 household MUST be the same shape on the wire.
 *Rationale: cheap to keep now, expensive to retrofit (CC-1; operator-edge RFC §10).*
 
@@ -141,8 +170,13 @@ constitution in the relevant `plan.md`.
 
 ## Development Workflow & Quality Gates
 
-- `spec.md` stays technology-agnostic (WHAT / WHY). All technical decisions live in
-  `plan.md` (HOW). An agent MUST NOT leak implementation detail into a spec.
+- `spec.md` focuses on WHAT / WHY. A spec MAY name the constitutionally-fixed stack and
+  components (see *Technology Constraints* — Postgres, DBOS, the GraphQL operator edge, Go
+  `gqlgen`/`chi`/`pgx`, Flutter, WASM) as **constraints**, because these are already
+  ratified, not new choices. *New / un-ratified* technology choices, detailed design, and
+  component wiring MUST live in `plan.md` (HOW). Success Criteria MUST remain
+  outcome-measurable and technology-agnostic. An agent MUST NOT introduce an un-ratified
+  implementation choice in a spec.
 - Every plan MUST pass a constitutional check before tasks are generated. Any deviation
   MUST be documented with rationale and explicitly approved.
 - Any change touching an edge contract (Principle VII) MUST state the version bump and
@@ -161,4 +195,4 @@ principle or a materially new section, **PATCH** for clarifications and wording.
 reviews MUST verify compliance; complexity MUST be justified against these principles, and
 unjustifiable complexity MUST be simplified or rejected.
 
-**Version**: 1.0.0 | **Ratified**: 2026-05-25 | **Last Amended**: 2026-05-25
+**Version**: 1.2.0 | **Ratified**: 2026-05-25 | **Last Amended**: 2026-05-26
