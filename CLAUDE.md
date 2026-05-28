@@ -112,19 +112,44 @@ process-compose MCP is configured separately at the devenv layer.
 - `internal/` for non-exported packages; nothing under `pkg/` until a second consumer exists.
 - sqlc-generated queries, not hand-written `database/sql`. Edit `internal/db/queries/*.sql` and regenerate.
 - No package-level mutable state. No `init()` for behavior — only registration of types.
+- **Contract changes** (the five long-lived versioned contracts: operator-edge GraphQL, intake potential-task signal, MCP tool contract, gate-script ABI/manifest, federation message protocol) follow the hybrid additive-+-deprecation policy at `specs/003-operator-edge-wake/contracts/versioning-policy.md`. PRs that touch these contracts MUST pick a path (1/2/3) per the PR template.
 
 <!-- SPECKIT START -->
 Phase 0 (Foundations & Scaffolding) is **complete** — schema, GraphQL read surface, DBOS,
 CI gates all landed on `main`. For the Phase 0 design see
 `specs/001-foundations-scaffolding/{spec,plan,research,data-model,quickstart}.md`.
 
-Phase 1 (Task Lifecycle & Chain Skeleton — Human-Only) is **complete** on
-branch `002-task-lifecycle-chain` — the DBOS chain workflow walks owner-authored
-tasks through `CREATION → TRIAGE → EXPANSION → EXECUTION → COMPLETION`, the
-state machine + audit DAG land in `internal/lifecycle`, and the four mutations
+Phase 1 (Task Lifecycle & Chain Skeleton — Human-Only) is **complete** — the
+DBOS chain workflow walks owner-authored tasks through
+`CREATION → TRIAGE → EXPANSION → EXECUTION → COMPLETION`, the state machine
++ audit DAG land in `internal/lifecycle`, and the four mutations
 (`createTask`, `completeTask`, `cancelTask`, plus the `*ProposedTask` pair)
 ship in `services/api/graph/schema.graphqls`. Migration `00002` renames
 `task_state.eligible` → `waiting` and defaults new rows to `accepted`. Design
 artifacts: `specs/002-task-lifecycle-chain/{spec,plan,research,data-model,quickstart}.md`;
 contract: `specs/002-task-lifecycle-chain/contracts/graphql.v1.graphqls`.
+
+Phase 2 (Operator Edge & the Wake Channel) is **complete** — the full
+versioned GraphQL operator-edge contract is live (`PendingDecision`
+interface + three impl types, `ApprovalPayload` union, `InboxItem` union,
+`inbox` query, the three subscriptions, session+device-token mutations,
+plus the four stubbed decision mutations returning `NOT_YET_AVAILABLE`
+per FR-005). Migration `00003` added the `sessions` table and
+`agent_assignments.to_principal`. New internal packages: `auth/` (central
+`Can(...)`, session mint/resolve, setup-secret arming, chi middleware, WS
+init, registry), `realtime/` (in-process `LISTEN tendant_events`
+dispatcher + per-event auth re-check), `push/` (closed `PushBody`,
+Provider seam, Selector, LogProvider stub; APNs / FCM stubs ready for
+real credentials), and `inbox/` (UNION ALL keyset-paginated viewer-scoped
+inbox). The chain workflow sets `to_principal` on assignment open and
+enqueues a push job via `chain.PushEnqueuer`. The Flutter app
+(`ferry`/`riverpod`/`drift`/`go_router`) renders the unified inbox with
+pairing + assignment-complete + an offline outbox + floor-relevant rail
+that refuses floor writes pre-Phase-3. The contract-versioning policy
+(additive + field-deprecation default; versioned endpoint reserved for
+unavoidable breaking changes) is locked and referenced from the schema
+header, the `.github/PULL_REQUEST_TEMPLATE.md`, and the CLAUDE.md
+Conventions block. Design artifacts:
+`specs/003-operator-edge-wake/{spec,plan,research,data-model,quickstart}.md`;
+contracts: `specs/003-operator-edge-wake/contracts/{graphql.v1.graphqls,versioning-policy.md}`.
 <!-- SPECKIT END -->

@@ -1,0 +1,11 @@
+mutation PairDevice($setupSecret: String!, $displayName: String!) {
+  pairDevice(setupSecret: $setupSecret, displayName: $displayName) {
+    session {
+      id
+      displayName
+      createdAt
+      lastSeenAt
+    }
+    token
+  }
+}

@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -39,4 +40,67 @@ func (q *Queries) InsertPendingDecision(ctx context.Context, arg InsertPendingDe
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const listInbox = `-- name: ListInbox :many
+SELECT id, kind, task_id, created_at FROM (
+  SELECT id, 'pending_decision'::text AS kind, task_id, created_at
+    FROM pending_decisions
+    WHERE resolved_at IS NULL
+  UNION ALL
+  SELECT id, 'agent_assignment'::text AS kind, task_id, created_at
+    FROM agent_assignments
+    WHERE resolved_at IS NULL AND to_principal = $1
+) AS i
+WHERE (i.created_at, i.id) < ($2::timestamptz, $3::uuid)
+ORDER BY i.created_at DESC, i.id DESC
+LIMIT $4
+`
+
+type ListInboxParams struct {
+	ToPrincipal *string   `json:"to_principal"`
+	Column2     time.Time `json:"column_2"`
+	Column3     uuid.UUID `json:"column_3"`
+	Limit       int32     `json:"limit"`
+}
+
+type ListInboxRow struct {
+	ID        uuid.UUID `json:"id"`
+	Kind      string    `json:"kind"`
+	TaskID    uuid.UUID `json:"task_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Phase 2 viewer-scoped unified inbox over open pending_decisions and open
+// agent_assignments routed to the viewer. Keyset-paginated by
+// (created_at DESC, id DESC). $1 = viewer globalUri, $2/$3 = cursor
+// (timestamp + uuid), $4 = limit. For an unset cursor pass max-timestamp.
+func (q *Queries) ListInbox(ctx context.Context, arg ListInboxParams) ([]ListInboxRow, error) {
+	rows, err := q.db.Query(ctx, listInbox,
+		arg.ToPrincipal,
+		arg.Column2,
+		arg.Column3,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListInboxRow
+	for rows.Next() {
+		var i ListInboxRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.TaskID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

@@ -371,6 +371,7 @@ type AgentAssignment struct {
 	GatheredContext json.RawMessage    `json:"gathered_context"`
 	CreatedAt       time.Time          `json:"created_at"`
 	ResolvedAt      pgtype.Timestamptz `json:"resolved_at"`
+	ToPrincipal     *string            `json:"to_principal"`
 }
 
 type AgentConfig struct {
@@ -465,6 +466,16 @@ type Principal struct {
 	Kind        string    `json:"kind"`
 	DisplayName string    `json:"display_name"`
 	CreatedAt   time.Time `json:"created_at"`
+}
+
+type Session struct {
+	ID          uuid.UUID          `json:"id"`
+	PrincipalID uuid.UUID          `json:"principal_id"`
+	TokenHash   []byte             `json:"token_hash"`
+	DisplayName string             `json:"display_name"`
+	CreatedAt   time.Time          `json:"created_at"`
+	LastSeenAt  time.Time          `json:"last_seen_at"`
+	RevokedAt   pgtype.Timestamptz `json:"revoked_at"`
 }
 
 type SourceCredential struct {

@@ -27,13 +27,14 @@ skip_mod_tidy: true
 autobind: []
 
 # Scalar bindings. ID stays as the gqlgen default (string).
-# Field resolvers (`resolver: true`) keep loads lazy — Task is the common
-# entry point so we don't want to JOIN agent_assignments on every read.
+# Field resolvers (`resolver: true`) keep loads lazy.
 models:
   Time:
     model: github.com/99designs/gqlgen/graphql.Time
   JSON:
     model: github.com/99designs/gqlgen/graphql.Map
+
+  # Phase 0/1 — Task/AgentAssignment use field resolvers for nested loads.
   Task:
     fields:
       openAssignment:
@@ -45,4 +46,27 @@ models:
       task:
         resolver: true
       fromAgent:
+        resolver: true
+
+  # Phase 2 — PendingDecision-impl types use field resolvers for nested loads
+  # (Task, Tool, Principal). gqlgen generates the impl Is*() methods.
+  ApprovalRequest:
+    fields:
+      task:
+        resolver: true
+      tool:
+        resolver: true
+      payload:
+        resolver: true
+  AgentQuestion:
+    fields:
+      task:
+        resolver: true
+      asker:
+        resolver: true
+  PromotionProposal:
+    fields:
+      task:
+        resolver: true
+      tool:
         resolver: true

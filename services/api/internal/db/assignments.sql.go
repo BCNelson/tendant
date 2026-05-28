@@ -14,7 +14,7 @@ import (
 )
 
 const findOpenAssignmentForStage = `-- name: FindOpenAssignmentForStage :one
-SELECT id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at
+SELECT id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at, to_principal
 FROM agent_assignments
 WHERE task_id = $1 AND stage = $2 AND resolved_at IS NULL
 LIMIT 1
@@ -39,12 +39,13 @@ func (q *Queries) FindOpenAssignmentForStage(ctx context.Context, arg FindOpenAs
 		&i.GatheredContext,
 		&i.CreatedAt,
 		&i.ResolvedAt,
+		&i.ToPrincipal,
 	)
 	return i, err
 }
 
 const findOpenAssignmentForTask = `-- name: FindOpenAssignmentForTask :one
-SELECT id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at
+SELECT id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at, to_principal
 FROM agent_assignments
 WHERE task_id = $1 AND resolved_at IS NULL
 LIMIT 1
@@ -64,6 +65,31 @@ func (q *Queries) FindOpenAssignmentForTask(ctx context.Context, taskID uuid.UUI
 		&i.GatheredContext,
 		&i.CreatedAt,
 		&i.ResolvedAt,
+		&i.ToPrincipal,
+	)
+	return i, err
+}
+
+const getAgentAssignmentByID = `-- name: GetAgentAssignmentByID :one
+SELECT id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at, to_principal
+FROM agent_assignments
+WHERE id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetAgentAssignmentByID(ctx context.Context, id uuid.UUID) (AgentAssignment, error) {
+	row := q.db.QueryRow(ctx, getAgentAssignmentByID, id)
+	var i AgentAssignment
+	err := row.Scan(
+		&i.ID,
+		&i.TaskID,
+		&i.Stage,
+		&i.FromPrincipal,
+		&i.Ask,
+		&i.GatheredContext,
+		&i.CreatedAt,
+		&i.ResolvedAt,
+		&i.ToPrincipal,
 	)
 	return i, err
 }
@@ -71,7 +97,7 @@ func (q *Queries) FindOpenAssignmentForTask(ctx context.Context, taskID uuid.UUI
 const insertAgentAssignment = `-- name: InsertAgentAssignment :one
 INSERT INTO agent_assignments (task_id, stage, from_principal, ask, gathered_context)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at
+RETURNING id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at, to_principal
 `
 
 type InsertAgentAssignmentParams struct {
@@ -103,8 +129,46 @@ func (q *Queries) InsertAgentAssignment(ctx context.Context, arg InsertAgentAssi
 		&i.GatheredContext,
 		&i.CreatedAt,
 		&i.ResolvedAt,
+		&i.ToPrincipal,
 	)
 	return i, err
+}
+
+const listOpenAssignmentsForRecipient = `-- name: ListOpenAssignmentsForRecipient :many
+SELECT id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at, to_principal
+FROM agent_assignments
+WHERE to_principal = $1 AND resolved_at IS NULL
+ORDER BY created_at DESC, id DESC
+`
+
+func (q *Queries) ListOpenAssignmentsForRecipient(ctx context.Context, toPrincipal *string) ([]AgentAssignment, error) {
+	rows, err := q.db.Query(ctx, listOpenAssignmentsForRecipient, toPrincipal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AgentAssignment
+	for rows.Next() {
+		var i AgentAssignment
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskID,
+			&i.Stage,
+			&i.FromPrincipal,
+			&i.Ask,
+			&i.GatheredContext,
+			&i.CreatedAt,
+			&i.ResolvedAt,
+			&i.ToPrincipal,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const resolveAssignment = `-- name: ResolveAssignment :one
@@ -112,7 +176,7 @@ UPDATE agent_assignments
 SET resolved_at = $1::timestamptz
 WHERE id = $2::uuid
   AND resolved_at IS NULL
-RETURNING id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at
+RETURNING id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at, to_principal
 `
 
 type ResolveAssignmentParams struct {
@@ -134,6 +198,36 @@ func (q *Queries) ResolveAssignment(ctx context.Context, arg ResolveAssignmentPa
 		&i.GatheredContext,
 		&i.CreatedAt,
 		&i.ResolvedAt,
+		&i.ToPrincipal,
+	)
+	return i, err
+}
+
+const setAssignmentRecipient = `-- name: SetAssignmentRecipient :one
+UPDATE agent_assignments
+SET to_principal = $2
+WHERE id = $1
+RETURNING id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at, to_principal
+`
+
+type SetAssignmentRecipientParams struct {
+	ID          uuid.UUID `json:"id"`
+	ToPrincipal *string   `json:"to_principal"`
+}
+
+func (q *Queries) SetAssignmentRecipient(ctx context.Context, arg SetAssignmentRecipientParams) (AgentAssignment, error) {
+	row := q.db.QueryRow(ctx, setAssignmentRecipient, arg.ID, arg.ToPrincipal)
+	var i AgentAssignment
+	err := row.Scan(
+		&i.ID,
+		&i.TaskID,
+		&i.Stage,
+		&i.FromPrincipal,
+		&i.Ask,
+		&i.GatheredContext,
+		&i.CreatedAt,
+		&i.ResolvedAt,
+		&i.ToPrincipal,
 	)
 	return i, err
 }

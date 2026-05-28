@@ -52,12 +52,33 @@ func CancelSentinel() json.RawMessage {
 	return json.RawMessage(`{"` + CancelSentinelKey + `":true}`)
 }
 
+// PushEnqueuer is the seam the chain workflow uses to schedule a push when
+// it opens an assignment. The Phase 2 implementation calls a DBOS-queued
+// workflow; tests use a recording stub. nil is allowed (no-push mode, used
+// in Phase 0/1 tests and in CI before APNs/FCM credentials are wired).
+type PushEnqueuer interface {
+	EnqueuePush(ctx context.Context, payload PushJobPayload) error
+}
+
+// PushJobPayload mirrors push.JobPayload so the chain package doesn't take a
+// direct dependency on internal/push (that would close a circular import via
+// internal/push → internal/db; we keep chain at the lower layer).
+type PushJobPayload struct {
+	TaskID             uuid.UUID
+	AssignmentID       uuid.UUID
+	RecipientGlobalURI string
+	DeepLinkID         string
+	Title              string
+}
+
 // envDeps carries the closure over the chain workflow's runtime
 // dependencies. Set once by Register at startup; read-only thereafter.
 type envDeps struct {
-	pool    *pgxpool.Pool
-	queries *db.Queries
-	router  Router
+	pool           *pgxpool.Pool
+	queries        *db.Queries
+	router         Router
+	ownerGlobalURI string
+	push           PushEnqueuer
 }
 
 var (
@@ -69,9 +90,19 @@ var (
 // once between dbos.NewDBOSContext and dbos.Launch — Launch performs recovery
 // against the registered function, so the function must be in place beforehand.
 // Safe to call again (e.g., in tests that init a fresh DBOS context).
-func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router Router) {
+//
+// ownerGlobalURI populates agent_assignments.to_principal so the push fan-out
+// worker knows whose tokens to push (Phase 2). push is optional; nil opts out
+// of push enqueue (Phase 0/1 tests, CI without APNs/FCM creds).
+func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router Router, ownerGlobalURI string, pushEnqueuer PushEnqueuer) {
 	depsMu.Lock()
-	deps = &envDeps{pool: pool, queries: q, router: router}
+	deps = &envDeps{
+		pool:           pool,
+		queries:        q,
+		router:         router,
+		ownerGlobalURI: ownerGlobalURI,
+		push:           pushEnqueuer,
+	}
 	depsMu.Unlock()
 	dbos.RegisterWorkflow(dctx, ChainWorkflow, dbos.WithWorkflowName(WorkflowName))
 }
@@ -211,8 +242,10 @@ func runAdvanceStageStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, fro
 
 // runOpenAssignmentStep inserts the agent_assignments row + assignment_created
 // audit row in one tx. Idempotent under recovery (skips if an open row
-// already exists for (task, stage)).
+// already exists for (task, stage)). After the tx commits, enqueues a push
+// fan-out job (Phase 2; no-op when PushEnqueuer is nil).
 func runOpenAssignmentStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, stage lifecycle.ChainStage) error {
+	var outerAssignmentID uuid.UUID
 	_, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (struct{}, error) {
 		err := pgx.BeginFunc(stepCtx, d.pool, func(tx pgx.Tx) error {
 			q := db.New(tx)
@@ -233,6 +266,15 @@ func runOpenAssignmentStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, s
 			if ierr != nil {
 				return fmt.Errorf("insert assignment: %w", ierr)
 			}
+			if d.ownerGlobalURI != "" {
+				owner := d.ownerGlobalURI
+				if _, serr := q.SetAssignmentRecipient(stepCtx, db.SetAssignmentRecipientParams{
+					ID:          row.ID,
+					ToPrincipal: &owner,
+				}); serr != nil {
+					return fmt.Errorf("set assignment recipient: %w", serr)
+				}
+			}
 			parent, lerr := latestTransitionIDInTx(stepCtx, tx, taskID)
 			if lerr != nil {
 				return lerr
@@ -242,12 +284,37 @@ func runOpenAssignmentStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, s
 				Stage:        stage,
 				Ask:          row.Ask,
 			}
-			_, werr := lifecycle.WriteAuditMessage(stepCtx, tx, taskID, lifecycle.SystemActorURI, lifecycle.KindAssignmentCreated, payload, parent)
-			return werr
+			if _, werr := lifecycle.WriteAuditMessage(stepCtx, tx, taskID, lifecycle.SystemActorURI, lifecycle.KindAssignmentCreated, payload, parent); werr != nil {
+				return werr
+			}
+			// Stash assignment id + recipient on the step's outer state so
+			// the post-commit push enqueue can read them.
+			outerAssignmentID = row.ID
+			return nil
 		})
 		return struct{}{}, err
 	}, dbos.WithStepName("chain.open_assignment."+string(stage)))
-	return err
+	if err != nil {
+		return err
+	}
+	// Post-commit push enqueue. Run as a separate DBOS step so the enqueue
+	// itself is crash-safe and idempotent (research R3). nil PushEnqueuer
+	// is a no-op for tests + CI-without-credentials.
+	if d.push != nil && outerAssignmentID != uuid.Nil && d.ownerGlobalURI != "" {
+		_, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (struct{}, error) {
+			return struct{}{}, d.push.EnqueuePush(stepCtx, PushJobPayload{
+				TaskID:             taskID,
+				AssignmentID:       outerAssignmentID,
+				RecipientGlobalURI: d.ownerGlobalURI,
+				DeepLinkID:         outerAssignmentID.String(),
+				Title:              "tendant",
+			})
+		}, dbos.WithStepName("chain.enqueue_push."+string(stage)))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // runResolveAndAdvanceStep closes the open assignment, writes the

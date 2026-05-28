@@ -1,0 +1,17 @@
+subscription InboxItemArrived {
+  inboxItemArrived {
+    __typename
+    ... on AgentAssignment {
+      id
+    }
+    ... on ApprovalRequest {
+      id
+    }
+    ... on AgentQuestion {
+      id
+    }
+    ... on PromotionProposal {
+      id
+    }
+  }
+}

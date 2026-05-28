@@ -1,0 +1,203 @@
+# Tendant operator-edge GraphQL — v1 (Phase 2: Operator Edge & the Wake Channel).
+# Source of truth: this file. The live schema at services/api/graph/schema.graphqls
+# MUST match (CI checks). Versioning policy: see ./versioning-policy.md.
+#
+# Phase 2 is strictly additive on the Phase 1 baseline:
+#   - No existing type / field / enum value / argument is renamed, removed, or
+#     retyped.
+#   - All Phase 2 additions are new types, new fields on existing types (via
+#     `extend`), new interfaces, new unions, new enum values, new mutations,
+#     new queries, new subscriptions.
+#
+# Per Clarification Q1 (hybrid versioning), future evolution stays within this
+# v1 schema as long as additive + field-deprecation suffices. A v2 endpoint is
+# introduced only for breaking changes that cannot be expressed additively.
+
+scalar Time
+scalar JSON
+
+# =========================================================================
+# Phase 0/1 baseline — UNCHANGED. Repeated here so this file is the complete
+# v1 contract (the artifact of record). The live schema MUST match.
+# =========================================================================
+
+enum TaskState     { PROPOSED ACCEPTED WAITING EXECUTING DONE DISMISSED HALTED }
+enum ChainStage    { CREATION TRIAGE EXPANSION EXECUTION COMPLETION }
+enum AutonomyLevel { NONE ENRICH_ONLY PROPOSE EXECUTE_GATED EXECUTE_AUTO }
+
+interface Principal { id: ID!  globalUri: String!  displayName: String! }
+type User implements Principal { id: ID!  globalUri: String!  displayName: String! }
+type Bot  implements Principal { id: ID!  globalUri: String!  displayName: String! }
+
+type WorkflowRef { id: ID!  startedAt: Time! }
+
+type Task {
+  id: ID!  globalUri: String!
+  title: String!  description: String
+  state: TaskState!
+  currentStage: ChainStage!
+  autonomy: AutonomyLevel!
+  provenance: JSON
+  contextRefs: JSON
+  findings: JSON
+  workflow: WorkflowRef
+  openAssignment: AgentAssignment
+  createdAt: Time!  editedAt: Time
+}
+
+type AgentAssignment {
+  id: ID!
+  task: Task!
+  stage: ChainStage!
+  fromAgent: Principal
+  ask: String!
+  gatheredContext: JSON
+  createdAt: Time!
+  resolvedAt: Time
+}
+
+type TaskEdge { node: Task!  cursor: String! }
+type TaskConnection { edges: [TaskEdge!]!  pageInfo: PageInfo! }
+type PageInfo { hasNextPage: Boolean!  endCursor: String }
+
+type Query {
+  viewer: User
+  task(id: ID!): Task
+  tasks(first: Int, after: String, state: TaskState): TaskConnection!
+}
+
+type Mutation {
+  createTask(title: String!, description: String): Task!
+  completeTask(taskId: ID!, result: JSON): Task!
+  cancelTask(taskId: ID!): Task!
+  acceptProposedTask(taskId: ID!): Task!
+  dismissProposedTask(taskId: ID!, reason: String): Task!
+}
+
+# =========================================================================
+# Phase 2 — additive surface starts here.
+# =========================================================================
+
+# ----- Sessions & device tokens (Clarification Q4) ----------------------
+
+enum DevicePlatform { IOS ANDROID WEB }
+
+type Session {
+  id: ID!
+  displayName: String!
+  createdAt: Time!
+  lastSeenAt: Time!
+  # Note: the raw bearer token is never returned by Query.sessions — it is
+  # returned exactly once at pairDevice mint, on SessionMintResult.token.
+}
+
+type SessionMintResult {
+  session: Session!
+  token: String!
+}
+
+# ----- Tools, approval payloads, decision kinds -------------------------
+
+type Tool {
+  id: ID!  globalUri: String!  name: String!
+  rung: AutonomyLevel!
+  permissions: JSON!
+  overseerInstructions: String
+}
+
+type Artifact { kind: String!  content: JSON!  recipient: String }
+type Mandate  { goal: String!  constraints: JSON!  guardrails: JSON! }
+
+union ApprovalPayload = Artifact | Mandate
+
+interface PendingDecision { id: ID!  task: Task!  createdAt: Time! }
+
+type ApprovalRequest implements PendingDecision {
+  id: ID!  task: Task!  createdAt: Time!
+  tool: Tool!  payload: ApprovalPayload!
+}
+type AgentQuestion implements PendingDecision {
+  id: ID!  task: Task!  createdAt: Time!
+  asker: Principal!  question: String!  disclosureClass: String
+}
+type PromotionProposal implements PendingDecision {
+  id: ID!  task: Task!  createdAt: Time!
+  tool: Tool!  fromLevel: AutonomyLevel!  toLevel: AutonomyLevel!  evidence: JSON!
+}
+
+# The unified surface for "things that need me".
+union InboxItem = ApprovalRequest | AgentQuestion | PromotionProposal | AgentAssignment
+
+# ----- Notifications (subscription type) --------------------------------
+
+type Notification {
+  id: ID!
+  kind: String!         # e.g. "system", "calibration", "household"
+  createdAt: Time!
+  taskId: ID            # optional reference to a task the notification relates to
+}
+
+# ----- Query additions --------------------------------------------------
+
+extend type Query {
+  # The single "things that need me" surface. Paginated by keyset on
+  # (createdAt DESC, id DESC). Viewer-scoped at the SQL layer (FR-031).
+  inbox(first: Int, after: String): [InboxItem!]!
+
+  # Refetch hooks for subscription clients. Both consult Can(...) before
+  # returning; revoked viewers see null.
+  pendingDecision(id: ID!): PendingDecision
+  agentAssignment(id: ID!): AgentAssignment
+
+  # The viewer's active (non-revoked) sessions.
+  sessions: [Session!]!
+}
+
+# ----- Mutation additions ----------------------------------------------
+
+extend type Mutation {
+  # First-launch pairing. The setupSecret is the one-time deployment-config
+  # secret armed at server boot; consumed on success. The returned token is
+  # the bearer presented on every subsequent HTTP request and every
+  # subscription connection_init payload.
+  pairDevice(setupSecret: String!, displayName: String!): SessionMintResult!
+
+  # Revoke a session. Subsequent requests on the revoked bearer fail closed;
+  # subscriptions on the revoked bearer stop receiving events without a
+  # reconnect (Story 3 / SC-004).
+  revokeSession(sessionId: ID!): Session!
+
+  # Device-token registration for push fan-out. Upserts by token; old tokens
+  # for the same device are pruned by IsTokenInvalid on the next push.
+  registerDeviceToken(token: String!, platform: DevicePlatform!): Boolean!
+  unregisterDeviceToken(token: String!): Boolean!
+
+  # Decision-resolving mutations are declared NOW (FR-005) but return a
+  # typed `NOT_YET_AVAILABLE` error throughout Phase 2. Phase 3 wires the
+  # gate and these become reachable. Argument shapes are intentionally
+  # minimal (only required-now fields) — additive enrichment in Phase 3 is
+  # under the hybrid versioning policy.
+  approveArtifact(decisionId: ID!): PendingDecision!
+  rejectApproval(decisionId: ID!, reason: String): PendingDecision!
+  answerQuestion(decisionId: ID!, answer: String!): PendingDecision!
+  decidePromotion(decisionId: ID!, accept: Boolean!): PendingDecision!
+}
+
+# ----- Subscriptions ---------------------------------------------------
+
+type Subscription {
+  # Fires when ANY new InboxItem becomes visible to the viewer. Events carry
+  # only {__typename, id}; the client refetches the typed entity through the
+  # normal Query path (auth re-checked there too).
+  inboxItemArrived: InboxItem!
+
+  # Fires on every lifecycle/state/stage change visible to the viewer.
+  # taskId optional: null subscribes to all visible tasks; non-null narrows
+  # to one. Auth re-checked per-event so revocation takes effect without a
+  # reconnect.
+  taskChanged(taskId: ID): Task!
+
+  # System-level notifications (e.g., promotion calibration messages). No
+  # events fire on this surface in Phase 2; Phase 4+ uses it.
+  notificationReceived: Notification!
+}

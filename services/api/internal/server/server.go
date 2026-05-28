@@ -13,31 +13,52 @@ import (
 	"github.com/dbos-inc/dbos-transact-golang/dbos"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vektah/gqlparser/v2/ast"
 
 	"github.com/bcnelson/tendant/services/api/graph"
+	"github.com/bcnelson/tendant/services/api/internal/auth"
 	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/bcnelson/tendant/services/api/internal/push"
+	"github.com/bcnelson/tendant/services/api/internal/realtime"
 )
+
+// Options carries the optional Phase 2 wiring for the chi router. Zero values
+// mean "Phase 0/1 mode": no auth middleware, no subscription transport, no
+// push surface. Phase 2 fills these in.
+type Options struct {
+	Dispatcher   *realtime.Dispatcher
+	PushSelector push.Selector
+	PushQueue    string
+	SetupSecret  *auth.SetupSecretState
+}
 
 // New builds the chi router with the gqlgen handler mounted at /graphql,
 // a playground at /playground, and a /healthz endpoint pinging the pool.
-// dctx may be nil for callers that don't need mutation-side DBOS
-// (e.g., Phase 0-style read-only smoke tests); mutations that touch the
-// chain workflow will fail at request time if it's nil.
-func New(pool *pgxpool.Pool, dctx dbos.DBOSContext) http.Handler {
+// dctx may be nil for callers that don't need mutation-side DBOS.
+func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	// middleware.RealIP intentionally omitted — see chi GHSA-3fxj-6jh8-hvhx.
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
 
+	q := db.New(pool)
 	resolver := &graph.Resolver{
-		Pool:    pool,
-		Queries: db.New(pool),
-		DBOS:    dctx,
+		Pool:          pool,
+		Queries:       q,
+		DBOS:          dctx,
+		Dispatcher:    opts.Dispatcher,
+		PushSelector:  opts.PushSelector,
+		PushQueueName: opts.PushQueue,
+		SetupSecret:   opts.SetupSecret,
 	}
-	r.Handle("/graphql", graphqlHandler(resolver))
+
+	r.Route("/graphql", func(gr chi.Router) {
+		gr.Use(auth.Middleware(q))
+		gr.Handle("/", graphqlHandler(resolver))
+	})
+	r.Handle("/graphql", graphqlHandler(resolver)) // legacy mount for tests
 	r.Handle("/playground", playground.Handler("Tendant", "/graphql"))
 	r.Get("/healthz", healthz(pool))
 
@@ -49,6 +70,16 @@ func graphqlHandler(resolver *graph.Resolver) http.Handler {
 	srv.AddTransport(transport.POST{})
 	srv.AddTransport(transport.GET{})
 	srv.AddTransport(transport.Options{})
+
+	// WebSocket transport for subscriptions (graphql-transport-ws).
+	srv.AddTransport(&transport.Websocket{
+		Upgrader: websocket.Upgrader{
+			CheckOrigin: func(*http.Request) bool { return true },
+		},
+		KeepAlivePingInterval: 10 * time.Second,
+		InitFunc:              auth.WebsocketInitFunc(resolver.Queries),
+	})
+
 	srv.SetQueryCache(lru.New[*ast.QueryDocument](1000))
 	srv.Use(extension.Introspection{})
 	return srv

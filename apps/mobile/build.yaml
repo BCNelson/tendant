@@ -2,10 +2,16 @@ targets:
   $default:
     sources:
       - lib/**
+      - graphql/**
       - $package$
     builders:
-      # Enable when adding ferry_generator / drift_dev:
-      # ferry_generator|graphql_builder:
-      #   enabled: true
-      # drift_dev|preparing_builder:
-      #   enabled: true
+      ferry_generator|graphql_builder:
+        enabled: true
+        options:
+          schema: tendant|graphql/schema.graphql
+          extensions:
+            - .graphql
+      drift_dev|preparing_builder:
+        enabled: true
+      drift_dev|drift_dev:
+        enabled: true

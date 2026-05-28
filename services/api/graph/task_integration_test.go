@@ -64,7 +64,7 @@ func TestTaskCreateAndReadOverGraphQL(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, "", created.GlobalURI)
 
-	handler := server.New(pool, nil)
+	handler := server.New(pool, nil, server.Options{})
 
 	// 1. viewer — the seeded owner Principal.
 	viewerResp := graphqlRequest(t, handler,

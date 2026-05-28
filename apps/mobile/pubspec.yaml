@@ -10,18 +10,29 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  # Common deps to enable when needed:
-  # go_router: ^17.0.0
-  # flutter_riverpod: ^3.0.0
-  # ferry: ^0.16.0           # GraphQL client (with ferry_generator)
-  # drift: ^2.33.0           # SQLite ORM (with drift_dev)
-  # flutter_secure_storage: ^10.0.0
+
+  # Phase 2 client stack (see specs/003-operator-edge-wake/research.md R5).
+  ferry: ^0.16.0
+  ferry_flutter: ^0.10.0
+  gql_http_link: ^1.0.1
+  gql_websocket_link: ^1.0.1
+  gql_link: ^1.0.0
+  flutter_riverpod: ^3.0.0
+  drift: ^2.33.0
+  go_router: ^17.0.0
+  flutter_secure_storage: ^10.0.0
+  firebase_core: ^4.0.0
+  firebase_messaging: ^16.0.0
+  flutter_local_notifications: ^19.0.0
+  connectivity_plus: ^7.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  # build_runner: ^2.15.0    # required for ferry / drift codegen
+  build_runner: ^2.15.0
+  ferry_generator: ^0.13.0
+  drift_dev: ^2.33.0
 
 flutter:
   uses-material-design: true

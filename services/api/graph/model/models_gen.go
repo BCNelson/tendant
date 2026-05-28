@@ -10,6 +10,21 @@ import (
 	"time"
 )
 
+type ApprovalPayload interface {
+	IsApprovalPayload()
+}
+
+type InboxItem interface {
+	IsInboxItem()
+}
+
+type PendingDecision interface {
+	IsPendingDecision()
+	GetID() string
+	GetTask() *Task
+	GetCreatedAt() time.Time
+}
+
 type Principal interface {
 	IsPrincipal()
 	GetID() string
@@ -28,6 +43,47 @@ type AgentAssignment struct {
 	ResolvedAt      *time.Time     `json:"resolvedAt,omitempty"`
 }
 
+func (AgentAssignment) IsInboxItem() {}
+
+type AgentQuestion struct {
+	ID              string    `json:"id"`
+	Task            *Task     `json:"task"`
+	CreatedAt       time.Time `json:"createdAt"`
+	Asker           Principal `json:"asker"`
+	Question        string    `json:"question"`
+	DisclosureClass *string   `json:"disclosureClass,omitempty"`
+}
+
+func (AgentQuestion) IsPendingDecision()           {}
+func (this AgentQuestion) GetID() string           { return this.ID }
+func (this AgentQuestion) GetTask() *Task          { return this.Task }
+func (this AgentQuestion) GetCreatedAt() time.Time { return this.CreatedAt }
+
+func (AgentQuestion) IsInboxItem() {}
+
+type ApprovalRequest struct {
+	ID        string          `json:"id"`
+	Task      *Task           `json:"task"`
+	CreatedAt time.Time       `json:"createdAt"`
+	Tool      *Tool           `json:"tool"`
+	Payload   ApprovalPayload `json:"payload"`
+}
+
+func (ApprovalRequest) IsPendingDecision()           {}
+func (this ApprovalRequest) GetID() string           { return this.ID }
+func (this ApprovalRequest) GetTask() *Task          { return this.Task }
+func (this ApprovalRequest) GetCreatedAt() time.Time { return this.CreatedAt }
+
+func (ApprovalRequest) IsInboxItem() {}
+
+type Artifact struct {
+	Kind      string         `json:"kind"`
+	Content   map[string]any `json:"content"`
+	Recipient *string        `json:"recipient,omitempty"`
+}
+
+func (Artifact) IsApprovalPayload() {}
+
 type Bot struct {
 	ID          string `json:"id"`
 	GlobalURI   string `json:"globalUri"`
@@ -39,7 +95,22 @@ func (this Bot) GetID() string          { return this.ID }
 func (this Bot) GetGlobalURI() string   { return this.GlobalURI }
 func (this Bot) GetDisplayName() string { return this.DisplayName }
 
+type Mandate struct {
+	Goal        string         `json:"goal"`
+	Constraints map[string]any `json:"constraints"`
+	Guardrails  map[string]any `json:"guardrails"`
+}
+
+func (Mandate) IsApprovalPayload() {}
+
 type Mutation struct {
+}
+
+type Notification struct {
+	ID        string    `json:"id"`
+	Kind      string    `json:"kind"`
+	CreatedAt time.Time `json:"createdAt"`
+	TaskID    *string   `json:"taskId,omitempty"`
 }
 
 type PageInfo struct {
@@ -47,7 +118,39 @@ type PageInfo struct {
 	EndCursor   *string `json:"endCursor,omitempty"`
 }
 
+type PromotionProposal struct {
+	ID        string         `json:"id"`
+	Task      *Task          `json:"task"`
+	CreatedAt time.Time      `json:"createdAt"`
+	Tool      *Tool          `json:"tool"`
+	FromLevel AutonomyLevel  `json:"fromLevel"`
+	ToLevel   AutonomyLevel  `json:"toLevel"`
+	Evidence  map[string]any `json:"evidence"`
+}
+
+func (PromotionProposal) IsPendingDecision()           {}
+func (this PromotionProposal) GetID() string           { return this.ID }
+func (this PromotionProposal) GetTask() *Task          { return this.Task }
+func (this PromotionProposal) GetCreatedAt() time.Time { return this.CreatedAt }
+
+func (PromotionProposal) IsInboxItem() {}
+
 type Query struct {
+}
+
+type Session struct {
+	ID          string    `json:"id"`
+	DisplayName string    `json:"displayName"`
+	CreatedAt   time.Time `json:"createdAt"`
+	LastSeenAt  time.Time `json:"lastSeenAt"`
+}
+
+type SessionMintResult struct {
+	Session *Session `json:"session"`
+	Token   string   `json:"token"`
+}
+
+type Subscription struct {
 }
 
 type Task struct {
@@ -75,6 +178,15 @@ type TaskConnection struct {
 type TaskEdge struct {
 	Node   *Task  `json:"node"`
 	Cursor string `json:"cursor"`
+}
+
+type Tool struct {
+	ID                   string         `json:"id"`
+	GlobalURI            string         `json:"globalUri"`
+	Name                 string         `json:"name"`
+	Rung                 AutonomyLevel  `json:"rung"`
+	Permissions          map[string]any `json:"permissions"`
+	OverseerInstructions *string        `json:"overseerInstructions,omitempty"`
 }
 
 type User struct {
@@ -210,6 +322,63 @@ func (e *ChainStage) UnmarshalJSON(b []byte) error {
 }
 
 func (e ChainStage) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type DevicePlatform string
+
+const (
+	DevicePlatformIos     DevicePlatform = "IOS"
+	DevicePlatformAndroid DevicePlatform = "ANDROID"
+	DevicePlatformWeb     DevicePlatform = "WEB"
+)
+
+var AllDevicePlatform = []DevicePlatform{
+	DevicePlatformIos,
+	DevicePlatformAndroid,
+	DevicePlatformWeb,
+}
+
+func (e DevicePlatform) IsValid() bool {
+	switch e {
+	case DevicePlatformIos, DevicePlatformAndroid, DevicePlatformWeb:
+		return true
+	}
+	return false
+}
+
+func (e DevicePlatform) String() string {
+	return string(e)
+}
+
+func (e *DevicePlatform) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DevicePlatform(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DevicePlatform", str)
+	}
+	return nil
+}
+
+func (e DevicePlatform) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DevicePlatform) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DevicePlatform) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

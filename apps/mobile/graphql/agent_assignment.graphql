@@ -1,0 +1,16 @@
+query AgentAssignment($id: ID!) {
+  agentAssignment(id: $id) {
+    id
+    stage
+    ask
+    gatheredContext
+    createdAt
+    task {
+      id
+      title
+      description
+      state
+      currentStage
+    }
+  }
+}

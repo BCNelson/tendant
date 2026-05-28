@@ -1,30 +1,22 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-void main() {
-  runApp(const TendantApp());
-}
+import 'app.dart';
+import 'core/auth/session_store.dart';
 
-class TendantApp extends StatelessWidget {
-  const TendantApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'tendant',
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.indigo),
-      home: const HomePage(),
-    );
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    // Firebase is optional during development on platforms without
+    // google-services.json / GoogleService-Info.plist.
   }
-}
-
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('tendant')),
-      body: const Center(child: Text('Hello, tendant!')),
-    );
-  }
+  final initialSession = await const SessionStore().read();
+  runApp(
+    ProviderScope(
+      child: TendantApp(initialSession: initialSession),
+    ),
+  );
 }

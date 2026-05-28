@@ -15,10 +15,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bcnelson/tendant/services/api/graph"
+	"github.com/bcnelson/tendant/services/api/internal/auth"
 	"github.com/bcnelson/tendant/services/api/internal/chain"
 	"github.com/bcnelson/tendant/services/api/internal/core"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/durable"
+	"github.com/bcnelson/tendant/services/api/internal/push"
+	"github.com/bcnelson/tendant/services/api/internal/realtime"
 	"github.com/bcnelson/tendant/services/api/internal/server"
 )
 
@@ -32,7 +36,6 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	// Subcommand dispatch (seed is added in T018). Default is serve.
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "seed":
@@ -42,7 +45,6 @@ func main() {
 			}
 			return
 		case "serve":
-			// fallthrough to serve
 		default:
 			slog.Error("unknown subcommand", "arg", os.Args[1])
 			os.Exit(2)
@@ -74,32 +76,65 @@ func runServe() error {
 	}
 	defer pool.Close()
 
-	// 2. Apply embedded migrations (idempotent).
+	// 2. Migrations.
 	if err := db.Migrate(ctx, cfg.DatabaseURL); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
-	// 3. Seed the owner Principal.
-	if err := core.SeedOwner(ctx, db.New(pool)); err != nil {
+	// 3. Seed owner Principal.
+	q := db.New(pool)
+	if err := core.SeedOwner(ctx, q); err != nil {
 		return fmt.Errorf("seed owner: %w", err)
 	}
+	ownerURI := ownerGlobalURI(ctx, q)
 
-	// 4. DBOS init / register / launch (recovers PENDING workflows for this executor).
+	// 4. Phase 2 setup secret + push selector.
+	if secret := os.Getenv("TENDANT_SETUP_SECRET"); secret != "" {
+		auth.SetupSecret.Arm(secret)
+		slog.Info("sessions setup_secret armed", "secret_source", "env(TENDANT_SETUP_SECRET)")
+	} else {
+		slog.Warn("TENDANT_SETUP_SECRET not set — device pairing disabled this boot")
+	}
+
+	pushSel := buildPushSelector()
+	slog.Info("push provider", "provider", pushSel.Name())
+	pushWorker := &push.Worker{Queries: q, Selector: pushSel}
+	pushAdapter := pushAdapter{worker: pushWorker}
+
+	// 5. DBOS init / register / launch.
 	dctx, err := durable.Init(ctx, pool, "tendant")
 	if err != nil {
 		return fmt.Errorf("dbos init: %w", err)
 	}
 	defer durable.Shutdown(dctx, 5*time.Second)
-	durable.RegisterChainWorkflow(dctx, pool, db.New(pool), chain.HumanOnlyRouter{})
+	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, ownerURI, pushAdapter)
+	durable.RegisterPushQueue(dctx)
 	if err := durable.Launch(dctx); err != nil {
 		return fmt.Errorf("dbos launch: %w", err)
 	}
 	slog.Info("dbos launched (recovery, if any, completed)")
 
-	// 5. Build the chi router (gqlgen handler + /healthz) and serve.
+	// 6. LISTEN dispatcher.
+	disp, err := realtime.New(ctx, pool, q, nil)
+	if err != nil {
+		return fmt.Errorf("realtime dispatcher: %w", err)
+	}
+	go disp.Run(ctx)
+	defer disp.Stop(context.Background())
+
+	// 7. Operator-edge auth registry assertion.
+	graph.RegisterOperatorEdgeAuth(auth.DefaultRegistry)
+	auth.DefaultRegistry.AssertCovers(graph.OperatorEdgeRequiredFields())
+
+	// 8. HTTP server.
 	httpServer := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           server.New(pool, dctx),
+		Addr: cfg.HTTPAddr,
+		Handler: server.New(pool, dctx, server.Options{
+			Dispatcher:   disp,
+			PushSelector: pushSel,
+			PushQueue:    durable.PushQueueName,
+			SetupSecret:  auth.SetupSecret,
+		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -130,9 +165,46 @@ func runServe() error {
 	return nil
 }
 
-// runSeed creates a Task via internal/core.CreateTask. Ensures the schema
-// + owner Principal exist first (idempotent) so `seed` works even before the
-// server has been booted against a fresh database.
+// pushAdapter implements chain.PushEnqueuer for an in-process push.Worker.
+// Phase 2 runs the worker inline inside the chain workflow's DBOS step
+// (already crash-safe via step memoization). A future optimization can swap
+// this for a real DBOS queue handle.
+type pushAdapter struct{ worker *push.Worker }
+
+func (a pushAdapter) EnqueuePush(ctx context.Context, p chain.PushJobPayload) error {
+	return a.worker.Run(ctx, push.JobPayload{
+		TaskID:             p.TaskID,
+		AssignmentID:       p.AssignmentID,
+		RecipientGlobalURI: p.RecipientGlobalURI,
+		DeepLinkID:         p.DeepLinkID,
+		Title:              p.Title,
+	})
+}
+
+// buildPushSelector reads TENDANT_APNS_* / TENDANT_FCM_* env vars and
+// constructs the platform → provider selector. Falls back to LogProvider
+// when neither real provider is configured.
+func buildPushSelector() push.Selector {
+	sel := push.Selector{Log: push.LogProvider{}}
+	// APNs / FCM real providers wired in US1 T047/T048; until then the
+	// LogProvider stub is the boot default. Future wiring reads:
+	//   TENDANT_APNS_KEY_ID, TENDANT_APNS_TEAM_ID, TENDANT_APNS_BUNDLE_ID,
+	//   TENDANT_APNS_KEY_PATH, TENDANT_APNS_PRODUCTION
+	//   GOOGLE_APPLICATION_CREDENTIALS, TENDANT_FCM_PROJECT_ID
+	return sel
+}
+
+func ownerGlobalURI(ctx context.Context, q *db.Queries) string {
+	v, err := q.GetViewer(ctx)
+	if err != nil {
+		slog.Warn("owner lookup failed; chain workflow will leave to_principal NULL", "err", err)
+		return ""
+	}
+	return v.GlobalUri
+}
+
+// runSeed creates a Task via internal/core.CreateTask. Idempotent on
+// migrations + owner so it works before the server has been booted.
 func runSeed(args []string) error {
 	fs := flag.NewFlagSet("seed", flag.ExitOnError)
 	title := fs.String("title", "hello", "task title")
@@ -156,10 +228,6 @@ func runSeed(args []string) error {
 		return fmt.Errorf("seed owner: %w", err)
 	}
 
-	// Seed CLI does not attach a chain workflow (dctx=nil) — the task is
-	// inserted in state=ACCEPTED, current_stage=CREATION but no workflow
-	// drives it forward. Use the createTask GraphQL mutation for end-to-end
-	// chain testing.
 	created, err := core.CreateTask(ctx, pool, nil, *title, *description)
 	if err != nil {
 		return err
@@ -169,7 +237,6 @@ func runSeed(args []string) error {
 		"global_uri", created.GlobalURI,
 		"title", created.Title,
 	)
-	// Print the id to stdout so scripts can capture it.
 	fmt.Println(created.ID)
 	return nil
 }

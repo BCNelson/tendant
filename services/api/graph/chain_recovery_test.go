@@ -40,10 +40,10 @@ func TestChainRecovery_TriageSurvivesProcessKill(t *testing.T) {
 	// --- Run 1: bring up DBOS, create a task, let it pause at TRIAGE. ---
 	dctx1, err := durable.Init(ctx, pool1, executorID)
 	require.NoError(t, err)
-	durable.RegisterChainWorkflow(dctx1, pool1, db.New(pool1), chain.HumanOnlyRouter{})
+	durable.RegisterChainWorkflow(dctx1, pool1, db.New(pool1), chain.HumanOnlyRouter{}, "", nil)
 	require.NoError(t, durable.Launch(dctx1))
 
-	handler1 := server.New(pool1, dctx1)
+	handler1 := server.New(pool1, dctx1, server.Options{})
 	env1 := &chainEnv{pool: pool1, dctx: dctx1, handler: handler1, queries: db.New(pool1)}
 	taskID := createTaskGQL(t, env1, "recovery test")
 	openBefore := pollUntilAssignmentAt(t, env1, taskID, db.ChainStageTriage)
@@ -72,11 +72,11 @@ func TestChainRecovery_TriageSurvivesProcessKill(t *testing.T) {
 
 	dctx2, err := durable.Init(ctx, pool2, executorID)
 	require.NoError(t, err)
-	durable.RegisterChainWorkflow(dctx2, pool2, q2, chain.HumanOnlyRouter{})
+	durable.RegisterChainWorkflow(dctx2, pool2, q2, chain.HumanOnlyRouter{}, "", nil)
 	require.NoError(t, durable.Launch(dctx2))
 	defer durable.Shutdown(dctx2, 5*time.Second)
 
-	handler2 := server.New(pool2, dctx2)
+	handler2 := server.New(pool2, dctx2, server.Options{})
 	env2 := &chainEnv{pool: pool2, dctx: dctx2, handler: handler2, queries: q2}
 
 	// Same assignment row should still be the open one.

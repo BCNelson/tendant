@@ -45,13 +45,13 @@ func newChainEnv(t *testing.T) *chainEnv {
 	executorID := "test-" + uuid.New().String()
 	dctx, err := durable.Init(ctx, pool, executorID)
 	require.NoError(t, err)
-	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{})
+	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, "", nil)
 	require.NoError(t, durable.Launch(dctx))
 	t.Cleanup(func() {
 		durable.Shutdown(dctx, 5*time.Second)
 	})
 
-	handler := server.New(pool, dctx)
+	handler := server.New(pool, dctx, server.Options{})
 	return &chainEnv{pool: pool, dctx: dctx, handler: handler, queries: q}
 }
 

@@ -9,3 +9,13 @@ ON CONFLICT (global_uri) DO NOTHING;
 SELECT id, global_uri, kind, display_name, created_at
 FROM principals
 WHERE global_uri = 'local://principal/owner';
+
+-- name: GetPrincipalByID :one
+SELECT id, global_uri, kind, display_name, created_at
+FROM principals
+WHERE id = $1;
+
+-- name: GetPrincipalByGlobalURI :one
+SELECT id, global_uri, kind, display_name, created_at
+FROM principals
+WHERE global_uri = $1;

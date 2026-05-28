@@ -1,0 +1,7 @@
+mutation CompleteTask($taskId: ID!, $result: JSON) {
+  completeTask(taskId: $taskId, result: $result) {
+    id
+    state
+    currentStage
+  }
+}

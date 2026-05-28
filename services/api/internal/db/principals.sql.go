@@ -7,7 +7,47 @@ package db
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
+
+const getPrincipalByGlobalURI = `-- name: GetPrincipalByGlobalURI :one
+SELECT id, global_uri, kind, display_name, created_at
+FROM principals
+WHERE global_uri = $1
+`
+
+func (q *Queries) GetPrincipalByGlobalURI(ctx context.Context, globalUri string) (Principal, error) {
+	row := q.db.QueryRow(ctx, getPrincipalByGlobalURI, globalUri)
+	var i Principal
+	err := row.Scan(
+		&i.ID,
+		&i.GlobalUri,
+		&i.Kind,
+		&i.DisplayName,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getPrincipalByID = `-- name: GetPrincipalByID :one
+SELECT id, global_uri, kind, display_name, created_at
+FROM principals
+WHERE id = $1
+`
+
+func (q *Queries) GetPrincipalByID(ctx context.Context, id uuid.UUID) (Principal, error) {
+	row := q.db.QueryRow(ctx, getPrincipalByID, id)
+	var i Principal
+	err := row.Scan(
+		&i.ID,
+		&i.GlobalUri,
+		&i.Kind,
+		&i.DisplayName,
+		&i.CreatedAt,
+	)
+	return i, err
+}
 
 const getViewer = `-- name: GetViewer :one
 SELECT id, global_uri, kind, display_name, created_at

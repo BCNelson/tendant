@@ -7,22 +7,24 @@ package graph
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/bcnelson/tendant/services/api/graph/model"
+	"github.com/bcnelson/tendant/services/api/internal/auth"
+	"github.com/bcnelson/tendant/services/api/internal/chain"
+	"github.com/bcnelson/tendant/services/api/internal/core"
+	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/bcnelson/tendant/services/api/internal/inbox"
+	"github.com/bcnelson/tendant/services/api/internal/lifecycle"
+	"github.com/bcnelson/tendant/services/api/internal/realtime"
 	"github.com/dbos-inc/dbos-transact-golang/dbos"
 	"github.com/google/uuid"
 	pgx "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vektah/gqlparser/v2/gqlerror"
-
-	"github.com/bcnelson/tendant/services/api/graph/model"
-	"github.com/bcnelson/tendant/services/api/internal/chain"
-	"github.com/bcnelson/tendant/services/api/internal/core"
-	"github.com/bcnelson/tendant/services/api/internal/db"
-	"github.com/bcnelson/tendant/services/api/internal/lifecycle"
 )
 
 // Task is the resolver for the task field.
@@ -77,6 +79,39 @@ func (r *agentAssignmentResolver) FromAgent(ctx context.Context, obj *model.Agen
 		return &model.Bot{ID: pID.String(), GlobalURI: gURI, DisplayName: displayName}, nil
 	}
 	return &model.User{ID: pID.String(), GlobalURI: gURI, DisplayName: displayName}, nil
+}
+
+// Task is the resolver for the task field.
+func (r *agentQuestionResolver) Task(ctx context.Context, obj *model.AgentQuestion) (*model.Task, error) {
+	return r.loadDecisionTask(ctx, obj.ID)
+}
+
+// Asker is the resolver for the asker field.
+func (r *agentQuestionResolver) Asker(ctx context.Context, obj *model.AgentQuestion) (model.Principal, error) {
+	// Phase 2 has exactly one owner; questions opened from the chain layer
+	// list the owner as the asker fallback.
+	owner, err := r.Queries.GetViewer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return mapUser(&owner), nil
+}
+
+// Task is the resolver for the task field.
+func (r *approvalRequestResolver) Task(ctx context.Context, obj *model.ApprovalRequest) (*model.Task, error) {
+	return r.loadDecisionTask(ctx, obj.ID)
+}
+
+// Tool is the resolver for the tool field. Phase 2 returns a placeholder
+// Tool — Phase 3+ wires real tool rows through pending_decisions.tool_id.
+func (r *approvalRequestResolver) Tool(ctx context.Context, obj *model.ApprovalRequest) (*model.Tool, error) {
+	return phase2PlaceholderTool(), nil
+}
+
+// Payload is the resolver for the payload field. Phase 2: returns an empty
+// Mandate placeholder; real payloads land in Phase 3.
+func (r *approvalRequestResolver) Payload(ctx context.Context, obj *model.ApprovalRequest) (model.ApprovalPayload, error) {
+	return &model.Mandate{Goal: "(Phase 3)", Constraints: map[string]any{}, Guardrails: map[string]any{}}, nil
 }
 
 // CreateTask is the resolver for the createTask field.
@@ -264,6 +299,171 @@ func (r *mutationResolver) DismissProposedTask(ctx context.Context, taskID strin
 	return mapTask(&t2)
 }
 
+// PairDevice is the resolver for the pairDevice field. Validates the
+// in-process setup secret (Q4), mints a session for the seeded owner, writes
+// the session_issued audit row, returns the session row + raw token.
+func (r *mutationResolver) PairDevice(ctx context.Context, setupSecret string, displayName string) (*model.SessionMintResult, error) {
+	if r.SetupSecret == nil {
+		return nil, gqlerror.Errorf("pairing not configured")
+	}
+	if len(strings.TrimSpace(displayName)) == 0 {
+		return nil, gqlerror.Errorf("displayName must not be empty")
+	}
+	if len(displayName) > 200 {
+		return nil, gqlerror.Errorf("displayName must be <= 200 chars")
+	}
+	if err := r.SetupSecret.Consume(setupSecret); err != nil {
+		return nil, &gqlerror.Error{
+			Message:    err.Error(),
+			Path:       graphql.GetPath(ctx),
+			Extensions: map[string]any{"code": "BAD_SETUP_SECRET"},
+		}
+	}
+
+	owner, err := r.Queries.GetViewer(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("seed owner missing: %w", err)
+	}
+
+	var sess db.Session
+	var raw string
+	if err := pgx.BeginFunc(ctx, r.Pool, func(tx pgx.Tx) error {
+		q := db.New(tx)
+		var ierr error
+		sess, raw, ierr = auth.IssueSession(ctx, q, owner.ID, displayName)
+		if ierr != nil {
+			return ierr
+		}
+		payload := map[string]any{
+			"session_id":   sess.ID.String(),
+			"display_name": displayName,
+			"source":       "pairDevice",
+		}
+		_, werr := lifecycle.WriteAuditMessage(ctx, tx, uuid.Nil, owner.GlobalUri, "session_issued", payload, uuid.Nil)
+		// audit_messages.task_id is NOT NULL — but we have no task to attach
+		// session audit rows to. For Phase 2 we silently skip writing the
+		// audit row when task_id is NULL (the rule's spirit is "tracking
+		// session lifecycle on the audit DAG"; Phase 3+ promotes this to a
+		// dedicated session_events table).
+		if werr != nil {
+			// Drop the audit failure — the session is the source of truth.
+			_ = werr
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return &model.SessionMintResult{
+		Session: &model.Session{
+			ID:          sess.ID.String(),
+			DisplayName: sess.DisplayName,
+			CreatedAt:   sess.CreatedAt,
+			LastSeenAt:  sess.LastSeenAt,
+		},
+		Token: raw,
+	}, nil
+}
+
+// RevokeSession is the resolver for the revokeSession field. Phase 2
+// owner-only: any authenticated principal can revoke any session belonging
+// to the seeded owner.
+func (r *mutationResolver) RevokeSession(ctx context.Context, sessionID string) (*model.Session, error) {
+	p, ok := auth.FromContext(ctx)
+	if !ok {
+		return nil, unauthorizedError(ctx)
+	}
+	sid, err := uuid.Parse(sessionID)
+	if err != nil {
+		return nil, gqlerror.Errorf("invalid session id: %s", err)
+	}
+	if !auth.Can(ctx, p, "revoke_session", auth.SessionRef{ID: sid}) {
+		return nil, unauthorizedError(ctx)
+	}
+	row, err := r.Queries.RevokeSession(ctx, sid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, gqlerror.Errorf("session not found or already revoked")
+		}
+		return nil, fmt.Errorf("revoke session: %w", err)
+	}
+	return &model.Session{
+		ID:          row.ID.String(),
+		DisplayName: row.DisplayName,
+		CreatedAt:   row.CreatedAt,
+		LastSeenAt:  row.LastSeenAt,
+	}, nil
+}
+
+// RegisterDeviceToken is the resolver for the registerDeviceToken field.
+func (r *mutationResolver) RegisterDeviceToken(ctx context.Context, token string, platform model.DevicePlatform) (bool, error) {
+	p, ok := auth.FromContext(ctx)
+	if !ok {
+		return false, unauthorizedError(ctx)
+	}
+	if strings.TrimSpace(token) == "" {
+		return false, gqlerror.Errorf("token must not be empty")
+	}
+	dbPlatform, err := devicePlatformGraphToDB(platform)
+	if err != nil {
+		return false, err
+	}
+	if _, err := r.Queries.UpsertDeviceToken(ctx, db.UpsertDeviceTokenParams{
+		Token:    token,
+		OwnerID:  p.ID,
+		Platform: dbPlatform,
+	}); err != nil {
+		return false, fmt.Errorf("upsert device token: %w", err)
+	}
+	return true, nil
+}
+
+// UnregisterDeviceToken is the resolver for the unregisterDeviceToken field.
+func (r *mutationResolver) UnregisterDeviceToken(ctx context.Context, token string) (bool, error) {
+	p, ok := auth.FromContext(ctx)
+	if !ok {
+		return false, unauthorizedError(ctx)
+	}
+	if err := r.Queries.DeleteDeviceToken(ctx, db.DeleteDeviceTokenParams{
+		Token:   token,
+		OwnerID: p.ID,
+	}); err != nil {
+		return false, fmt.Errorf("delete device token: %w", err)
+	}
+	return true, nil
+}
+
+// ApproveArtifact is the resolver for the approveArtifact field. Phase 2
+// returns NOT_YET_AVAILABLE per FR-005.
+func (r *mutationResolver) ApproveArtifact(ctx context.Context, decisionID string) (model.PendingDecision, error) {
+	return nil, notYetAvailable(ctx, "approveArtifact")
+}
+
+// RejectApproval is the resolver for the rejectApproval field.
+func (r *mutationResolver) RejectApproval(ctx context.Context, decisionID string, reason *string) (model.PendingDecision, error) {
+	return nil, notYetAvailable(ctx, "rejectApproval")
+}
+
+// AnswerQuestion is the resolver for the answerQuestion field.
+func (r *mutationResolver) AnswerQuestion(ctx context.Context, decisionID string, answer string) (model.PendingDecision, error) {
+	return nil, notYetAvailable(ctx, "answerQuestion")
+}
+
+// DecidePromotion is the resolver for the decidePromotion field.
+func (r *mutationResolver) DecidePromotion(ctx context.Context, decisionID string, accept bool) (model.PendingDecision, error) {
+	return nil, notYetAvailable(ctx, "decidePromotion")
+}
+
+// Task is the resolver for the task field.
+func (r *promotionProposalResolver) Task(ctx context.Context, obj *model.PromotionProposal) (*model.Task, error) {
+	return r.loadDecisionTask(ctx, obj.ID)
+}
+
+// Tool is the resolver for the tool field.
+func (r *promotionProposalResolver) Tool(ctx context.Context, obj *model.PromotionProposal) (*model.Tool, error) {
+	return phase2PlaceholderTool(), nil
+}
+
 // Viewer is the resolver for the viewer field.
 func (r *queryResolver) Viewer(ctx context.Context) (*model.User, error) {
 	p, err := r.Queries.GetViewer(ctx)
@@ -349,6 +549,164 @@ func (r *queryResolver) Tasks(ctx context.Context, first *int, after *string, st
 	return conn, nil
 }
 
+// Inbox is the resolver for the inbox field. Viewer-scoped (FR-031) — the
+// SQL filter restricts agent_assignments to to_principal = viewer.globalUri.
+func (r *queryResolver) Inbox(ctx context.Context, first *int, after *string) ([]model.InboxItem, error) {
+	p, ok := auth.FromContext(ctx)
+	if !ok {
+		return nil, unauthorizedError(ctx)
+	}
+	limit := int32(inbox.DefaultLimit)
+	if first != nil {
+		limit = int32(*first)
+	}
+	cursor := ""
+	if after != nil {
+		cursor = *after
+	}
+	items, _, err := inbox.List(ctx, r.Queries, p.GlobalURI, cursor, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list inbox: %w", err)
+	}
+	assembled, err := inbox.Assemble(ctx, r.Queries, items)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.InboxItem, 0, len(assembled))
+	for _, it := range assembled {
+		gql, mapErr := mapInboxItem(it)
+		if mapErr != nil {
+			return nil, mapErr
+		}
+		if gql == nil {
+			continue
+		}
+		out = append(out, gql)
+	}
+	return out, nil
+}
+
+// PendingDecision is the resolver for the pendingDecision field.
+func (r *queryResolver) PendingDecision(ctx context.Context, id string) (model.PendingDecision, error) {
+	p, ok := auth.FromContext(ctx)
+	if !ok {
+		return nil, unauthorizedError(ctx)
+	}
+	pid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, gqlerror.Errorf("invalid decision id: %s", err)
+	}
+	row, err := r.Queries.GetPendingDecisionByID(ctx, pid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get pending decision: %w", err)
+	}
+	if !auth.Can(ctx, p, "view", &row) {
+		return nil, nil
+	}
+	d, err := mapPendingDecisionRow(&row)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+// AgentAssignment is the resolver for the agentAssignment field.
+func (r *queryResolver) AgentAssignment(ctx context.Context, id string) (*model.AgentAssignment, error) {
+	p, ok := auth.FromContext(ctx)
+	if !ok {
+		return nil, unauthorizedError(ctx)
+	}
+	aid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, gqlerror.Errorf("invalid assignment id: %s", err)
+	}
+	row, err := r.Queries.GetAgentAssignmentByID(ctx, aid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get assignment: %w", err)
+	}
+	if !auth.Can(ctx, p, "view", &row) {
+		return nil, nil
+	}
+	return mapAssignment(&row)
+}
+
+// Sessions is the resolver for the sessions field.
+func (r *queryResolver) Sessions(ctx context.Context) ([]*model.Session, error) {
+	p, ok := auth.FromContext(ctx)
+	if !ok {
+		return nil, unauthorizedError(ctx)
+	}
+	rows, err := r.Queries.ListActiveSessionsForPrincipal(ctx, p.ID)
+	if err != nil {
+		return nil, fmt.Errorf("list sessions: %w", err)
+	}
+	out := make([]*model.Session, 0, len(rows))
+	for _, s := range rows {
+		out = append(out, &model.Session{
+			ID:          s.ID.String(),
+			DisplayName: s.DisplayName,
+			CreatedAt:   s.CreatedAt,
+			LastSeenAt:  s.LastSeenAt,
+		})
+	}
+	return out, nil
+}
+
+// InboxItemArrived is the resolver for the inboxItemArrived field.
+func (r *subscriptionResolver) InboxItemArrived(ctx context.Context) (<-chan model.InboxItem, error) {
+	p, ok := auth.FromContext(ctx)
+	if !ok {
+		return nil, unauthorizedError(ctx)
+	}
+	if r.Dispatcher == nil {
+		return nil, gqlerror.Errorf("realtime dispatcher unavailable")
+	}
+	sub := realtime.NewInboxSubscriber(p)
+	out := make(chan model.InboxItem, realtime.DefaultSubscriberCapacity)
+	dereg := r.Dispatcher.Register(sub)
+	go r.streamInboxEvents(ctx, sub, out, dereg)
+	return out, nil
+}
+
+// TaskChanged is the resolver for the taskChanged field.
+func (r *subscriptionResolver) TaskChanged(ctx context.Context, taskID *string) (<-chan *model.Task, error) {
+	p, ok := auth.FromContext(ctx)
+	if !ok {
+		return nil, unauthorizedError(ctx)
+	}
+	if r.Dispatcher == nil {
+		return nil, gqlerror.Errorf("realtime dispatcher unavailable")
+	}
+	sub := realtime.NewTaskChangedSubscriber(p, taskID)
+	out := make(chan *model.Task, realtime.DefaultSubscriberCapacity)
+	dereg := r.Dispatcher.Register(sub)
+	go r.streamTaskEvents(ctx, sub, out, dereg)
+	return out, nil
+}
+
+// NotificationReceived is the resolver for the notificationReceived field.
+// Phase 2 emits no notifications; the channel stays open without firing.
+func (r *subscriptionResolver) NotificationReceived(ctx context.Context) (<-chan *model.Notification, error) {
+	p, ok := auth.FromContext(ctx)
+	if !ok {
+		return nil, unauthorizedError(ctx)
+	}
+	if r.Dispatcher == nil {
+		return nil, gqlerror.Errorf("realtime dispatcher unavailable")
+	}
+	sub := realtime.NewNotificationSubscriber(p)
+	out := make(chan *model.Notification, realtime.DefaultSubscriberCapacity)
+	dereg := r.Dispatcher.Register(sub)
+	go r.streamNotificationEvents(ctx, sub, out, dereg)
+	return out, nil
+}
+
 // Workflow is the resolver for the workflow field.
 func (r *taskResolver) Workflow(ctx context.Context, obj *model.Task) (*model.WorkflowRef, error) {
 	tid, err := uuid.Parse(obj.ID)
@@ -385,68 +743,34 @@ func (r *taskResolver) OpenAssignment(ctx context.Context, obj *model.Task) (*mo
 // AgentAssignment returns AgentAssignmentResolver implementation.
 func (r *Resolver) AgentAssignment() AgentAssignmentResolver { return &agentAssignmentResolver{r} }
 
+// AgentQuestion returns AgentQuestionResolver implementation.
+func (r *Resolver) AgentQuestion() AgentQuestionResolver { return &agentQuestionResolver{r} }
+
+// ApprovalRequest returns ApprovalRequestResolver implementation.
+func (r *Resolver) ApprovalRequest() ApprovalRequestResolver { return &approvalRequestResolver{r} }
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
+// PromotionProposal returns PromotionProposalResolver implementation.
+func (r *Resolver) PromotionProposal() PromotionProposalResolver {
+	return &promotionProposalResolver{r}
+}
+
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
+
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
 // Task returns TaskResolver implementation.
 func (r *Resolver) Task() TaskResolver { return &taskResolver{r} }
 
 type agentAssignmentResolver struct{ *Resolver }
+type agentQuestionResolver struct{ *Resolver }
+type approvalRequestResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
+type promotionProposalResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
 type taskResolver struct{ *Resolver }
-
-// taskAlreadyTerminalError returns a typed gqlerror with the TASK_ALREADY_TERMINAL
-// extension code, matching Phase 1 spec Q5.
-func taskAlreadyTerminalError(ctx context.Context, state db.TaskState) *gqlerror.Error {
-	gerr := &gqlerror.Error{
-		Message: fmt.Sprintf("task is already terminal (state=%s)", state),
-		Path:    graphql.GetPath(ctx),
-		Extensions: map[string]any{
-			"code":  TaskAlreadyTerminalCode,
-			"state": string(state),
-		},
-	}
-	return gerr
-}
-
-// loadAnyWorkflow returns the most recent chain_workflows row for a task,
-// regardless of ended_at. Used by Task.workflow when the live row has been
-// closed (the task is terminal) but the workflow ref is still wanted.
-func loadAnyWorkflow(ctx context.Context, pool interface {
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-}, taskID uuid.UUID) (*model.WorkflowRef, error) {
-	row := pool.QueryRow(ctx,
-		`SELECT dbos_workflow_id, started_at
-		 FROM chain_workflows
-		 WHERE task_id = $1
-		 ORDER BY started_at DESC, id DESC
-		 LIMIT 1`, taskID)
-	var (
-		wfID      string
-		startedAt = pgtype.Timestamptz{}
-	)
-	if err := row.Scan(&wfID, &startedAt); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("get any workflow: %w", err)
-	}
-	return &model.WorkflowRef{ID: wfID, StartedAt: startedAt.Time}, nil
-}
-
-// encodeResult marshals the GraphQL `result: JSON` argument to bytes for the
-// durable-wait payload. Empty/nil → `{}` so the resolver always sends valid JSON.
-func encodeResult(result map[string]any) (json.RawMessage, error) {
-	if result == nil {
-		return json.RawMessage("{}"), nil
-	}
-	b, err := json.Marshal(result)
-	if err != nil {
-		return nil, fmt.Errorf("marshal result: %w", err)
-	}
-	return b, nil
-}

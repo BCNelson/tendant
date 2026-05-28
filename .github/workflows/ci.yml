@@ -43,6 +43,15 @@ jobs:
             exit 1
           fi
 
+  flutter-schema-mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert apps/mobile/graphql/schema.graphql matches services/api/graph/schema.graphqls
+        run: |
+          diff -u services/api/graph/schema.graphqls apps/mobile/graphql/schema.graphql \
+            || { echo "::error::Flutter schema mirror is stale; run 'just sync-flutter-schema'"; exit 1; }
+
   go-test:
     runs-on: ubuntu-latest
     # GitHub-hosted runners ship with Docker; testcontainers + DBOS need it.

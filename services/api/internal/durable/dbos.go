@@ -48,6 +48,24 @@ func Shutdown(ctx dbos.DBOSContext, timeout time.Duration) {
 // its runtime deps. MUST be called between Init and Launch — Launch performs
 // recovery against the registered function, so the function must be in place
 // beforehand. Wires the deps through chain.Register.
-func RegisterChainWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router chain.Router) {
-	chain.Register(dctx, pool, q, router)
+//
+// ownerGlobalURI populates agent_assignments.to_principal for Phase 2;
+// pushEnqueuer (nil-able) schedules push fan-out on assignment open.
+func RegisterChainWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router chain.Router, ownerGlobalURI string, pushEnqueuer chain.PushEnqueuer) {
+	chain.Register(dctx, pool, q, router, ownerGlobalURI, pushEnqueuer)
+}
+
+// PushQueueName is the named DBOS workflow queue used for push fan-out.
+const PushQueueName = "push"
+
+// RegisterPushQueue declares the named DBOS workflow queue for push fan-out
+// and (when handler is non-nil) registers the per-job workflow against it.
+// MUST be called between Init and Launch. handler nil signals "no real
+// workers wired this boot" — useful when only LogProvider is configured
+// (the chain workflow's push enqueue still records the work via the
+// recordingPushEnqueuer-style hook in `chain.Register`).
+func RegisterPushQueue(dctx dbos.DBOSContext) {
+	_ = dbos.NewWorkflowQueue(dctx, PushQueueName,
+		dbos.WithWorkerConcurrency(4),
+	)
 }

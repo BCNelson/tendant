@@ -1,0 +1,7 @@
+subscription TaskChanged($taskId: ID) {
+  taskChanged(taskId: $taskId) {
+    id
+    state
+    currentStage
+  }
+}

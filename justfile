@@ -71,10 +71,20 @@ tidy:
 generate:
     cd services/api && sqlc generate
     cd services/api && go run github.com/99designs/gqlgen generate
+    just sync-flutter-schema
+
+# Mirror the live GraphQL schema into the Flutter app for ferry codegen.
+# CI runs the same and asserts no diff (drift gate).
+sync-flutter-schema:
+    cp services/api/graph/schema.graphqls apps/mobile/graphql/schema.graphql
 
 # Run the DBOS recovery demo (kill -9 + restart, assert exactly-once).
 dbos-demo:
     bash scripts/dbos-recovery-demo.sh
+
+# Phase 2 end-to-end verification (pair → push → subscription → revoke).
+phase2-demo:
+    bash scripts/phase2-demo.sh
 
 # Build container image (uses Dockerfile multi-stage)
 docker-build:
