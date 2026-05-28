@@ -1,0 +1,41 @@
+# Tendant operator-edge GraphQL — v1 (Phase 0 read-only subset).
+# Source of truth: specs/001-foundations-scaffolding/contracts/graphql.v1.graphqls.
+# Kept in sync; CI checks gqlgen drift.
+
+scalar Time
+scalar JSON
+
+enum TaskState     { PROPOSED ACCEPTED ELIGIBLE EXECUTING DONE DISMISSED HALTED }
+enum ChainStage    { CREATION TRIAGE EXPANSION EXECUTION COMPLETION }
+enum AutonomyLevel { NONE ENRICH_ONLY PROPOSE EXECUTE_GATED EXECUTE_AUTO }
+
+# Every actor is a Principal; federation-shaped via globalUri (Principle VIII).
+interface Principal { id: ID!  globalUri: String!  displayName: String! }
+type User implements Principal { id: ID!  globalUri: String!  displayName: String! }
+type Bot  implements Principal { id: ID!  globalUri: String!  displayName: String! }
+
+type WorkflowRef { id: ID!  startedAt: Time! }
+
+type Task {
+  id: ID!  globalUri: String!
+  title: String!  description: String
+  state: TaskState!
+  currentStage: ChainStage!
+  autonomy: AutonomyLevel!      # resolved readout, NOT a stored/settable dial (P1)
+  provenance: JSON
+  contextRefs: JSON
+  findings: JSON
+  workflow: WorkflowRef         # null until a chain workflow attaches (P2)
+  createdAt: Time!  editedAt: Time
+}
+
+# Relay connection — hand-written (gqlgen has no connection generator); keyset cursors.
+type TaskEdge { node: Task!  cursor: String! }
+type TaskConnection { edges: [TaskEdge!]!  pageInfo: PageInfo! }
+type PageInfo { hasNextPage: Boolean!  endCursor: String }
+
+type Query {
+  viewer: User
+  task(id: ID!): Task
+  tasks(first: Int, after: String, state: TaskState): TaskConnection!
+}

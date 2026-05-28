@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/bcnelson/tendant/internal/testutil"
+	"github.com/bcnelson/tendant/services/api/internal/testutil"
 
 	"github.com/stretchr/testify/require"
 )
@@ -17,4 +17,3 @@ func TestPostgresContainerStarts(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 }
-

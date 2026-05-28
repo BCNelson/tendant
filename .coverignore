@@ -1,3 +1,5 @@
-cmd/tendant/
-internal/db/gen/
-internal/testutil/
+services/api/cmd/
+services/api/internal/db/
+services/api/internal/testutil/
+services/api/graph/generated.go
+services/api/graph/model/

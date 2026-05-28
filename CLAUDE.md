@@ -6,59 +6,83 @@ One-line description goes here.
 
 | Concern | Choice |
 |---|---|
-| Language | Go 1.23+ |
-| DB access | sqlc + pgx/v5 |
-| Migrations | goose (in `db/migrations/`) |
+| Language | Go 1.25 (toolchain auto-tracks; locally Go 1.26 is fine) |
+| Workspace | `go.work` with two modules: `services/api` + `db` |
+| HTTP | `chi/v5` |
+| GraphQL | `gqlgen` v0.17.90 (schema-first; generated code committed) |
+| DB driver | `pgx/v5` (≥ v5.9.2) |
+| DB codegen | `sqlc` v1.31.1 (queries → `services/api/internal/db`) |
+| Migrations | `goose/v3` v3.27.1 (embedded `embed.FS` in `db` module) |
+| Durable engine | `dbos-transact-golang` v0.15.0 (shares the app Postgres, `dbos` schema) |
 | Mobile | Flutter (in `apps/mobile/`) |
 | Logs | `log/slog` JSON |
-| Tests | `go test -race` + testcontainers-go |
-| Task runner | Just |
-| Linter | golangci-lint v2 |
+| Tests | `go test -race` + testcontainers-go v0.39.0 (Docker v28.5.2 coupling) |
+| Task runner | Just (root `Makefile` shim → `just`) |
+| Linter | golangci-lint v2 (per-module) |
+| Credentials at rest | AES-256-GCM seam in `internal/crypto` (intake lands in Phase 7) |
 
 ## Project layout
 
 ```
 .
-├── cmd/tendant/        # Main binary
-├── internal/             # Domain packages (not importable externally)
-│   ├── db/               # sqlc config, queries, generated code
-│   └── testutil/         # Shared testcontainers helpers
-├── apps/mobile/          # Flutter app
-├── db/migrations/        # goose-numbered SQL migrations
-├── services/             # Placeholder for future go.work monorepo split
-└── .github/workflows/    # CI + container publish
+├── go.work                              # use ./services/api ; use ./db
+├── compose.yaml                         # postgres (pgvector/pgvector:pg16) for `just up`
+├── db/                                  # module github.com/bcnelson/tendant/db
+│   ├── embed.go                         # //go:embed migrations/*.sql
+│   └── migrations/                      # goose-numbered SQL migrations (00001_*)
+├── services/api/                        # module github.com/bcnelson/tendant/services/api
+│   ├── cmd/tendant/                     # main binary: boot → migrate → seed → DBOS Launch → serve
+│   ├── cmd/dbosdemo/                    # throwaway crash-recovery proof (kill -9 + restart)
+│   ├── graph/                           # gqlgen: schema, generated.go, model/, resolvers
+│   ├── sqlc.yaml / gqlgen.yml
+│   └── internal/
+│       ├── db/                          # sqlc-generated + migrate.go + tests
+│       ├── server/                      # config + pool + chi router
+│       ├── core/                        # CreateTask, SeedOwner, globalUri helpers
+│       ├── durable/                     # DBOS init/launch/shutdown wrapper
+│       ├── crypto/                      # AES-256-GCM Seal/Open (TENDANT_CREDENTIALS_KEY)
+│       └── testutil/                    # testcontainers Postgres shared-pool helper
+├── apps/mobile/                         # Flutter app
+├── scripts/                             # dbos-recovery-demo.sh, etc.
+└── .github/workflows/                   # CI (lint, codegen-drift, test) + container publish
 ```
 
 ## Running locally
 
 ```sh
-# First time — enters the devenv shell with Go, Flutter, Postgres all wired up
-direnv allow
+direnv allow             # devenv shell: Go 1.25, Postgres 16+pgvector, sqlc, goose, just
 
-# Build + run
-just build
-just run
+# Bring up Postgres + the core (migrates, seeds owner, serves /graphql + /healthz).
+make up                  # equivalent: just up
+curl -fsS localhost:8080/healthz
+
+make down                # tears down compose volume so next up re-migrates clean (SC-001)
+
+just seed-task TITLE=hello       # insert a Task via internal/core.CreateTask
 ```
 
 ## Testing
 
-`just test` runs `go test -race` with coverage. Tests use testcontainers-go, so Docker (or rootless Podman) must be running. The shared container starts once per test binary and each test gets a unique database.
+`just test` runs `go test -race` per workspace module. Tests use testcontainers-go, so
+Docker (or rootless Podman) must be running. The shared container starts once per test
+binary and each test gets a unique database.
 
 ```sh
-just test        # all tests
-just coverage    # HTML report at coverage.html
+just test                # all tests, per-module
+just coverage            # HTML report at coverage.html
+just dbos-demo           # kill -9 + restart proof (scripts/dbos-recovery-demo.sh)
 ```
 
 ## Database
 
-Migrations live in `db/migrations/` and are run with `goose`. sqlc config is in `internal/db/sqlc.yaml`; queries go in `internal/db/queries/*.sql`; regenerate with `just generate`.
+Migrations live in `db/migrations/` and are run with `goose` via
+`services/api/internal/db.Migrate(ctx, dsn)` on boot. sqlc config is in
+`services/api/sqlc.yaml`; queries go in `services/api/internal/db/queries/*.sql`;
+regenerate with `just generate`.
 
 ```sh
-# Create a new migration
-goose -dir db/migrations create my_change sql
-
-# Regenerate sqlc code after editing queries
-just generate
+goose -dir db/migrations create my_change sql        # new migration
+just generate                                        # sqlc + gqlgen (committed, CI checks drift)
 ```
 
 ## MCP servers
@@ -69,12 +93,14 @@ just generate
 - **postgres** — read access to `$DATABASE_URL` once devenv is active.
 - **dart-mcp-server** — Dart/Flutter tooling.
 
-process-compose MCP is configured separately at the devenv layer — devenv exposes the SSE endpoint, picked up by your global Claude Code config. Not in this file.
+process-compose MCP is configured separately at the devenv layer.
 
 ## CI
 
-- `.github/workflows/ci.yml` runs on PRs: Go lint, Go test with coverage.
-- `.github/workflows/container.yml` publishes a multi-arch image to GHCR on pushes to `main` and semver tags.
+- `.github/workflows/ci.yml` runs on PRs: per-module Go lint, codegen-drift (sqlc + gqlgen),
+  workspace tests with coverage (testcontainers needs Docker on the runner).
+- `.github/workflows/container.yml` publishes a multi-arch image to GHCR on pushes to
+  `main` and semver tags. The Dockerfile is workspace-aware (`go build -C services/api`).
 
 ## Conventions
 
@@ -86,9 +112,8 @@ process-compose MCP is configured separately at the devenv layer — devenv expo
 - No package-level mutable state. No `init()` for behavior — only registration of types.
 
 <!-- SPECKIT START -->
-Active feature: **001-foundations-scaffolding** (Phase 0). For technologies, project
-structure, startup order, and decisions (DBOS, gqlgen, goose, sqlc, go.work layout, Go 1.25
-bump, AES-256-GCM credential seam), read the current plan:
-`specs/001-foundations-scaffolding/plan.md` (+ `research.md`, `data-model.md`,
-`contracts/graphql.v1.graphqls`, `quickstart.md`).
+Phase 0 (Foundations & Scaffolding) is **complete** — schema, GraphQL read surface, DBOS,
+CI gates all landed on this branch. For the full design, see
+`specs/001-foundations-scaffolding/{spec,plan,research,data-model,quickstart}.md` and the
+v1 contract at `specs/001-foundations-scaffolding/contracts/graphql.v1.graphqls`.
 <!-- SPECKIT END -->

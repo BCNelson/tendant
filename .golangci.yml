@@ -17,10 +17,18 @@ linters:
         - diagnostic
         - style
         - performance
+      disabled-checks:
+        # typeDefFirst conflicts with gqlgen's generated layout (resolver type
+        # at end of file). ptrToRefParam fires on intentional in-place fillers
+        # like unmarshalJSON(raw, &dst) — keep them.
+        - typeDefFirst
+        - ptrToRefParam
   exclusions:
+    # Generated files (sqlc, gqlgen) carry "DO NOT EDIT" headers and are
+    # excluded by golangci's default generated-file detection. Below are the
+    # hand-written paths we still want to skip.
     paths:
-      - internal/db/gen
-      - internal/testutil
+      - services/api/internal/testutil
 
 formatters:
   enable:

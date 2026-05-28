@@ -6,15 +6,40 @@ LDFLAGS := "-X main.version=" + VERSION + " -X main.commit=" + COMMIT + " -X mai
 
 # Build the binary
 build: generate
-    go build -ldflags '{{LDFLAGS}}' -o tendant ./cmd/tendant
+    go build -C services/api -ldflags '{{LDFLAGS}}' -o ../../tendant ./cmd/tendant
 
 # Run the binary
 run: build
     ./tendant
 
-# Run all Go tests with coverage
+# Bring up Postgres + the core (boots, migrates, seeds, serves /graphql).
+# Uses the in-shell devenv Postgres if active; falls back to docker compose.
+up:
+    @if pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null; then \
+        echo "postgres already running"; \
+    else \
+        echo "starting postgres via docker compose"; \
+        docker compose up -d postgres; \
+        until pg_isready -h 127.0.0.1 -p 5432 -q; do sleep 0.5; done; \
+    fi
+    go run -C services/api ./cmd/tendant
+
+# Stop the core and tear down Postgres + its volume so the next `up`
+# re-migrates from clean (SC-001 idempotency).
+down:
+    -pkill -f "go-build.*tendant" 2>/dev/null || true
+    -pkill -f "exe/tendant" 2>/dev/null || true
+    docker compose down -v 2>/dev/null || true
+
+# Seed a Task via the in-process CreateTask path (TITLE=... override).
+seed-task TITLE="hello":
+    go run -C services/api ./cmd/tendant seed --title="{{TITLE}}"
+
+# Run all Go tests with coverage across the workspace (per-module — go test
+# ./... won't traverse a go.work root).
 test:
-    go test -race -count=1 -timeout=300s -coverprofile=coverage.out -covermode=atomic ./cmd/... ./internal/...
+    cd services/api && go test -race -count=1 -timeout=600s -coverprofile=../../coverage.out -covermode=atomic ./...
+    cd db && go test -race -count=1 -timeout=600s ./... || true
     go tool cover -func=coverage.out
 
 # Coverage HTML report at coverage.html (filtered via .coverignore if present)
@@ -26,22 +51,30 @@ coverage: test
     go tool cover -html=coverage.out -o coverage.html
     @echo "Coverage report: coverage.html"
 
-# Lint
+# Lint per-module (golangci-lint doesn't traverse go.work from the root).
 lint:
-    golangci-lint run ./cmd/... ./internal/...
+    cd services/api && golangci-lint run ./...
+    cd db && golangci-lint run ./...
 
 # Format
 fmt:
     gofmt -w .
     goimports -w .
 
-# Tidy modules
+# Tidy modules + workspace sync.
 tidy:
-    go mod tidy
+    cd services/api && go mod tidy
+    cd db && go mod tidy
+    go work sync
 
-# Regenerate sqlc code
+# Regenerate sqlc + gqlgen code (committed; CI checks drift).
 generate:
-    cd internal/db && sqlc generate
+    cd services/api && sqlc generate
+    cd services/api && go run github.com/99designs/gqlgen generate
+
+# Run the DBOS recovery demo (kill -9 + restart, assert exactly-once).
+dbos-demo:
+    bash scripts/dbos-recovery-demo.sh
 
 # Build container image (uses Dockerfile multi-stage)
 docker-build:

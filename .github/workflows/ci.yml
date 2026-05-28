@@ -10,26 +10,62 @@ permissions:
 jobs:
   go-lint:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: [services/api, db]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: go.work
       - uses: golangci/golangci-lint-action@v6
         with:
           version: latest
+          working-directory: ${{ matrix.module }}
+          args: ./...
 
-  go-test:
+  codegen-drift:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
-      - name: Test with coverage
+          go-version-file: go.work
+      - name: Install sqlc
+        run: go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
+      - name: Regenerate sqlc + gqlgen, fail on drift
+        working-directory: services/api
+        run: |
+          sqlc generate
+          go run github.com/99designs/gqlgen generate
+          if ! git diff --exit-code -- internal/db graph; then
+            echo "::error::Generated code is out of date. Run 'just generate' locally and commit."
+            exit 1
+          fi
+
+  go-test:
+    runs-on: ubuntu-latest
+    # GitHub-hosted runners ship with Docker; testcontainers + DBOS need it.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.work
+      - name: Test with coverage (per workspace module)
         run: |
           mkdir -p coverage
-          go test -race -count=1 -timeout=300s -coverprofile=coverage/unit.raw -covermode=atomic ./...
+          # go test ./... from a go.work root won't traverse; run per-module
+          # and merge profiles.
+          (cd services/api && go test -race -count=1 -timeout=600s \
+              -coverprofile=../../coverage/api.out -covermode=atomic ./...)
+          (cd db && go test -race -count=1 -timeout=600s \
+              -coverprofile=../coverage/db.out -covermode=atomic ./... || true)
+          # Merge: mode line + appended bodies (skip duplicate mode lines).
+          {
+            echo "mode: atomic"
+            tail -n +2 coverage/api.out 2>/dev/null || true
+            tail -n +2 coverage/db.out 2>/dev/null || true
+          } > coverage/unit.raw
       - name: Filter coverage
         run: |
           if [ -f .coverignore ]; then

@@ -1,0 +1,34 @@
+# gqlgen configuration for the tendant operator-edge GraphQL surface.
+# Schema-first; generated code is committed and drift-checked in CI.
+
+schema:
+  - graph/*.graphqls
+
+exec:
+  filename: graph/generated.go
+  package: graph
+
+model:
+  filename: graph/model/models_gen.go
+  package: model
+
+resolver:
+  layout: follow-schema
+  dir: graph
+  package: graph
+  filename_template: "{name}.resolvers.go"
+
+# Skip the post-generate `go mod tidy` — it can't resolve our workspace-local
+# `db` module from inside services/api (tidy isn't workspace-aware in the same
+# way `go build` is). We run tidy manually via `just tidy` when needed.
+skip_mod_tidy: true
+
+# Auto-bind nothing — resolvers explicitly map sqlc rows → gqlgen models.
+autobind: []
+
+# Scalar bindings. ID stays as the gqlgen default (string).
+models:
+  Time:
+    model: github.com/99designs/gqlgen/graphql.Time
+  JSON:
+    model: github.com/99designs/gqlgen/graphql.Map

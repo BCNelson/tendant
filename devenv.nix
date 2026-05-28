@@ -8,6 +8,7 @@
     if devenvRoot != "" then devenvRoot else builtins.toString ./.;
 
   languages.go.enable = true;
+  languages.go.package = pkgs.go_1_25;
 
   languages.dart.enable = true;
 

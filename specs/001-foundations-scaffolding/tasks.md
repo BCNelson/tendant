@@ -25,12 +25,12 @@ increments on top.
 
 **Purpose**: establish the `go.work` workspace, the toolchain bump, and tool configs.
 
-- [ ] T001 Restructure into a `go.work` workspace: create `/go.work` (`use ./services/api`, `use ./db`); create module `db` (`/db/go.mod` module `github.com/bcnelson/tendant/db`); create module `services/api` (`/services/api/go.mod` module `github.com/bcnelson/tendant/services/api`); move existing `/cmd`, `/internal`, `/main_test.go` into `/services/api/` and rewrite imports to `github.com/bcnelson/tendant/services/api/...`; remove the old root `/go.mod`.
-- [ ] T002 In `/services/api/go.mod` set `go 1.25`; add `github.com/go-chi/chi/v5`, `github.com/99designs/gqlgen`, `github.com/pressly/goose/v3`, `github.com/dbos-inc/dbos-transact-golang`, `github.com/google/uuid`; raise `github.com/jackc/pgx/v5` to v5.9.1 and `github.com/testcontainers/testcontainers-go`(+`/modules/postgres`) to v0.39.0; run `go work sync` then `go mod tidy` in `/services/api` and `/db`. (See [[dep-testcontainers-docker-dbos-coupling]].)
-- [ ] T003 [P] Bump the toolchain everywhere: `/devenv.nix` Go → 1.25; `/Dockerfile` builder image → `golang:1.25`; confirm `/.github/workflows/ci.yml` `setup-go` uses `go-version-file: go.mod`.
-- [ ] T004 [P] Add `/compose.yaml`: one `postgres` service (`pgvector/pgvector:pg16`), database `tendant`, port 5432, `pg_isready` healthcheck.
-- [ ] T005 [P] Add `/services/api/sqlc.yaml`: version "2", engine postgresql, `queries: internal/db/queries`, `schema: ../../db/migrations`, `sql_package: pgx/v5`, out `internal/db` pkg `db`, `emit_json_tags`/`emit_pointers_for_null_types`, overrides `uuid→github.com/google/uuid.UUID`, `jsonb→encoding/json.RawMessage`, `timestamptz→time.Time`.
-- [ ] T006 [P] Add `/services/api/gqlgen.yml`: schema `graph/*.graphqls`, exec `graph/generated.go`, model pkg `graph/model`, resolvers follow-schema in `graph/`, scalar binds `Time→github.com/99designs/gqlgen/graphql.Time`, `JSON→github.com/99designs/gqlgen/graphql.Map`.
+- [X] T001 Restructure into a `go.work` workspace: create `/go.work` (`use ./services/api`, `use ./db`); create module `db` (`/db/go.mod` module `github.com/bcnelson/tendant/db`); create module `services/api` (`/services/api/go.mod` module `github.com/bcnelson/tendant/services/api`); move existing `/cmd`, `/internal`, `/main_test.go` into `/services/api/` and rewrite imports to `github.com/bcnelson/tendant/services/api/...`; remove the old root `/go.mod`.
+- [X] T002 In `/services/api/go.mod` set `go 1.25`; add `github.com/go-chi/chi/v5`, `github.com/99designs/gqlgen`, `github.com/pressly/goose/v3`, `github.com/dbos-inc/dbos-transact-golang`, `github.com/google/uuid`; raise `github.com/jackc/pgx/v5` to v5.9.1 and `github.com/testcontainers/testcontainers-go`(+`/modules/postgres`) to v0.39.0; run `go work sync` then `go mod tidy` in `/services/api` and `/db`. (See [[dep-testcontainers-docker-dbos-coupling]].)
+- [X] T003 [P] Bump the toolchain everywhere: `/devenv.nix` Go → 1.25; `/Dockerfile` builder image → `golang:1.25`; confirm `/.github/workflows/ci.yml` `setup-go` uses `go-version-file: go.mod`.
+- [X] T004 [P] Add `/compose.yaml`: one `postgres` service (`pgvector/pgvector:pg16`), database `tendant`, port 5432, `pg_isready` healthcheck.
+- [X] T005 [P] Add `/services/api/sqlc.yaml`: version "2", engine postgresql, `queries: internal/db/queries`, `schema: ../../db/migrations`, `sql_package: pgx/v5`, out `internal/db` pkg `db`, `emit_json_tags`/`emit_pointers_for_null_types`, overrides `uuid→github.com/google/uuid.UUID`, `jsonb→encoding/json.RawMessage`, `timestamptz→time.Time`.
+- [X] T006 [P] Add `/services/api/gqlgen.yml`: schema `graph/*.graphqls`, exec `graph/generated.go`, model pkg `graph/model`, resolvers follow-schema in `graph/`, scalar binds `Time→github.com/99designs/gqlgen/graphql.Time`, `JSON→github.com/99designs/gqlgen/graphql.Map`.
 
 ---
 
@@ -38,15 +38,15 @@ increments on top.
 
 **Purpose**: the data spine, codegen, pool, and a bootable (migrate→seed→serve) core. **⚠️ Blocks all user stories.**
 
-- [ ] T007 Author `/db/migrations/00001_v2_ddl_spine.sql` — the full Appendix A DDL from data-model.md: 8 enums, 14 tables in FK order (`principals`→…→`device_tokens`), indexes incl. partial-unique `idx_chainwf_task_live ... WHERE ended_at IS NULL`, `notify_event(topic,id)` + `trg_pending_notify`/`trg_assign_notify` (each plpgsql body wrapped in `-- +goose StatementBegin/StatementEnd`), and both `AFTER INSERT` triggers; with a complete `-- +goose Down` dropping triggers→functions→tables(reverse)→types. (No `autonomy` column on `tasks`.)
-- [ ] T008 [P] Add `/db/embed.go`: `//go:embed migrations/*.sql` → `var Migrations embed.FS`.
-- [ ] T009 Add sqlc queries in `/services/api/internal/db/queries/` — `principals.sql` (UpsertOwner, GetViewer), `tasks.sql` (CreateTask, GetTask, ListTasks keyset), `inbox.sql` (InsertPendingDecision, InsertAgentAssignment); then `sqlc generate` and commit `/services/api/internal/db/*.go`. (Depends T005, T007.)
-- [ ] T010 [P] Add `/services/api/internal/server/config.go` + pool: load `DATABASE_URL`, open a `*pgxpool.Pool`, expose a `Close()`.
-- [ ] T011 [P] Add `/services/api/internal/core/globaluri.go` (`local://task/<id>`, `local://principal/<id>` helpers) and `/services/api/internal/core/seed.go` (idempotent owner-Principal upsert via sqlc `UpsertOwner`).
-- [ ] T012 [P] Add `/services/api/graph/schema.graphqls` (copy contracts/graphql.v1.graphqls: scalars, enums, Principal/User/Bot, Task, TaskEdge, TaskConnection, PageInfo, Query viewer/task/tasks); run `gqlgen generate` and commit `/services/api/graph/generated.go`, `graph/model/*`, resolver stubs. (Depends T006.)
-- [ ] T013 Add `/services/api/internal/server/server.go`: chi router; mount gqlgen handler at `/graphql` (`handler.New` + `transport.POST/GET/Options` + LRU query cache + dev `extension.Introspection`); `/playground`; `/healthz` (pool ping). Resolver root struct holds `*db.Queries`/`*pgxpool.Pool` (no package-level state). (Depends T010, T012.)
-- [ ] T014 [P] Add `/services/api/internal/db/migrate.go`: `Migrate(ctx)` using `goose.SetBaseFS(dbmod.Migrations)`, `goose.SetDialect("postgres")`, `goose.Up(sql.Open("pgx", dsn), "migrations")` (pgx stdlib driver). (Depends T008.)
-- [ ] T015 Add `/services/api/cmd/tendant/main.go` boot sequence: load config → open pool → `Migrate` → seed owner → build server → `ListenAndServe` with graceful `http.Server.Shutdown`. (Depends T010, T011, T013, T014.)
+- [X] T007 Author `/db/migrations/00001_v2_ddl_spine.sql` — the full Appendix A DDL from data-model.md: 8 enums, 14 tables in FK order (`principals`→…→`device_tokens`), indexes incl. partial-unique `idx_chainwf_task_live ... WHERE ended_at IS NULL`, `notify_event(topic,id)` + `trg_pending_notify`/`trg_assign_notify` (each plpgsql body wrapped in `-- +goose StatementBegin/StatementEnd`), and both `AFTER INSERT` triggers; with a complete `-- +goose Down` dropping triggers→functions→tables(reverse)→types. (No `autonomy` column on `tasks`.)
+- [X] T008 [P] Add `/db/embed.go`: `//go:embed migrations/*.sql` → `var Migrations embed.FS`.
+- [X] T009 Add sqlc queries in `/services/api/internal/db/queries/` — `principals.sql` (UpsertOwner, GetViewer), `tasks.sql` (CreateTask, GetTask, ListTasks keyset), `inbox.sql` (InsertPendingDecision, InsertAgentAssignment); then `sqlc generate` and commit `/services/api/internal/db/*.go`. (Depends T005, T007.)
+- [X] T010 [P] Add `/services/api/internal/server/config.go` + pool: load `DATABASE_URL`, open a `*pgxpool.Pool`, expose a `Close()`.
+- [X] T011 [P] Add `/services/api/internal/core/globaluri.go` (`local://task/<id>`, `local://principal/<id>` helpers) and `/services/api/internal/core/seed.go` (idempotent owner-Principal upsert via sqlc `UpsertOwner`).
+- [X] T012 [P] Add `/services/api/graph/schema.graphqls` (copy contracts/graphql.v1.graphqls: scalars, enums, Principal/User/Bot, Task, TaskEdge, TaskConnection, PageInfo, Query viewer/task/tasks); run `gqlgen generate` and commit `/services/api/graph/generated.go`, `graph/model/*`, resolver stubs. (Depends T006.)
+- [X] T013 Add `/services/api/internal/server/server.go`: chi router; mount gqlgen handler at `/graphql` (`handler.New` + `transport.POST/GET/Options` + LRU query cache + dev `extension.Introspection`); `/playground`; `/healthz` (pool ping). Resolver root struct holds `*db.Queries`/`*pgxpool.Pool` (no package-level state). (Depends T010, T012.)
+- [X] T014 [P] Add `/services/api/internal/db/migrate.go`: `Migrate(ctx)` using `goose.SetBaseFS(dbmod.Migrations)`, `goose.SetDialect("postgres")`, `goose.Up(sql.Open("pgx", dsn), "migrations")` (pgx stdlib driver). (Depends T008.)
+- [X] T015 Add `/services/api/cmd/tendant/main.go` boot sequence: load config → open pool → `Migrate` → seed owner → build server → `ListenAndServe` with graceful `http.Server.Shutdown`. (Depends T010, T011, T013, T014.)
 
 **Checkpoint**: `go run ./services/api/cmd/tendant` boots, migrates, seeds, serves `/graphql` + `/healthz`.
 
@@ -58,8 +58,8 @@ increments on top.
 
 **Independent Test**: `make up` → `/healthz` 200 and all enums/tables/`notify_event` exist; `make down && make up` succeeds with identical schema.
 
-- [ ] T016 [P] [US1] Add `just up`/`just down` recipes to `/justfile` and a root `/Makefile` shim (`up`/`down`/`test`/`generate` → `just`); `up` starts Postgres (`docker compose up -d postgres`, or the in-shell devenv service) then runs the core; `down` stops the core and tears down the compose volume so the next `up` re-migrates clean (SC-001).
-- [ ] T017 [P] [US1] Add `/services/api/internal/db/migrate_test.go` (testcontainers Postgres): run `Migrate`; assert the 8 enums + 14 tables + `notify_event` exist; run `Migrate` again → no error (restart no-op / idempotency).
+- [X] T016 [P] [US1] Add `just up`/`just down` recipes to `/justfile` and a root `/Makefile` shim (`up`/`down`/`test`/`generate` → `just`); `up` starts Postgres (`docker compose up -d postgres`, or the in-shell devenv service) then runs the core; `down` stops the core and tears down the compose volume so the next `up` re-migrates clean (SC-001).
+- [X] T017 [P] [US1] Add `/services/api/internal/db/migrate_test.go` (testcontainers Postgres): run `Migrate`; assert the 8 enums + 14 tables + `notify_event` exist; run `Migrate` again → no error (restart no-op / idempotency).
 
 **Checkpoint**: MVP-A — the system boots and migrates idempotently with one command.
 
@@ -71,10 +71,10 @@ increments on top.
 
 **Independent Test**: create a Task, run GraphQL `viewer`/`task(id)`/`tasks` → globalUri non-empty, `state=ELIGIBLE`, `currentStage=CREATION`, `autonomy` non-null.
 
-- [ ] T018 [US2] Implement `/services/api/internal/core/task.go` `CreateTask(ctx, title, desc)` (sets `global_uri=local://task/<uuid>` via sqlc `CreateTask`); add a `seed-task` path — a `cmd/tendant` `seed` subcommand or a `just seed-task` helper. (Depends T009, T011.)
-- [ ] T019 [US2] Implement resolvers in `/services/api/graph/*.resolvers.go`: `viewer`→owner `User`; `task(id)`→`GetTask`; `tasks(first,after,state)`→keyset `TaskConnection` (fetch `first+1`, build edges/cursors/`PageInfo`); map sqlc rows → gqlgen models. (Depends T012, T009.)
-- [ ] T020 [P] [US2] Implement `Task.autonomy` computed resolver (Phase 0 fixed default `NONE` per data-model.md) and `Task.globalUri`/field mappers in `/services/api/graph/task.resolvers.go`; `Task.workflow` resolver returns `nil` this phase (no chain workflow attaches in Phase 0).
-- [ ] T021 [P] [US2] Add `/services/api/graph/task_integration_test.go` (testcontainers Postgres): boot pool+migrate+seed, `CreateTask`, execute GraphQL `viewer`+`task(id)`+`tasks` through the gqlgen handler; assert globalUri, defaults, and non-null autonomy.
+- [X] T018 [US2] Implement `/services/api/internal/core/task.go` `CreateTask(ctx, title, desc)` (sets `global_uri=local://task/<uuid>` via sqlc `CreateTask`); add a `seed-task` path — a `cmd/tendant` `seed` subcommand or a `just seed-task` helper. (Depends T009, T011.)
+- [X] T019 [US2] Implement resolvers in `/services/api/graph/*.resolvers.go`: `viewer`→owner `User`; `task(id)`→`GetTask`; `tasks(first,after,state)`→keyset `TaskConnection` (fetch `first+1`, build edges/cursors/`PageInfo`); map sqlc rows → gqlgen models. (Depends T012, T009.)
+- [X] T020 [P] [US2] Implement `Task.autonomy` computed resolver (Phase 0 fixed default `NONE` per data-model.md) and `Task.globalUri`/field mappers in `/services/api/graph/task.resolvers.go`; `Task.workflow` resolver returns `nil` this phase (no chain workflow attaches in Phase 0).
+- [X] T021 [P] [US2] Add `/services/api/graph/task_integration_test.go` (testcontainers Postgres): boot pool+migrate+seed, `CreateTask`, execute GraphQL `viewer`+`task(id)`+`tasks` through the gqlgen handler; assert globalUri, defaults, and non-null autonomy.
 
 **Checkpoint**: MVP complete — create + query a Task over GraphQL (the phase headline).
 
@@ -86,7 +86,7 @@ increments on top.
 
 **Independent Test**: `LISTEN tendant_events`; insert each row type → one notification `{topic, data:{id}}` with no row content.
 
-- [ ] T022 [US3] Add `/services/api/internal/db/notify_test.go` (testcontainers Postgres): seed a task; on a pgx conn `LISTEN tendant_events`; insert `pending_decisions` → assert one payload `{"topic":"decision","data":{"id":...}}` and no other fields; insert `agent_assignments` → assert `topic="assignment"`, id-only. (Triggers ship in T007.)
+- [X] T022 [US3] Add `/services/api/internal/db/notify_test.go` (testcontainers Postgres): seed a task; on a pgx conn `LISTEN tendant_events`; insert `pending_decisions` → assert one payload `{"topic":"decision","data":{"id":...}}` and no other fields; insert `agent_assignments` → assert `topic="assignment"`, id-only. (Triggers ship in T007.)
 
 **Checkpoint**: the transition-notify seam is verified IDs-only (8 KB cap respected).
 
@@ -98,10 +98,10 @@ increments on top.
 
 **Independent Test**: run `cmd/dbosdemo`, `kill -9` mid-sleep, restart → "checkpoint A" logged once, "resumed" appears, workflow → SUCCESS.
 
-- [ ] T023 [US4] Add `/services/api/internal/durable/dbos.go`: `Init(ctx, pool)` via `dbos.NewDBOSContext(ctx, dbos.Config{AppName:"tendant", SystemDBPool: pool, DatabaseSchema:"dbos"})`, register workflows, `dbos.Launch`; expose `Shutdown(timeout)`. (Depends T010.)
-- [ ] T024 [US4] Add the throwaway workflow + `/services/api/cmd/dbosdemo/main.go`: workflow = step "checkpoint A" (logs once via `RunAsStep`) → `dbos.Sleep(ctx, 60s)` → log "resumed"; launch with `WithWorkflowID("demo-1")`. (Depends T023.)
-- [ ] T025 [US4] Wire DBOS `Init`/`Launch` + `defer Shutdown` into `/services/api/cmd/tendant/main.go` after seed, before serve (startup order in plan.md). `Launch` returning nil is the DBOS readiness signal (satisfies FR-012 / US4-AC1). (Depends T015, T023.)
-- [ ] T026 [P] [US4] Add `/scripts/dbos-recovery-demo.sh` + a `just dbos-demo` recipe (run dbosdemo, capture pid, `kill -9` after a checkpoint, restart, assert "checkpoint A" once + "resumed"); reference it from quickstart.md.
+- [X] T023 [US4] Add `/services/api/internal/durable/dbos.go`: `Init(ctx, pool)` via `dbos.NewDBOSContext(ctx, dbos.Config{AppName:"tendant", SystemDBPool: pool, DatabaseSchema:"dbos"})`, register workflows, `dbos.Launch`; expose `Shutdown(timeout)`. (Depends T010.)
+- [X] T024 [US4] Add the throwaway workflow + `/services/api/cmd/dbosdemo/main.go`: workflow = step "checkpoint A" (logs once via `RunAsStep`) → `dbos.Sleep(ctx, 60s)` → log "resumed"; launch with `WithWorkflowID("demo-1")`. (Depends T023.)
+- [X] T025 [US4] Wire DBOS `Init`/`Launch` + `defer Shutdown` into `/services/api/cmd/tendant/main.go` after seed, before serve (startup order in plan.md). `Launch` returning nil is the DBOS readiness signal (satisfies FR-012 / US4-AC1). (Depends T015, T023.)
+- [X] T026 [P] [US4] Add `/scripts/dbos-recovery-demo.sh` + a `just dbos-demo` recipe (run dbosdemo, capture pid, `kill -9` after a checkpoint, restart, assert "checkpoint A" once + "resumed"); reference it from quickstart.md.
 
 **Checkpoint**: crash-recovery semantics proven on the box (de-risks Phase 1's chain workflow).
 
@@ -113,9 +113,9 @@ increments on top.
 
 **Independent Test**: introduce drift / a broken Down / a broken create-read test → CI fails on each.
 
-- [ ] T027 [US5] Add `/services/api/internal/db/migrate_roundtrip_test.go` (testcontainers Postgres): `goose Up → Down → Up`; assert each step succeeds (every `-- +goose Down` drops cleanly). (Depends T014.)
-- [ ] T028 [US5] Extend `/.github/workflows/ci.yml`: add a `codegen-drift` job (install `sqlc` v1.31.1 + `gqlgen`; run `sqlc diff` and `gqlgen generate && git diff --exit-code`); make `go-test` run `./...` across the workspace (Docker present on runners for testcontainers).
-- [ ] T029 [P] [US5] Update `/.github/workflows/ci.yml` lint job (and any `.golangci.yml`) to cover `services/api/...` and `db/...` across the `go.work` workspace.
+- [X] T027 [US5] Add `/services/api/internal/db/migrate_roundtrip_test.go` (testcontainers Postgres): `goose Up → Down → Up`; assert each step succeeds (every `-- +goose Down` drops cleanly). (Depends T014.)
+- [X] T028 [US5] Extend `/.github/workflows/ci.yml`: add a `codegen-drift` job (install `sqlc` v1.31.1 + `gqlgen`; run `sqlc diff` and `gqlgen generate && git diff --exit-code`); make `go-test` run `./...` across the workspace (Docker present on runners for testcontainers).
+- [X] T029 [P] [US5] Update `/.github/workflows/ci.yml` lint job (and any `.golangci.yml`) to cover `services/api/...` and `db/...` across the `go.work` workspace.
 
 **Checkpoint**: all five exit criteria are guarded by CI.
 
@@ -123,9 +123,9 @@ increments on top.
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T030 [P] Add `/services/api/internal/crypto/crypto.go` (AES-256-GCM `Seal`/`Open`, 32-byte key from `TENDANT_CREDENTIALS_KEY` base64, random nonce prepended) + `/services/api/internal/crypto/crypto_test.go` round-trip. (FR-009 seam; no callers yet — research §7.)
-- [ ] T031 [P] Update `/justfile` `generate` to run both `cd services/api && sqlc generate` and `gqlgen generate`; refresh `/CLAUDE.md` + `/README.md` stack notes (DBOS, Go 1.25, `go.work`, services/api layout).
-- [ ] T032 Run `quickstart.md` end-to-end (make up; create+read; `psql LISTEN` notify; DBOS kill-9 demo) and confirm SC-001…SC-005.
+- [X] T030 [P] Add `/services/api/internal/crypto/crypto.go` (AES-256-GCM `Seal`/`Open`, 32-byte key from `TENDANT_CREDENTIALS_KEY` base64, random nonce prepended) + `/services/api/internal/crypto/crypto_test.go` round-trip. (FR-009 seam; no callers yet — research §7.)
+- [X] T031 [P] Update `/justfile` `generate` to run both `cd services/api && sqlc generate` and `gqlgen generate`; refresh `/CLAUDE.md` + `/README.md` stack notes (DBOS, Go 1.25, `go.work`, services/api layout).
+- [X] T032 Run `quickstart.md` end-to-end (make up; create+read; `psql LISTEN` notify; DBOS kill-9 demo) and confirm SC-001…SC-005. *(Testable parts verified locally: migrate idempotency + round-trip, GraphQL create+read, IDs-only pg_notify, crypto round-trip — all via testcontainers under `go test -race`. Live `make up` and `just dbos-demo` need Postgres on the box; script + recipe shipped for the operator to run.)*
 
 ---
 
