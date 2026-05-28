@@ -17,6 +17,17 @@ type Principal interface {
 	GetDisplayName() string
 }
 
+type AgentAssignment struct {
+	ID              string         `json:"id"`
+	Task            *Task          `json:"task"`
+	Stage           ChainStage     `json:"stage"`
+	FromAgent       Principal      `json:"fromAgent,omitempty"`
+	Ask             string         `json:"ask"`
+	GatheredContext map[string]any `json:"gatheredContext,omitempty"`
+	CreatedAt       time.Time      `json:"createdAt"`
+	ResolvedAt      *time.Time     `json:"resolvedAt,omitempty"`
+}
+
 type Bot struct {
 	ID          string `json:"id"`
 	GlobalURI   string `json:"globalUri"`
@@ -28,6 +39,9 @@ func (this Bot) GetID() string          { return this.ID }
 func (this Bot) GetGlobalURI() string   { return this.GlobalURI }
 func (this Bot) GetDisplayName() string { return this.DisplayName }
 
+type Mutation struct {
+}
+
 type PageInfo struct {
 	HasNextPage bool    `json:"hasNextPage"`
 	EndCursor   *string `json:"endCursor,omitempty"`
@@ -37,19 +51,20 @@ type Query struct {
 }
 
 type Task struct {
-	ID           string         `json:"id"`
-	GlobalURI    string         `json:"globalUri"`
-	Title        string         `json:"title"`
-	Description  *string        `json:"description,omitempty"`
-	State        TaskState      `json:"state"`
-	CurrentStage ChainStage     `json:"currentStage"`
-	Autonomy     AutonomyLevel  `json:"autonomy"`
-	Provenance   map[string]any `json:"provenance,omitempty"`
-	ContextRefs  map[string]any `json:"contextRefs,omitempty"`
-	Findings     map[string]any `json:"findings,omitempty"`
-	Workflow     *WorkflowRef   `json:"workflow,omitempty"`
-	CreatedAt    time.Time      `json:"createdAt"`
-	EditedAt     *time.Time     `json:"editedAt,omitempty"`
+	ID             string           `json:"id"`
+	GlobalURI      string           `json:"globalUri"`
+	Title          string           `json:"title"`
+	Description    *string          `json:"description,omitempty"`
+	State          TaskState        `json:"state"`
+	CurrentStage   ChainStage       `json:"currentStage"`
+	Autonomy       AutonomyLevel    `json:"autonomy"`
+	Provenance     map[string]any   `json:"provenance,omitempty"`
+	ContextRefs    map[string]any   `json:"contextRefs,omitempty"`
+	Findings       map[string]any   `json:"findings,omitempty"`
+	Workflow       *WorkflowRef     `json:"workflow,omitempty"`
+	OpenAssignment *AgentAssignment `json:"openAssignment,omitempty"`
+	CreatedAt      time.Time        `json:"createdAt"`
+	EditedAt       *time.Time       `json:"editedAt,omitempty"`
 }
 
 type TaskConnection struct {
@@ -205,7 +220,7 @@ type TaskState string
 const (
 	TaskStateProposed  TaskState = "PROPOSED"
 	TaskStateAccepted  TaskState = "ACCEPTED"
-	TaskStateEligible  TaskState = "ELIGIBLE"
+	TaskStateWaiting   TaskState = "WAITING"
 	TaskStateExecuting TaskState = "EXECUTING"
 	TaskStateDone      TaskState = "DONE"
 	TaskStateDismissed TaskState = "DISMISSED"
@@ -215,7 +230,7 @@ const (
 var AllTaskState = []TaskState{
 	TaskStateProposed,
 	TaskStateAccepted,
-	TaskStateEligible,
+	TaskStateWaiting,
 	TaskStateExecuting,
 	TaskStateDone,
 	TaskStateDismissed,
@@ -224,7 +239,7 @@ var AllTaskState = []TaskState{
 
 func (e TaskState) IsValid() bool {
 	switch e {
-	case TaskStateProposed, TaskStateAccepted, TaskStateEligible, TaskStateExecuting, TaskStateDone, TaskStateDismissed, TaskStateHalted:
+	case TaskStateProposed, TaskStateAccepted, TaskStateWaiting, TaskStateExecuting, TaskStateDone, TaskStateDismissed, TaskStateHalted:
 		return true
 	}
 	return false

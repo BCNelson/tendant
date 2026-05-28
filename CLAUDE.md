@@ -38,8 +38,10 @@ One-line description goes here.
 │   └── internal/
 │       ├── db/                          # sqlc-generated + migrate.go + tests
 │       ├── server/                      # config + pool + chi router
-│       ├── core/                        # CreateTask, SeedOwner, globalUri helpers
-│       ├── durable/                     # DBOS init/launch/shutdown wrapper
+│       ├── core/                        # CreateTask, AttachChainWorkflow, SeedOwner
+│       ├── durable/                     # DBOS init/launch/shutdown + chain registration
+│       ├── lifecycle/                   # state machine + audit-message helpers (Phase 1)
+│       ├── chain/                       # DBOS chain workflow + router + wait primitive (Phase 1)
 │       ├── crypto/                      # AES-256-GCM Seal/Open (TENDANT_CREDENTIALS_KEY)
 │       └── testutil/                    # testcontainers Postgres shared-pool helper
 ├── apps/mobile/                         # Flutter app
@@ -113,7 +115,16 @@ process-compose MCP is configured separately at the devenv layer.
 
 <!-- SPECKIT START -->
 Phase 0 (Foundations & Scaffolding) is **complete** — schema, GraphQL read surface, DBOS,
-CI gates all landed on this branch. For the full design, see
-`specs/001-foundations-scaffolding/{spec,plan,research,data-model,quickstart}.md` and the
-v1 contract at `specs/001-foundations-scaffolding/contracts/graphql.v1.graphqls`.
+CI gates all landed on `main`. For the Phase 0 design see
+`specs/001-foundations-scaffolding/{spec,plan,research,data-model,quickstart}.md`.
+
+Phase 1 (Task Lifecycle & Chain Skeleton — Human-Only) is **complete** on
+branch `002-task-lifecycle-chain` — the DBOS chain workflow walks owner-authored
+tasks through `CREATION → TRIAGE → EXPANSION → EXECUTION → COMPLETION`, the
+state machine + audit DAG land in `internal/lifecycle`, and the four mutations
+(`createTask`, `completeTask`, `cancelTask`, plus the `*ProposedTask` pair)
+ship in `services/api/graph/schema.graphqls`. Migration `00002` renames
+`task_state.eligible` → `waiting` and defaults new rows to `accepted`. Design
+artifacts: `specs/002-task-lifecycle-chain/{spec,plan,research,data-model,quickstart}.md`;
+contract: `specs/002-task-lifecycle-chain/contracts/graphql.v1.graphqls`.
 <!-- SPECKIT END -->

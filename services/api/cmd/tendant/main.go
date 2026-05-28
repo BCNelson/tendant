@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bcnelson/tendant/services/api/internal/chain"
 	"github.com/bcnelson/tendant/services/api/internal/core"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/durable"
@@ -83,21 +84,22 @@ func runServe() error {
 		return fmt.Errorf("seed owner: %w", err)
 	}
 
-	// 4. DBOS init / launch (recovers PENDING workflows for this executor).
+	// 4. DBOS init / register / launch (recovers PENDING workflows for this executor).
 	dctx, err := durable.Init(ctx, pool, "tendant")
 	if err != nil {
 		return fmt.Errorf("dbos init: %w", err)
 	}
 	defer durable.Shutdown(dctx, 5*time.Second)
+	durable.RegisterChainWorkflow(dctx, pool, db.New(pool), chain.HumanOnlyRouter{})
 	if err := durable.Launch(dctx); err != nil {
 		return fmt.Errorf("dbos launch: %w", err)
 	}
-	slog.Info("dbos launched")
+	slog.Info("dbos launched (recovery, if any, completed)")
 
 	// 5. Build the chi router (gqlgen handler + /healthz) and serve.
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           server.New(pool),
+		Handler:           server.New(pool, dctx),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -150,12 +152,15 @@ func runSeed(args []string) error {
 	if err := db.Migrate(ctx, cfg.DatabaseURL); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
-	q := db.New(pool)
-	if err := core.SeedOwner(ctx, q); err != nil {
+	if err := core.SeedOwner(ctx, db.New(pool)); err != nil {
 		return fmt.Errorf("seed owner: %w", err)
 	}
 
-	created, err := core.CreateTask(ctx, q, *title, *description)
+	// Seed CLI does not attach a chain workflow (dctx=nil) — the task is
+	// inserted in state=ACCEPTED, current_stage=CREATION but no workflow
+	// drives it forward. Use the createTask GraphQL mutation for end-to-end
+	// chain testing.
+	created, err := core.CreateTask(ctx, pool, nil, *title, *description)
 	if err != nil {
 		return err
 	}

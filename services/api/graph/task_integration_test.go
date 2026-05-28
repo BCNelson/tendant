@@ -29,6 +29,16 @@ func graphqlRequest(t *testing.T, handler http.Handler, query string, vars map[s
 		"variables": vars,
 	})
 	require.NoError(t, err)
+	resp := postGraphQL(t, handler, body)
+	require.Empty(t, resp.Errors, "graphql errors: %s", resp.Data)
+	return resp
+}
+
+// postGraphQL is the lower-level POST that returns the response envelope
+// without failing on errors. Used by tests that want to inspect the error
+// shape (typed errors, codes, etc.).
+func postGraphQL(t *testing.T, handler http.Handler, body []byte) gqlResponse {
+	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/graphql", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -36,7 +46,6 @@ func graphqlRequest(t *testing.T, handler http.Handler, query string, vars map[s
 	require.Equal(t, http.StatusOK, rr.Code, "graphql status: body=%s", rr.Body.String())
 	var resp gqlResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp), "decode graphql response")
-	require.Empty(t, resp.Errors, "graphql errors: %s", rr.Body.String())
 	return resp
 }
 
@@ -50,11 +59,12 @@ func TestTaskCreateAndReadOverGraphQL(t *testing.T) {
 	q := db.New(pool)
 	require.NoError(t, core.SeedOwner(ctx, q))
 
-	created, err := core.CreateTask(ctx, q, "hello", "")
+	_ = q
+	created, err := core.CreateTask(ctx, pool, nil, "hello", "")
 	require.NoError(t, err)
 	require.NotEqual(t, "", created.GlobalURI)
 
-	handler := server.New(pool)
+	handler := server.New(pool, nil)
 
 	// 1. viewer — the seeded owner Principal.
 	viewerResp := graphqlRequest(t, handler,
@@ -91,7 +101,7 @@ func TestTaskCreateAndReadOverGraphQL(t *testing.T) {
 	require.Equal(t, created.ID.String(), taskData.Task.ID)
 	require.Equal(t, created.GlobalURI, taskData.Task.GlobalURI)
 	require.Equal(t, "hello", taskData.Task.Title)
-	require.Equal(t, "ELIGIBLE", taskData.Task.State)
+	require.Equal(t, "ACCEPTED", taskData.Task.State)
 	require.Equal(t, "CREATION", taskData.Task.CurrentStage)
 	require.Equal(t, "NONE", taskData.Task.Autonomy) // Phase 0 fixed default
 
@@ -124,7 +134,7 @@ func TestTaskCreateAndReadOverGraphQL(t *testing.T) {
 	edge := tasksData.Tasks.Edges[0]
 	require.Equal(t, created.ID.String(), edge.Node.ID)
 	require.NotEmpty(t, edge.Node.GlobalURI)
-	require.Equal(t, "ELIGIBLE", edge.Node.State)
+	require.Equal(t, "ACCEPTED", edge.Node.State)
 	require.Equal(t, "CREATION", edge.Node.CurrentStage)
 	require.Equal(t, "NONE", edge.Node.Autonomy)
 	require.NotEmpty(t, edge.Cursor)

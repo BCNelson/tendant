@@ -7,15 +7,262 @@ package graph
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
-	"github.com/bcnelson/tendant/services/api/graph/model"
-	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/99designs/gqlgen/graphql"
+	"github.com/dbos-inc/dbos-transact-golang/dbos"
 	"github.com/google/uuid"
 	pgx "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/vektah/gqlparser/v2/gqlerror"
+
+	"github.com/bcnelson/tendant/services/api/graph/model"
+	"github.com/bcnelson/tendant/services/api/internal/chain"
+	"github.com/bcnelson/tendant/services/api/internal/core"
+	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/bcnelson/tendant/services/api/internal/lifecycle"
 )
+
+// Task is the resolver for the task field.
+func (r *agentAssignmentResolver) Task(ctx context.Context, obj *model.AgentAssignment) (*model.Task, error) {
+	id, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid assignment id: %w", err)
+	}
+	// Look up the task by joining via the assignment row.
+	var taskID uuid.UUID
+	if err := r.Pool.QueryRow(ctx, `SELECT task_id FROM agent_assignments WHERE id = $1`, id).Scan(&taskID); err != nil {
+		return nil, fmt.Errorf("find task for assignment: %w", err)
+	}
+	t, err := r.Queries.GetTask(ctx, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("get task: %w", err)
+	}
+	return mapTask(&t)
+}
+
+// FromAgent is the resolver for the fromAgent field. Phase 1: always nil
+// because owner-authored tasks have no upstream agent (from_principal is
+// NULL). Phase 6 populates the principal from the row.
+func (r *agentAssignmentResolver) FromAgent(ctx context.Context, obj *model.AgentAssignment) (model.Principal, error) {
+	id, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid assignment id: %w", err)
+	}
+	var fromPrincipal *string
+	if err := r.Pool.QueryRow(ctx, `SELECT from_principal FROM agent_assignments WHERE id = $1`, id).Scan(&fromPrincipal); err != nil {
+		return nil, fmt.Errorf("find from_principal: %w", err)
+	}
+	if fromPrincipal == nil {
+		return nil, nil
+	}
+	// Phase 1 has no real agents on the principal side; resolve by globalUri.
+	var (
+		pID         uuid.UUID
+		gURI, kind  string
+		displayName string
+	)
+	if err := r.Pool.QueryRow(ctx,
+		`SELECT id, global_uri, kind, display_name FROM principals WHERE global_uri = $1`,
+		*fromPrincipal,
+	).Scan(&pID, &gURI, &kind, &displayName); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get principal: %w", err)
+	}
+	if kind == "bot" {
+		return &model.Bot{ID: pID.String(), GlobalURI: gURI, DisplayName: displayName}, nil
+	}
+	return &model.User{ID: pID.String(), GlobalURI: gURI, DisplayName: displayName}, nil
+}
+
+// CreateTask is the resolver for the createTask field.
+func (r *mutationResolver) CreateTask(ctx context.Context, title string, description *string) (*model.Task, error) {
+	if r.DBOS == nil {
+		return nil, fmt.Errorf("chain workflow not available — DBOS context is nil")
+	}
+	desc := ""
+	if description != nil {
+		desc = *description
+	}
+	created, err := core.CreateTask(ctx, r.Pool, r.DBOS, title, desc)
+	if err != nil {
+		return nil, fmt.Errorf("create task: %w", err)
+	}
+	t, err := r.Queries.GetTask(ctx, created.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get created task: %w", err)
+	}
+	return mapTask(&t)
+}
+
+// CompleteTask is the resolver for the completeTask field.
+func (r *mutationResolver) CompleteTask(ctx context.Context, taskID string, result map[string]any) (*model.Task, error) {
+	if r.DBOS == nil {
+		return nil, fmt.Errorf("chain workflow not available — DBOS context is nil")
+	}
+	tid, err := uuid.Parse(taskID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid id: %w", err)
+	}
+	t, err := r.Queries.GetTask(ctx, tid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("task not found")
+		}
+		return nil, fmt.Errorf("get task: %w", err)
+	}
+	if lifecycle.IsTerminal(t.State) {
+		return nil, taskAlreadyTerminalError(ctx, t.State)
+	}
+	open, err := r.Queries.FindOpenAssignmentForTask(ctx, tid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("no open assignment for task")
+		}
+		return nil, fmt.Errorf("find open assignment: %w", err)
+	}
+	resultBytes, err := encodeResult(result)
+	if err != nil {
+		return nil, err
+	}
+	if err := chain.Resolve(r.DBOS, chain.ChainWorkflowID(tid), chain.TopicForStage(open.Stage), resultBytes); err != nil {
+		return nil, fmt.Errorf("resolve chain wait: %w", err)
+	}
+	// Re-fetch task; the workflow's next step may not have committed yet, but
+	// the returned shape reflects the post-Send state we currently observe.
+	t2, err := r.Queries.GetTask(ctx, tid)
+	if err != nil {
+		return nil, fmt.Errorf("re-read task: %w", err)
+	}
+	return mapTask(&t2)
+}
+
+// CancelTask is the resolver for the cancelTask field. Performs cleanup
+// directly (state → HALTED, audit, EndChainWorkflow) so the workflow's
+// blocked Recv doesn't need to participate. Then cancels the DBOS workflow
+// (status → Cancelled in DB) and Sends a cancel-sentinel to the current
+// stage's topic so the workflow exits cleanly.
+func (r *mutationResolver) CancelTask(ctx context.Context, taskID string) (*model.Task, error) {
+	if r.DBOS == nil {
+		return nil, fmt.Errorf("chain workflow not available — DBOS context is nil")
+	}
+	tid, err := uuid.Parse(taskID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid id: %w", err)
+	}
+	t, err := r.Queries.GetTask(ctx, tid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("task not found")
+		}
+		return nil, fmt.Errorf("get task: %w", err)
+	}
+	if lifecycle.IsTerminal(t.State) {
+		return nil, taskAlreadyTerminalError(ctx, t.State)
+	}
+
+	// Cleanup writes (state → HALTED, audit, ended_at).
+	if err := chain.HandleCancelCleanup(ctx, r.Pool, tid); err != nil {
+		return nil, fmt.Errorf("cancel cleanup: %w", err)
+	}
+
+	// Mark the DBOS workflow Cancelled. Ignore "not found" — the workflow
+	// may have already self-completed in a race with cancellation cleanup.
+	live, err := r.Queries.GetLiveWorkflowForTask(ctx, tid)
+	switch {
+	case err == nil:
+		if cerr := dbos.CancelWorkflow(r.DBOS, live.DbosWorkflowID); cerr != nil {
+			// Already-cancelled or non-existent — log via err but continue.
+			// The cleanup writes above are the source of truth for owner-visible state.
+			_ = cerr
+		}
+		// Unblock the workflow's Recv so the goroutine returns instead of
+		// sitting on its stage topic until the DBOS context shuts down.
+		_ = chain.Resolve(r.DBOS, live.DbosWorkflowID, chain.TopicForStage(t.CurrentStage), chain.CancelSentinel())
+	case errors.Is(err, pgx.ErrNoRows):
+		// No live workflow row — nothing to cancel on the DBOS side.
+	default:
+		return nil, fmt.Errorf("find live workflow: %w", err)
+	}
+
+	t2, err := r.Queries.GetTask(ctx, tid)
+	if err != nil {
+		return nil, fmt.Errorf("re-read task: %w", err)
+	}
+	return mapTask(&t2)
+}
+
+// AcceptProposedTask is the resolver for the acceptProposedTask field.
+func (r *mutationResolver) AcceptProposedTask(ctx context.Context, taskID string) (*model.Task, error) {
+	if r.DBOS == nil {
+		return nil, fmt.Errorf("chain workflow not available — DBOS context is nil")
+	}
+	tid, err := uuid.Parse(taskID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid id: %w", err)
+	}
+	if err := pgx.BeginFunc(ctx, r.Pool, func(tx pgx.Tx) error {
+		q := db.New(tx)
+		t, err := q.GetTaskForUpdate(ctx, tid)
+		if err != nil {
+			return fmt.Errorf("lock task: %w", err)
+		}
+		if t.State != lifecycle.StateProposed {
+			return fmt.Errorf("task is not PROPOSED (current: %s)", t.State)
+		}
+		if _, err := lifecycle.Transition(ctx, tx, tid, lifecycle.StateProposed, lifecycle.StateAccepted, "owner accepted", t.CurrentStage); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	if err := core.AttachChainWorkflow(ctx, r.Pool, r.DBOS, tid); err != nil {
+		return nil, fmt.Errorf("attach chain: %w", err)
+	}
+	t2, err := r.Queries.GetTask(ctx, tid)
+	if err != nil {
+		return nil, err
+	}
+	return mapTask(&t2)
+}
+
+// DismissProposedTask is the resolver for the dismissProposedTask field.
+func (r *mutationResolver) DismissProposedTask(ctx context.Context, taskID string, reason *string) (*model.Task, error) {
+	tid, err := uuid.Parse(taskID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid id: %w", err)
+	}
+	reasonStr := ""
+	if reason != nil {
+		reasonStr = *reason
+	}
+	if err := pgx.BeginFunc(ctx, r.Pool, func(tx pgx.Tx) error {
+		q := db.New(tx)
+		t, err := q.GetTaskForUpdate(ctx, tid)
+		if err != nil {
+			return fmt.Errorf("lock task: %w", err)
+		}
+		if t.State != lifecycle.StateProposed {
+			return fmt.Errorf("task is not PROPOSED (current: %s)", t.State)
+		}
+		if _, err := lifecycle.Transition(ctx, tx, tid, lifecycle.StateProposed, lifecycle.StateDismissed, reasonStr, t.CurrentStage); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	t2, err := r.Queries.GetTask(ctx, tid)
+	if err != nil {
+		return nil, err
+	}
+	return mapTask(&t2)
+}
 
 // Viewer is the resolver for the viewer field.
 func (r *queryResolver) Viewer(ctx context.Context) (*model.User, error) {
@@ -102,7 +349,104 @@ func (r *queryResolver) Tasks(ctx context.Context, first *int, after *string, st
 	return conn, nil
 }
 
+// Workflow is the resolver for the workflow field.
+func (r *taskResolver) Workflow(ctx context.Context, obj *model.Task) (*model.WorkflowRef, error) {
+	tid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid task id: %w", err)
+	}
+	wf, err := r.Queries.GetLiveWorkflowForTask(ctx, tid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// No live workflow row — also check terminated rows for completeness.
+			return loadAnyWorkflow(ctx, r.Pool, tid)
+		}
+		return nil, fmt.Errorf("get live workflow: %w", err)
+	}
+	return &model.WorkflowRef{ID: wf.DbosWorkflowID, StartedAt: wf.StartedAt}, nil
+}
+
+// OpenAssignment is the resolver for the openAssignment field.
+func (r *taskResolver) OpenAssignment(ctx context.Context, obj *model.Task) (*model.AgentAssignment, error) {
+	tid, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid task id: %w", err)
+	}
+	row, err := r.Queries.FindOpenAssignmentForTask(ctx, tid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("find open assignment: %w", err)
+	}
+	return mapAssignment(&row)
+}
+
+// AgentAssignment returns AgentAssignmentResolver implementation.
+func (r *Resolver) AgentAssignment() AgentAssignmentResolver { return &agentAssignmentResolver{r} }
+
+// Mutation returns MutationResolver implementation.
+func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
+
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
+// Task returns TaskResolver implementation.
+func (r *Resolver) Task() TaskResolver { return &taskResolver{r} }
+
+type agentAssignmentResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type taskResolver struct{ *Resolver }
+
+// taskAlreadyTerminalError returns a typed gqlerror with the TASK_ALREADY_TERMINAL
+// extension code, matching Phase 1 spec Q5.
+func taskAlreadyTerminalError(ctx context.Context, state db.TaskState) *gqlerror.Error {
+	gerr := &gqlerror.Error{
+		Message: fmt.Sprintf("task is already terminal (state=%s)", state),
+		Path:    graphql.GetPath(ctx),
+		Extensions: map[string]any{
+			"code":  TaskAlreadyTerminalCode,
+			"state": string(state),
+		},
+	}
+	return gerr
+}
+
+// loadAnyWorkflow returns the most recent chain_workflows row for a task,
+// regardless of ended_at. Used by Task.workflow when the live row has been
+// closed (the task is terminal) but the workflow ref is still wanted.
+func loadAnyWorkflow(ctx context.Context, pool interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}, taskID uuid.UUID) (*model.WorkflowRef, error) {
+	row := pool.QueryRow(ctx,
+		`SELECT dbos_workflow_id, started_at
+		 FROM chain_workflows
+		 WHERE task_id = $1
+		 ORDER BY started_at DESC, id DESC
+		 LIMIT 1`, taskID)
+	var (
+		wfID      string
+		startedAt = pgtype.Timestamptz{}
+	)
+	if err := row.Scan(&wfID, &startedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get any workflow: %w", err)
+	}
+	return &model.WorkflowRef{ID: wfID, StartedAt: startedAt.Time}, nil
+}
+
+// encodeResult marshals the GraphQL `result: JSON` argument to bytes for the
+// durable-wait payload. Empty/nil → `{}` so the resolver always sends valid JSON.
+func encodeResult(result map[string]any) (json.RawMessage, error) {
+	if result == nil {
+		return json.RawMessage("{}"), nil
+	}
+	b, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("marshal result: %w", err)
+	}
+	return b, nil
+}

@@ -1,6 +1,5 @@
-// Package durable wraps DBOS Transact for the tendant core. Phase 0 only
-// initialises DBOS over the shared pgx pool; no workflows are registered by
-// the main binary (the throwaway demo lives in cmd/dbosdemo).
+// Package durable wraps DBOS Transact for the tendant core. Phase 1 adds
+// chain-workflow registration; the throwaway demo still lives in cmd/dbosdemo.
 package durable
 
 import (
@@ -9,6 +8,9 @@ import (
 
 	"github.com/dbos-inc/dbos-transact-golang/dbos"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/bcnelson/tendant/services/api/internal/chain"
+	"github.com/bcnelson/tendant/services/api/internal/db"
 )
 
 // AppName is the DBOS application identifier.
@@ -40,4 +42,12 @@ func Launch(ctx dbos.DBOSContext) error {
 // Shutdown gracefully tears down DBOS within the given timeout.
 func Shutdown(ctx dbos.DBOSContext, timeout time.Duration) {
 	dbos.Shutdown(ctx, timeout)
+}
+
+// RegisterChainWorkflow registers the chain workflow with DBOS, closing over
+// its runtime deps. MUST be called between Init and Launch — Launch performs
+// recovery against the registered function, so the function must be in place
+// beforehand. Wires the deps through chain.Register.
+func RegisterChainWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router chain.Router) {
+	chain.Register(dctx, pool, q, router)
 }

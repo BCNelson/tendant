@@ -1,14 +1,22 @@
-# Tendant operator-edge GraphQL — v1 (Phase 1 mutation surface + AgentAssignment).
-# Source of truth: specs/002-task-lifecycle-chain/contracts/graphql.v1.graphqls.
-# Kept in sync; CI checks gqlgen drift.
+# Tendant operator-edge GraphQL contract — v1 (Phase 1 mutation surface + AgentAssignment).
+#
+# Source: v2 spec Appendix B, narrowed to Phase 1 scope. This is the versioned
+# operator-edge contract (Principle VII). Phase 1 amends Phase 0's read-only
+# subset ADDITIVELY: new types, new fields, and a `Mutation` type land for the
+# first time. The `TaskState` enum's `ELIGIBLE` value is renamed to `WAITING`
+# in this revision — permitted because no client has yet consumed `ELIGIBLE`;
+# once a client has, future renames MUST be deprecation-shaped.
+#
+# Implementation: this SDL is the contract of record; the working schema lives
+# at services/api/graph/schema.graphqls (kept in sync; CI checks gqlgen drift).
 
 scalar Time
 scalar JSON
 
-# `WAITING` replaces Phase 0's `ELIGIBLE` (Phase 1 spec Q3): the holding state
-# for tasks whose post-expansion readiness conditions are not yet met. In
-# Phase 1 the predicate is trivially true, so WAITING is structurally present
-# but not entered on the happy path.
+# `WAITING` replaces Phase 0's `ELIGIBLE` (see Phase 1 spec Q3): it is the
+# *holding* state for tasks whose post-expansion readiness conditions have
+# not yet been met. In Phase 1 the predicate is trivially true, so WAITING
+# is structurally present but not entered on the happy path.
 enum TaskState     { PROPOSED ACCEPTED WAITING EXECUTING DONE DISMISSED HALTED }
 enum ChainStage    { CREATION TRIAGE EXPANSION EXECUTION COMPLETION }
 enum AutonomyLevel { NONE ENRICH_ONLY PROPOSE EXECUTE_GATED EXECUTE_AUTO }
@@ -30,7 +38,7 @@ type Task {
   contextRefs: JSON
   findings: JSON
   workflow: WorkflowRef            # null until a chain workflow attaches (P2)
-  openAssignment: AgentAssignment  # the open human slot if any, else null
+  openAssignment: AgentAssignment  # NEW: the open human slot if any, else null
   createdAt: Time!  editedAt: Time
 }
 
@@ -59,8 +67,8 @@ type Query {
 }
 
 type Mutation {
-  # Owner-authored task creation. Persists the task in state=ACCEPTED,
-  # currentStage=CREATION, attaches a chain workflow, and starts it. The
+  # Owner-authored task creation. Persists the task in `state=ACCEPTED`,
+  # `currentStage=CREATION`, attaches a chain workflow, and starts it. The
   # chain workflow immediately advances past CREATION to TRIAGE and opens
   # the first human slot.
   createTask(title: String!, description: String): Task!
@@ -69,7 +77,7 @@ type Mutation {
   # The chain workflow's durable wait resolves, the slot is closed, the audit
   # row is written, and the chain advances to the next stage. Fails with a
   # typed error if no open assignment exists, the task is terminal, or the
-  # assignment was already resolved.
+  # assignment was already resolved (Phase 1 spec Q5 / edge cases).
   completeTask(taskId: ID!, result: JSON): Task!
 
   # Halt forward progress and move the task to HALTED. Calls
@@ -85,6 +93,14 @@ type Mutation {
   # producing PROPOSED tasks. No-op in Phase 1 except as a contract surface.
   acceptProposedTask(taskId: ID!): Task!
 
-  # Transition PROPOSED → DISMISSED. Reason captured in the audit row.
+  # Transition PROPOSED → DISMISSED. Reason is captured in the audit row.
+  # As with acceptProposedTask, lands additively in Phase 1; exercised in
+  # Phase 7.
   dismissProposedTask(taskId: ID!, reason: String): Task!
 }
+
+# ── Deferred to later phases (listed for contract-evolution awareness only) ──
+# union InboxItem = ApprovalRequest | AgentQuestion | PromotionProposal | AgentAssignment  # Phase 2
+# type Subscription { inboxItemArrived, taskChanged, notificationReceived }                # Phase 2
+# auditTrail(taskId), tool(id), connectors, ...                                            # later phases
+# Mutation { approveArtifact, … }                                                          # Phase 3+

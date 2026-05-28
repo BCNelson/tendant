@@ -27,7 +27,8 @@ func TestPgNotify_IDsOnlyOnInboxInserts(t *testing.T) {
 	q := dbpkg.New(pool)
 	require.NoError(t, core.SeedOwner(ctx, q))
 
-	created, err := core.CreateTask(ctx, q, "notify-test", "")
+	_ = q // q is unused after the new CreateTask signature; retained above for SeedOwner.
+	created, err := core.CreateTask(ctx, pool, nil, "notify-test", "")
 	require.NoError(t, err)
 
 	// Dedicated listener conn — the shared pool can rotate connections, and

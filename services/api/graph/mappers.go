@@ -13,6 +13,10 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/db"
 )
 
+// TaskAlreadyTerminalCode is the GraphQL error code returned by completeTask
+// / cancelTask when the task is already in a terminal state (Phase 1 Q5).
+const TaskAlreadyTerminalCode = "TASK_ALREADY_TERMINAL"
+
 // defaultPageSize is the page size used when the client omits `first` on
 // `tasks(...)`. Lives here so gqlgen regen of *.resolvers.go doesn't quarantine it.
 const defaultPageSize = 50
@@ -62,6 +66,25 @@ func unmarshalJSON(raw []byte, dst *map[string]any) error {
 		return nil
 	}
 	return json.Unmarshal(raw, dst)
+}
+
+// mapAssignment builds the GraphQL AgentAssignment from a sqlc row. `task`
+// and `fromAgent` are lazy field resolvers, so this skips them.
+func mapAssignment(a *db.AgentAssignment) (*model.AgentAssignment, error) {
+	out := &model.AgentAssignment{
+		ID:        a.ID.String(),
+		Stage:     upperChainStage(a.Stage),
+		Ask:       a.Ask,
+		CreatedAt: a.CreatedAt,
+	}
+	if a.ResolvedAt.Valid {
+		ts := a.ResolvedAt.Time
+		out.ResolvedAt = &ts
+	}
+	if err := unmarshalJSON(a.GatheredContext, &out.GatheredContext); err != nil {
+		return nil, fmt.Errorf("gathered_context: %w", err)
+	}
+	return out, nil
 }
 
 // DB enums are lowercase; GraphQL enums are uppercase. The conversions below

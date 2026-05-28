@@ -13,34 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const insertAgentAssignment = `-- name: InsertAgentAssignment :one
-INSERT INTO agent_assignments (task_id, stage, from_principal, ask, gathered_context)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id
-`
-
-type InsertAgentAssignmentParams struct {
-	TaskID          uuid.UUID       `json:"task_id"`
-	Stage           ChainStage      `json:"stage"`
-	FromPrincipal   *string         `json:"from_principal"`
-	Ask             string          `json:"ask"`
-	GatheredContext json.RawMessage `json:"gathered_context"`
-}
-
-// Insert into agent_assignments; trg_assign_notify fires IDs-only pg_notify.
-func (q *Queries) InsertAgentAssignment(ctx context.Context, arg InsertAgentAssignmentParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, insertAgentAssignment,
-		arg.TaskID,
-		arg.Stage,
-		arg.FromPrincipal,
-		arg.Ask,
-		arg.GatheredContext,
-	)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
-}
-
 const insertPendingDecision = `-- name: InsertPendingDecision :one
 INSERT INTO pending_decisions (task_id, tool_id, kind, payload, disclosure_class)
 VALUES ($1, $2, $3, $4, $5)

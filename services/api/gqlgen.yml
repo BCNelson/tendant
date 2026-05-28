@@ -27,8 +27,22 @@ skip_mod_tidy: true
 autobind: []
 
 # Scalar bindings. ID stays as the gqlgen default (string).
+# Field resolvers (`resolver: true`) keep loads lazy — Task is the common
+# entry point so we don't want to JOIN agent_assignments on every read.
 models:
   Time:
     model: github.com/99designs/gqlgen/graphql.Time
   JSON:
     model: github.com/99designs/gqlgen/graphql.Map
+  Task:
+    fields:
+      openAssignment:
+        resolver: true
+      workflow:
+        resolver: true
+  AgentAssignment:
+    fields:
+      task:
+        resolver: true
+      fromAgent:
+        resolver: true

@@ -10,6 +10,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/lru"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/dbos-inc/dbos-transact-golang/dbos"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,7 +22,10 @@ import (
 
 // New builds the chi router with the gqlgen handler mounted at /graphql,
 // a playground at /playground, and a /healthz endpoint pinging the pool.
-func New(pool *pgxpool.Pool) http.Handler {
+// dctx may be nil for callers that don't need mutation-side DBOS
+// (e.g., Phase 0-style read-only smoke tests); mutations that touch the
+// chain workflow will fail at request time if it's nil.
+func New(pool *pgxpool.Pool, dctx dbos.DBOSContext) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	// middleware.RealIP intentionally omitted — see chi GHSA-3fxj-6jh8-hvhx.
@@ -31,6 +35,7 @@ func New(pool *pgxpool.Pool) http.Handler {
 	resolver := &graph.Resolver{
 		Pool:    pool,
 		Queries: db.New(pool),
+		DBOS:    dctx,
 	}
 	r.Handle("/graphql", graphqlHandler(resolver))
 	r.Handle("/playground", playground.Handler("Tendant", "/graphql"))

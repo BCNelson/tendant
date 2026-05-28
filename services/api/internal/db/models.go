@@ -278,7 +278,7 @@ type TaskState string
 const (
 	TaskStateProposed  TaskState = "proposed"
 	TaskStateAccepted  TaskState = "accepted"
-	TaskStateEligible  TaskState = "eligible"
+	TaskStateWaiting   TaskState = "waiting"
 	TaskStateExecuting TaskState = "executing"
 	TaskStateDone      TaskState = "done"
 	TaskStateDismissed TaskState = "dismissed"

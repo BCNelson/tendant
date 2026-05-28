@@ -1,0 +1,32 @@
+-- name: InsertAgentAssignment :one
+-- Insert into agent_assignments; trg_assign_notify fires IDs-only pg_notify.
+-- Returns the full row so callers (chain workflow / audit) don't need a second
+-- SELECT for created_at, etc.
+INSERT INTO agent_assignments (task_id, stage, from_principal, ask, gathered_context)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at;
+
+-- name: ResolveAssignment :one
+-- Idempotent close: only updates an open row. Returns the closed row, or no
+-- row (sql.ErrNoRows) if the assignment was already resolved.
+UPDATE agent_assignments
+SET resolved_at = sqlc.arg('resolved_at')::timestamptz
+WHERE id = sqlc.arg('id')::uuid
+  AND resolved_at IS NULL
+RETURNING id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at;
+
+-- name: FindOpenAssignmentForTask :one
+-- Returns the open assignment for a task (at most one — partial-unique index
+-- idx_assign_open enforces uniqueness on open rows). pgx.ErrNoRows if none.
+SELECT id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at
+FROM agent_assignments
+WHERE task_id = $1 AND resolved_at IS NULL
+LIMIT 1;
+
+-- name: FindOpenAssignmentForStage :one
+-- Deterministic recovery lookup: returns the open assignment for (task, stage),
+-- used when the chain workflow needs to find "its" current slot after restart.
+SELECT id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at
+FROM agent_assignments
+WHERE task_id = $1 AND stage = $2 AND resolved_at IS NULL
+LIMIT 1;

@@ -13,27 +13,33 @@ import (
 )
 
 const createTask = `-- name: CreateTask :one
-INSERT INTO tasks (id, global_uri, title, description)
-VALUES ($1, $2, $3, $4)
+INSERT INTO tasks (id, global_uri, title, description, state, current_stage)
+VALUES ($1, $2, $3, $4, $5::task_state, $6::chain_stage)
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
           created_at, edited_at
 `
 
 type CreateTaskParams struct {
-	ID          uuid.UUID `json:"id"`
-	GlobalUri   string    `json:"global_uri"`
-	Title       string    `json:"title"`
-	Description *string   `json:"description"`
+	ID           uuid.UUID  `json:"id"`
+	GlobalUri    string     `json:"global_uri"`
+	Title        string     `json:"title"`
+	Description  *string    `json:"description"`
+	State        TaskState  `json:"state"`
+	CurrentStage ChainStage `json:"current_stage"`
 }
 
-// The app generates id + global_uri (local://task/<uuid>) and passes both.
+// The app generates id + global_uri (local://task/<uuid>) and passes both,
+// plus the explicit state + current_stage so the owner-authored path can
+// write 'accepted','creation' regardless of column defaults.
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
 	row := q.db.QueryRow(ctx, createTask,
 		arg.ID,
 		arg.GlobalUri,
 		arg.Title,
 		arg.Description,
+		arg.State,
+		arg.CurrentStage,
 	)
 	var i Task
 	err := row.Scan(
@@ -63,6 +69,36 @@ WHERE id = $1
 
 func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (Task, error) {
 	row := q.db.QueryRow(ctx, getTask, id)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.GlobalUri,
+		&i.Title,
+		&i.Description,
+		&i.State,
+		&i.CurrentStage,
+		&i.Provenance,
+		&i.ContextRefs,
+		&i.Findings,
+		&i.IntakeSignalID,
+		&i.CreatedAt,
+		&i.EditedAt,
+	)
+	return i, err
+}
+
+const getTaskForUpdate = `-- name: GetTaskForUpdate :one
+SELECT id, global_uri, title, description, state, current_stage,
+       provenance, context_refs, findings, intake_signal_id,
+       created_at, edited_at
+FROM tasks
+WHERE id = $1
+FOR UPDATE
+`
+
+// Row-locks the task for an in-tx transition. Callers MUST have opened a tx.
+func (q *Queries) GetTaskForUpdate(ctx context.Context, id uuid.UUID) (Task, error) {
+	row := q.db.QueryRow(ctx, getTaskForUpdate, id)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -141,4 +177,76 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateTaskStage = `-- name: UpdateTaskStage :one
+UPDATE tasks
+SET current_stage = $1::chain_stage,
+    edited_at = now()
+WHERE id = $2::uuid
+RETURNING id, global_uri, title, description, state, current_stage,
+          provenance, context_refs, findings, intake_signal_id,
+          created_at, edited_at
+`
+
+type UpdateTaskStageParams struct {
+	CurrentStage ChainStage `json:"current_stage"`
+	ID           uuid.UUID  `json:"id"`
+}
+
+// Set the task's current_stage + edited_at. Returns the updated row.
+func (q *Queries) UpdateTaskStage(ctx context.Context, arg UpdateTaskStageParams) (Task, error) {
+	row := q.db.QueryRow(ctx, updateTaskStage, arg.CurrentStage, arg.ID)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.GlobalUri,
+		&i.Title,
+		&i.Description,
+		&i.State,
+		&i.CurrentStage,
+		&i.Provenance,
+		&i.ContextRefs,
+		&i.Findings,
+		&i.IntakeSignalID,
+		&i.CreatedAt,
+		&i.EditedAt,
+	)
+	return i, err
+}
+
+const updateTaskState = `-- name: UpdateTaskState :one
+UPDATE tasks
+SET state = $1::task_state,
+    edited_at = now()
+WHERE id = $2::uuid
+RETURNING id, global_uri, title, description, state, current_stage,
+          provenance, context_refs, findings, intake_signal_id,
+          created_at, edited_at
+`
+
+type UpdateTaskStateParams struct {
+	State TaskState `json:"state"`
+	ID    uuid.UUID `json:"id"`
+}
+
+// Set the task's state + edited_at. Returns the updated row.
+func (q *Queries) UpdateTaskState(ctx context.Context, arg UpdateTaskStateParams) (Task, error) {
+	row := q.db.QueryRow(ctx, updateTaskState, arg.State, arg.ID)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.GlobalUri,
+		&i.Title,
+		&i.Description,
+		&i.State,
+		&i.CurrentStage,
+		&i.Provenance,
+		&i.ContextRefs,
+		&i.Findings,
+		&i.IntakeSignalID,
+		&i.CreatedAt,
+		&i.EditedAt,
+	)
+	return i, err
 }
