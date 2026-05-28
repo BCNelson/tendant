@@ -54,11 +54,12 @@ func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 		SetupSecret:   opts.SetupSecret,
 	}
 
-	r.Route("/graphql", func(gr chi.Router) {
-		gr.Use(auth.Middleware(q))
-		gr.Handle("/", graphqlHandler(resolver))
-	})
-	r.Handle("/graphql", graphqlHandler(resolver)) // legacy mount for tests
+	// Mount /graphql with auth.Middleware applied via With() so that both
+	// "/graphql" (exact) and the chi-default-redirected "/graphql/" trailing-
+	// slash variant resolve through the middleware. Prior shape (Route +
+	// nested Handle("/") + a separate legacy Handle without auth) created a
+	// path where exact "/graphql" bypassed auth — broke session-bearer tests.
+	r.With(auth.Middleware(q)).Handle("/graphql", graphqlHandler(resolver))
 	r.Handle("/playground", playground.Handler("Tendant", "/graphql"))
 	r.Get("/healthz", healthz(pool))
 

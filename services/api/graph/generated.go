@@ -100,6 +100,7 @@ type ComplexityRoot struct {
 		DecidePromotion       func(childComplexity int, decisionID string, accept bool) int
 		DismissProposedTask   func(childComplexity int, taskID string, reason *string) int
 		PairDevice            func(childComplexity int, setupSecret string, displayName string) int
+		ProposeToolCall       func(childComplexity int, taskID string, toolGlobalURI string, payload map[string]any) int
 		RegisterDeviceToken   func(childComplexity int, token string, platform model.DevicePlatform) int
 		RejectApproval        func(childComplexity int, decisionID string, reason *string) int
 		RevokeSession         func(childComplexity int, sessionID string) int
@@ -234,6 +235,7 @@ type MutationResolver interface {
 	RejectApproval(ctx context.Context, decisionID string, reason *string) (model.PendingDecision, error)
 	AnswerQuestion(ctx context.Context, decisionID string, answer string) (model.PendingDecision, error)
 	DecidePromotion(ctx context.Context, decisionID string, accept bool) (model.PendingDecision, error)
+	ProposeToolCall(ctx context.Context, taskID string, toolGlobalURI string, payload map[string]any) (*model.ApprovalRequest, error)
 }
 type PromotionProposalResolver interface {
 	Task(ctx context.Context, obj *model.PromotionProposal) (*model.Task, error)
@@ -546,6 +548,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.PairDevice(childComplexity, args["setupSecret"].(string), args["displayName"].(string)), true
+	case "Mutation.proposeToolCall":
+		if e.ComplexityRoot.Mutation.ProposeToolCall == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_proposeToolCall_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ProposeToolCall(childComplexity, args["taskId"].(string), args["toolGlobalUri"].(string), args["payload"].(map[string]any)), true
 	case "Mutation.registerDeviceToken":
 		if e.ComplexityRoot.Mutation.RegisterDeviceToken == nil {
 			break
@@ -1123,6 +1136,22 @@ func (ec *executionContext) childFields_AgentAssignment(ctx context.Context, fie
 	return nil, fmt.Errorf("no field named %q was found under type AgentAssignment", field.Name)
 }
 
+func (ec *executionContext) childFields_ApprovalRequest(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_ApprovalRequest_id(ctx, field)
+	case "task":
+		return ec.fieldContext_ApprovalRequest_task(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_ApprovalRequest_createdAt(ctx, field)
+	case "tool":
+		return ec.fieldContext_ApprovalRequest_tool(ctx, field)
+	case "payload":
+		return ec.fieldContext_ApprovalRequest_payload(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ApprovalRequest", field.Name)
+}
+
 func (ec *executionContext) childFields_Notification(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -1552,6 +1581,36 @@ func (ec *executionContext) field_Mutation_pairDevice_args(ctx context.Context, 
 		return nil, err
 	}
 	args["displayName"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_proposeToolCall_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "taskId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["taskId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "toolGlobalUri",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["toolGlobalUri"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "payload",
+		func(ctx context.Context, v any) (map[string]any, error) {
+			return ec.unmarshalNJSON2map(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["payload"] = arg2
 	return args, nil
 }
 
@@ -3077,6 +3136,50 @@ func (ec *executionContext) fieldContext_Mutation_decidePromotion(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_decidePromotion_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_proposeToolCall(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_proposeToolCall(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ProposeToolCall(ctx, fc.Args["taskId"].(string), fc.Args["toolGlobalUri"].(string), fc.Args["payload"].(map[string]any))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ApprovalRequest) graphql.Marshaler {
+			return ec.marshalNApprovalRequest2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐApprovalRequest(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_proposeToolCall(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ApprovalRequest(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_proposeToolCall_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -6570,6 +6673,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "proposeToolCall":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_proposeToolCall(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -7860,6 +7970,20 @@ func (ec *executionContext) marshalNApprovalPayload2githubᚗcomᚋbcnelsonᚋte
 		return graphql.Null
 	}
 	return ec._ApprovalPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNApprovalRequest2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐApprovalRequest(ctx context.Context, sel ast.SelectionSet, v model.ApprovalRequest) graphql.Marshaler {
+	return ec._ApprovalRequest(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNApprovalRequest2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐApprovalRequest(ctx context.Context, sel ast.SelectionSet, v *model.ApprovalRequest) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ApprovalRequest(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNAutonomyLevel2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAutonomyLevel(ctx context.Context, v any) (model.AutonomyLevel, error) {

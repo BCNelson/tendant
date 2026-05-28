@@ -9,10 +9,12 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getPendingDecisionByID = `-- name: GetPendingDecisionByID :one
-SELECT id, task_id, tool_id, kind, payload, disclosure_class, created_at, resolved_at, resolution
+SELECT id, task_id, tool_id, kind, payload, disclosure_class, created_at,
+       resolved_at, resolution, frozen_payload, workflow_id, decision_topic
 FROM pending_decisions
 WHERE id = $1
 LIMIT 1
@@ -31,12 +33,16 @@ func (q *Queries) GetPendingDecisionByID(ctx context.Context, id uuid.UUID) (Pen
 		&i.CreatedAt,
 		&i.ResolvedAt,
 		&i.Resolution,
+		&i.FrozenPayload,
+		&i.WorkflowID,
+		&i.DecisionTopic,
 	)
 	return i, err
 }
 
 const listOpenPendingDecisions = `-- name: ListOpenPendingDecisions :many
-SELECT id, task_id, tool_id, kind, payload, disclosure_class, created_at, resolved_at, resolution
+SELECT id, task_id, tool_id, kind, payload, disclosure_class, created_at,
+       resolved_at, resolution, frozen_payload, workflow_id, decision_topic
 FROM pending_decisions
 WHERE resolved_at IS NULL
 ORDER BY created_at DESC, id DESC
@@ -63,6 +69,9 @@ func (q *Queries) ListOpenPendingDecisions(ctx context.Context) ([]PendingDecisi
 			&i.CreatedAt,
 			&i.ResolvedAt,
 			&i.Resolution,
+			&i.FrozenPayload,
+			&i.WorkflowID,
+			&i.DecisionTopic,
 		); err != nil {
 			return nil, err
 		}
@@ -72,4 +81,44 @@ func (q *Queries) ListOpenPendingDecisions(ctx context.Context) ([]PendingDecisi
 		return nil, err
 	}
 	return items, nil
+}
+
+const resolvePendingDecision = `-- name: ResolvePendingDecision :one
+UPDATE pending_decisions
+   SET resolved_at = $2,
+       resolution  = $3
+ WHERE id = $1
+   AND resolved_at IS NULL
+RETURNING id, task_id, tool_id, kind, payload, disclosure_class, created_at,
+          resolved_at, resolution, frozen_payload, workflow_id, decision_topic
+`
+
+type ResolvePendingDecisionParams struct {
+	ID         uuid.UUID          `json:"id"`
+	ResolvedAt pgtype.Timestamptz `json:"resolved_at"`
+	Resolution []byte             `json:"resolution"`
+}
+
+// Phase 3: called by approveArtifact / rejectApproval. First-write-wins on
+// resolved_at — the row is only updated if it hasn't already been resolved.
+// Returns the row regardless (the caller compares pre-state to detect a
+// no-op).
+func (q *Queries) ResolvePendingDecision(ctx context.Context, arg ResolvePendingDecisionParams) (PendingDecision, error) {
+	row := q.db.QueryRow(ctx, resolvePendingDecision, arg.ID, arg.ResolvedAt, arg.Resolution)
+	var i PendingDecision
+	err := row.Scan(
+		&i.ID,
+		&i.TaskID,
+		&i.ToolID,
+		&i.Kind,
+		&i.Payload,
+		&i.DisclosureClass,
+		&i.CreatedAt,
+		&i.ResolvedAt,
+		&i.Resolution,
+		&i.FrozenPayload,
+		&i.WorkflowID,
+		&i.DecisionTopic,
+	)
+	return i, err
 }

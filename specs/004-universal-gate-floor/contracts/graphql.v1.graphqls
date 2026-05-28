@@ -1,0 +1,28 @@
+# Tendant operator-edge GraphQL — v1 (Phase 3 additive delta).
+# Versioning policy: specs/003-operator-edge-wake/contracts/versioning-policy.md.
+#
+# Phase 3 is strictly additive on Phase 2; no existing field is renamed,
+# removed, or retyped. The only Phase 3 schema addition is a single new
+# mutation that lets an EXECUTION-stage actor compose a tool call:
+#
+#   proposeToolCall(taskId, toolGlobalUri, payload) -> ApprovalRequest!
+#
+# All of {Tool, Artifact, Mandate, ApprovalPayload, ApprovalRequest,
+# PendingDecision, approveArtifact, rejectApproval} were declared in
+# Phase 2's contract; Phase 3 turns the stubbed mutations on (see
+# resolvers, not the contract).
+
+extend type Mutation {
+  # Compose a tool call against a task. Runs the gate; on RequestDecision
+  # writes an ApprovalRequest and starts the durable ToolCallWorkflow that
+  # awaits resolution. On read-only short-circuit, dispatches synchronously
+  # and returns a resolved decision. Errors:
+  #   - TOOL_UNKNOWN: toolGlobalUri does not match any tool row
+  #   - TASK_NOT_OPEN: task is not in an EXECUTION-eligible state
+  #   - PERMISSION_DENIED: viewer cannot act on the task
+  proposeToolCall(
+    taskId: ID!
+    toolGlobalUri: String!
+    payload: JSON!
+  ): ApprovalRequest!
+}

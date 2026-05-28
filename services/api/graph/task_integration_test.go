@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/bcnelson/tendant/services/api/internal/auth"
 	"github.com/bcnelson/tendant/services/api/internal/core"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/server"
@@ -36,11 +37,16 @@ func graphqlRequest(t *testing.T, handler http.Handler, query string, vars map[s
 
 // postGraphQL is the lower-level POST that returns the response envelope
 // without failing on errors. Used by tests that want to inspect the error
-// shape (typed errors, codes, etc.).
+// shape (typed errors, codes, etc.). The package-level testBearer (set by
+// the integration test's setup) is sent if non-empty so auth-gated
+// resolvers see a principal.
 func postGraphQL(t *testing.T, handler http.Handler, body []byte) gqlResponse {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/graphql", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	if testBearer != "" {
+		req.Header.Set("Authorization", "Bearer "+testBearer)
+	}
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code, "graphql status: body=%s", rr.Body.String())
@@ -48,6 +54,11 @@ func postGraphQL(t *testing.T, handler http.Handler, body []byte) gqlResponse {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp), "decode graphql response")
 	return resp
 }
+
+// testBearer is set by individual integration tests (a process-wide global
+// is acceptable here — the package's tests run serially by design when
+// they share the bearer).
+var testBearer string
 
 func TestTaskCreateAndReadOverGraphQL(t *testing.T) {
 	t.Parallel()
@@ -63,6 +74,16 @@ func TestTaskCreateAndReadOverGraphQL(t *testing.T) {
 	created, err := core.CreateTask(ctx, pool, nil, "hello", "")
 	require.NoError(t, err)
 	require.NotEqual(t, "", created.GlobalURI)
+
+	// Phase 2+ wires the auth middleware on /graphql; viewer requires a
+	// principal in context. Issue a session and pass it as a bearer.
+	owner, err := q.GetViewer(ctx)
+	require.NoError(t, err)
+	_, raw, err := auth.IssueSession(ctx, q, owner.ID, "task_integration")
+	require.NoError(t, err)
+	prevBearer := testBearer
+	testBearer = raw
+	t.Cleanup(func() { testBearer = prevBearer })
 
 	handler := server.New(pool, nil, server.Options{})
 

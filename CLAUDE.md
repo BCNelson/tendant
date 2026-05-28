@@ -152,4 +152,34 @@ header, the `.github/PULL_REQUEST_TEMPLATE.md`, and the CLAUDE.md
 Conventions block. Design artifacts:
 `specs/003-operator-edge-wake/{spec,plan,research,data-model,quickstart}.md`;
 contracts: `specs/003-operator-edge-wake/contracts/{graphql.v1.graphqls,versioning-policy.md}`.
+
+Phase 3 (Universal Gate, Hard-Rule Floor & the First Tool) is **complete**
+— the trust spine's foundation is live. The new `internal/gate` package
+exposes `Gate.Evaluate(ctx, *ToolCall, *Tool) (Verdict, error)` and
+composes the four canonical layers (read-only short-circuit → hard-rule
+floor → script-stub → overseer-stub) in the order Phases 4/5 will slot
+into without rework. The hard-rule floor is categorical (a trip always
+produces `RequestDecision`, regardless of any downstream layer): three
+clauses — `spend`, `irreversible_third_party` (modes:
+`never|always|stranger_recipient`), and `secret_disclosure` — fed by the
+per-tool `tools.permissions` jsonb. The first MCP tool (`send-email`)
+lives behind `internal/tools` with a `Provider` seam mirroring
+`internal/push` (`LogProvider` default; real SMTP slot reserved for
+Phase 7 credentials). A sibling `internal/toolflow` package owns one
+DBOS-registered workflow (`tendant.toolcall`) per gated call:
+`dbos.Recv` on `approval:<decisionID>` → dispatch via the registry →
+write `tool_outcomes(outcome=clean|bad)` + chained audit messages
+(`tool_call_composed`/`gate_verdict`/`decision_resolved`/`tool_dispatched`
+/`tool_outcome_recorded`). Migration `00004` adds three nullable columns
+to `pending_decisions` (`frozen_payload`, `workflow_id`,
+`decision_topic`) so an `ApprovalRequest` carries the byte-for-byte
+frozen call. The Phase 2 stubs for `approveArtifact` /
+`rejectApproval` are now real (resolution row + `dbos.Send` to wake the
+workflow); a new mutation `proposeToolCall(taskId, toolGlobalUri,
+payload)` is the single composition entry point (the overseer will share
+it in Phase 4). The Flutter app adds `ApprovalDetailPage` +
+`FloorAwareApprovalMutator` so the Phase 2-installed floor rail starts
+refusing real offline approvals. Design artifacts:
+`specs/004-universal-gate-floor/{spec,plan,research,data-model,quickstart}.md`;
+contract delta: `specs/004-universal-gate-floor/contracts/graphql.v1.graphqls`.
 <!-- SPECKIT END -->

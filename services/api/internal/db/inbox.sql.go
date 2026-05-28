@@ -15,8 +15,11 @@ import (
 )
 
 const insertPendingDecision = `-- name: InsertPendingDecision :one
-INSERT INTO pending_decisions (task_id, tool_id, kind, payload, disclosure_class)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO pending_decisions (
+  task_id, tool_id, kind, payload, disclosure_class,
+  frozen_payload, workflow_id, decision_topic
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id
 `
 
@@ -26,9 +29,14 @@ type InsertPendingDecisionParams struct {
 	Kind            DecisionKind    `json:"kind"`
 	Payload         json.RawMessage `json:"payload"`
 	DisclosureClass *string         `json:"disclosure_class"`
+	FrozenPayload   []byte          `json:"frozen_payload"`
+	WorkflowID      *string         `json:"workflow_id"`
+	DecisionTopic   *string         `json:"decision_topic"`
 }
 
 // Insert into pending_decisions; trg_pending_notify fires IDs-only pg_notify.
+// Phase 3 adds frozen_payload / workflow_id / decision_topic — populated for
+// kind=approval_request, left null for agent_question / promotion_proposal.
 func (q *Queries) InsertPendingDecision(ctx context.Context, arg InsertPendingDecisionParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, insertPendingDecision,
 		arg.TaskID,
@@ -36,6 +44,9 @@ func (q *Queries) InsertPendingDecision(ctx context.Context, arg InsertPendingDe
 		arg.Kind,
 		arg.Payload,
 		arg.DisclosureClass,
+		arg.FrozenPayload,
+		arg.WorkflowID,
+		arg.DecisionTopic,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)

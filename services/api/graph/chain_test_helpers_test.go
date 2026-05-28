@@ -19,6 +19,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/durable"
 	"github.com/bcnelson/tendant/services/api/internal/server"
 	"github.com/bcnelson/tendant/services/api/internal/testutil"
+	"github.com/bcnelson/tendant/services/api/internal/tools"
 )
 
 // chainEnv holds the boot products of a single test: pool, dbos context,
@@ -46,6 +47,12 @@ func newChainEnv(t *testing.T) *chainEnv {
 	dctx, err := durable.Init(ctx, pool, executorID)
 	require.NoError(t, err)
 	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, "", nil)
+	// Phase 3 tool-call workflow + send-email tool row. Idempotent on every
+	// test boot; harmless for Phase 1 tests that don't exercise the path.
+	registry := tools.NewRegistry()
+	registry.Register(tools.NewSendEmail(nil))
+	durable.RegisterToolCallWorkflow(dctx, pool, q, registry)
+	require.NoError(t, tools.SeedSendEmail(ctx, q))
 	require.NoError(t, durable.Launch(dctx))
 	t.Cleanup(func() {
 		durable.Shutdown(dctx, 5*time.Second)

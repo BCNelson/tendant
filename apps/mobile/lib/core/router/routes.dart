@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/approval/approval_detail_page.dart';
 import '../../features/inbox/inbox_page.dart';
 import '../../features/pairing/pairing_page.dart';
 import '../../features/task/assignment_view.dart';
@@ -37,6 +38,12 @@ final routerProvider = Provider.family<GoRouter, String?>((ref, initialSession) 
                 AssignmentView(assignmentId: state.pathParameters['id']!),
           ),
         ],
+      ),
+      // Phase 3 — approval detail page for ApprovalRequest items.
+      GoRoute(
+        path: '/approval/:id',
+        builder: (_, state) =>
+            ApprovalDetailPage(decisionId: state.pathParameters['id']!),
       ),
     ],
   );

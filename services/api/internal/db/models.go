@@ -458,6 +458,9 @@ type PendingDecision struct {
 	CreatedAt       time.Time          `json:"created_at"`
 	ResolvedAt      pgtype.Timestamptz `json:"resolved_at"`
 	Resolution      []byte             `json:"resolution"`
+	FrozenPayload   []byte             `json:"frozen_payload"`
+	WorkflowID      *string            `json:"workflow_id"`
+	DecisionTopic   *string            `json:"decision_topic"`
 }
 
 type Principal struct {

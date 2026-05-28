@@ -11,6 +11,8 @@ import (
 
 	"github.com/bcnelson/tendant/services/api/internal/chain"
 	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/bcnelson/tendant/services/api/internal/toolflow"
+	"github.com/bcnelson/tendant/services/api/internal/tools"
 )
 
 // AppName is the DBOS application identifier.
@@ -68,4 +70,13 @@ func RegisterPushQueue(dctx dbos.DBOSContext) {
 	_ = dbos.NewWorkflowQueue(dctx, PushQueueName,
 		dbos.WithWorkerConcurrency(4),
 	)
+}
+
+// RegisterToolCallWorkflow registers Phase 3's sibling workflow that owns
+// the lifecycle of a single gated tool call (await approval → dispatch →
+// record outcome). MUST be called between Init and Launch, like the chain
+// workflow. The registry carries the tool implementations the workflow
+// dispatches against.
+func RegisterToolCallWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry) {
+	toolflow.Register(dctx, pool, q, registry)
 }

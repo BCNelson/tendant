@@ -24,6 +24,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/push"
 	"github.com/bcnelson/tendant/services/api/internal/realtime"
 	"github.com/bcnelson/tendant/services/api/internal/server"
+	"github.com/bcnelson/tendant/services/api/internal/tools"
 )
 
 var (
@@ -81,12 +82,20 @@ func runServe() error {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
-	// 3. Seed owner Principal.
+	// 3. Seed owner Principal + Phase 3 tools.
 	q := db.New(pool)
 	if err := core.SeedOwner(ctx, q); err != nil {
 		return fmt.Errorf("seed owner: %w", err)
 	}
+	if err := tools.SeedSendEmail(ctx, q); err != nil {
+		return fmt.Errorf("seed send-email: %w", err)
+	}
 	ownerURI := ownerGlobalURI(ctx, q)
+
+	// 3b. In-process tool registry. Phase 3 ships one tool (send-email)
+	// behind a LogProvider; real providers slot in for Phase 7.
+	toolRegistry := tools.NewRegistry()
+	toolRegistry.Register(tools.NewSendEmail(nil))
 
 	// 4. Phase 2 setup secret + push selector.
 	if secret := os.Getenv("TENDANT_SETUP_SECRET"); secret != "" {
@@ -109,6 +118,7 @@ func runServe() error {
 	defer durable.Shutdown(dctx, 5*time.Second)
 	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, ownerURI, pushAdapter)
 	durable.RegisterPushQueue(dctx)
+	durable.RegisterToolCallWorkflow(dctx, pool, q, toolRegistry)
 	if err := durable.Launch(dctx); err != nil {
 		return fmt.Errorf("dbos launch: %w", err)
 	}

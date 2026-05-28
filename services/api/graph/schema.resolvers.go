@@ -102,16 +102,16 @@ func (r *approvalRequestResolver) Task(ctx context.Context, obj *model.ApprovalR
 	return r.loadDecisionTask(ctx, obj.ID)
 }
 
-// Tool is the resolver for the tool field. Phase 2 returns a placeholder
-// Tool — Phase 3+ wires real tool rows through pending_decisions.tool_id.
+// Tool is the resolver for the tool field. Phase 3: loads the real tool
+// row via pending_decisions.tool_id.
 func (r *approvalRequestResolver) Tool(ctx context.Context, obj *model.ApprovalRequest) (*model.Tool, error) {
-	return phase2PlaceholderTool(), nil
+	return r.loadDecisionTool(ctx, obj.ID)
 }
 
-// Payload is the resolver for the payload field. Phase 2: returns an empty
-// Mandate placeholder; real payloads land in Phase 3.
+// Payload is the resolver for the payload field. Phase 3: decodes the
+// ApprovalPayload envelope from pending_decisions.payload.
 func (r *approvalRequestResolver) Payload(ctx context.Context, obj *model.ApprovalRequest) (model.ApprovalPayload, error) {
-	return &model.Mandate{Goal: "(Phase 3)", Constraints: map[string]any{}, Guardrails: map[string]any{}}, nil
+	return r.loadDecisionPayload(ctx, obj.ID)
 }
 
 // CreateTask is the resolver for the createTask field.
@@ -334,21 +334,13 @@ func (r *mutationResolver) PairDevice(ctx context.Context, setupSecret string, d
 		if ierr != nil {
 			return ierr
 		}
-		payload := map[string]any{
-			"session_id":   sess.ID.String(),
-			"display_name": displayName,
-			"source":       "pairDevice",
-		}
-		_, werr := lifecycle.WriteAuditMessage(ctx, tx, uuid.Nil, owner.GlobalUri, "session_issued", payload, uuid.Nil)
-		// audit_messages.task_id is NOT NULL — but we have no task to attach
-		// session audit rows to. For Phase 2 we silently skip writing the
-		// audit row when task_id is NULL (the rule's spirit is "tracking
-		// session lifecycle on the audit DAG"; Phase 3+ promotes this to a
-		// dedicated session_events table).
-		if werr != nil {
-			// Drop the audit failure — the session is the source of truth.
-			_ = werr
-		}
+		// audit_messages.task_id is NOT NULL — but we have no task to
+		// attach session audit rows to. For Phase 2 we silently skip
+		// writing the audit row (the rule's spirit is "tracking session
+		// lifecycle on the audit DAG"; Phase 3+ promotes this to a
+		// dedicated session_events table). Don't even ATTEMPT the insert,
+		// because a FK violation aborts the open transaction and the
+		// commit will fail.
 		return nil
 	}); err != nil {
 		return nil, err
@@ -433,15 +425,23 @@ func (r *mutationResolver) UnregisterDeviceToken(ctx context.Context, token stri
 	return true, nil
 }
 
-// ApproveArtifact is the resolver for the approveArtifact field. Phase 2
-// returns NOT_YET_AVAILABLE per FR-005.
+// ApproveArtifact is the resolver for the approveArtifact field. Phase 3:
+// marks the decision resolved and wakes the ToolCallWorkflow. Idempotent:
+// repeated calls on a resolved decision are a no-op that returns the
+// already-resolved decision.
 func (r *mutationResolver) ApproveArtifact(ctx context.Context, decisionID string) (model.PendingDecision, error) {
-	return nil, notYetAvailable(ctx, "approveArtifact")
+	return r.resolveDecisionMutation(ctx, decisionID, true, "")
 }
 
-// RejectApproval is the resolver for the rejectApproval field.
+// RejectApproval is the resolver for the rejectApproval field. Phase 3:
+// marks the decision resolved (rejected) and wakes the ToolCallWorkflow
+// so it can record audit. No tool dispatch.
 func (r *mutationResolver) RejectApproval(ctx context.Context, decisionID string, reason *string) (model.PendingDecision, error) {
-	return nil, notYetAvailable(ctx, "rejectApproval")
+	reasonStr := ""
+	if reason != nil {
+		reasonStr = *reason
+	}
+	return r.resolveDecisionMutation(ctx, decisionID, false, reasonStr)
 }
 
 // AnswerQuestion is the resolver for the answerQuestion field.
@@ -454,6 +454,14 @@ func (r *mutationResolver) DecidePromotion(ctx context.Context, decisionID strin
 	return nil, notYetAvailable(ctx, "decidePromotion")
 }
 
+// ProposeToolCall is the resolver for the proposeToolCall field. Phase 3:
+// composes a tool call, runs the gate, on RequestDecision writes an
+// ApprovalRequest row and starts the durable ToolCallWorkflow that awaits
+// resolution. See specs/004-universal-gate-floor/spec.md.
+func (r *mutationResolver) ProposeToolCall(ctx context.Context, taskID, toolGlobalURI string, payload map[string]any) (*model.ApprovalRequest, error) {
+	return r.proposeToolCallImpl(ctx, taskID, toolGlobalURI, payload)
+}
+
 // Task is the resolver for the task field.
 func (r *promotionProposalResolver) Task(ctx context.Context, obj *model.PromotionProposal) (*model.Task, error) {
 	return r.loadDecisionTask(ctx, obj.ID)
@@ -464,9 +472,16 @@ func (r *promotionProposalResolver) Tool(ctx context.Context, obj *model.Promoti
 	return phase2PlaceholderTool(), nil
 }
 
-// Viewer is the resolver for the viewer field.
+// Viewer is the resolver for the viewer field. Returns the authenticated
+// principal; nil for unauthenticated requests (the field is nullable in
+// the SDL, so this is the canonical "not logged in" shape — exercised by
+// TestRevokeSessionInvalidatesBearer).
 func (r *queryResolver) Viewer(ctx context.Context) (*model.User, error) {
-	p, err := r.Queries.GetViewer(ctx)
+	principal, ok := auth.FromContext(ctx)
+	if !ok {
+		return nil, nil
+	}
+	p, err := r.Queries.GetPrincipalByID(ctx, principal.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil

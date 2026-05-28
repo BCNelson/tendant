@@ -51,6 +51,7 @@ class InboxItemRef {
   final String subtitle;
 
   bool get isAssignment => typename == 'AgentAssignment';
+  bool get isApprovalRequest => typename == 'ApprovalRequest';
 }
 
 class InboxTile extends StatelessWidget {
@@ -60,10 +61,22 @@ class InboxTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (item.isApprovalRequest) {
+      // Phase 3 — ApprovalRequest items route to the approval detail page
+      // which renders the frozen Artifact and exposes Approve / Reject.
+      return ListTile(
+        leading: const Icon(Icons.outbox),
+        title: Text(item.title.isEmpty ? 'Approval' : item.title),
+        subtitle: Text(item.subtitle),
+        onTap: () => context.push('/approval/${item.id}'),
+      );
+    }
     if (!item.isAssignment) {
+      // Other PendingDecision kinds (AgentQuestion, PromotionProposal)
+      // stay read-only — their action surfaces land in Phase 4+.
       return ListTile(
         leading: const Icon(Icons.lock_outline),
-        title: const Text('Decision (Phase 3)'),
+        title: const Text('Decision (Phase 4+)'),
         subtitle: Text(item.subtitle),
         enabled: false,
       );

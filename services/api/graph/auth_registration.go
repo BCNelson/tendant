@@ -36,6 +36,9 @@ func RegisterOperatorEdgeAuth(r *auth.Registry) {
 	r.MustRegister("Mutation", "answerQuestion", "decide", "PendingDecision")
 	r.MustRegister("Mutation", "decidePromotion", "decide", "PendingDecision")
 
+	// Mutation — Phase 3 gate composition surface.
+	r.MustRegister("Mutation", "proposeToolCall", "propose_tool_call", "Task")
+
 	// Subscription
 	r.MustRegister("Subscription", "inboxItemArrived", "view", "InboxItem")
 	r.MustRegister("Subscription", "taskChanged", "view", "Task")
@@ -66,6 +69,7 @@ func OperatorEdgeRequiredFields() []auth.FieldKey {
 		{TypeName: "Mutation", FieldName: "rejectApproval"},
 		{TypeName: "Mutation", FieldName: "answerQuestion"},
 		{TypeName: "Mutation", FieldName: "decidePromotion"},
+		{TypeName: "Mutation", FieldName: "proposeToolCall"},
 		{TypeName: "Subscription", FieldName: "inboxItemArrived"},
 		{TypeName: "Subscription", FieldName: "taskChanged"},
 		{TypeName: "Subscription", FieldName: "notificationReceived"},

@@ -148,6 +148,19 @@ extend type Mutation {
   rejectApproval(decisionId: ID!, reason: String): PendingDecision!
   answerQuestion(decisionId: ID!, answer: String!): PendingDecision!
   decidePromotion(decisionId: ID!, accept: Boolean!): PendingDecision!
+
+  # Phase 3 — Universal Gate, Hard-Rule Floor & the First Tool.
+  # Compose a tool call against a task. Runs the gate; on RequestDecision
+  # writes an ApprovalRequest and starts the durable ToolCallWorkflow that
+  # awaits resolution. Errors:
+  #   TOOL_UNKNOWN     — toolGlobalUri does not match any tool row
+  #   TASK_NOT_OPEN    — task is not in an EXECUTION-eligible state
+  #   PERMISSION_DENIED — viewer cannot act on the task
+  proposeToolCall(
+    taskId: ID!
+    toolGlobalUri: String!
+    payload: JSON!
+  ): ApprovalRequest!
 }
 
 # ----- Subscriptions ---------------------------------------------------
