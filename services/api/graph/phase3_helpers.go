@@ -2,6 +2,8 @@ package graph
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +20,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/gate"
 	"github.com/bcnelson/tendant/services/api/internal/lifecycle"
+	"github.com/bcnelson/tendant/services/api/internal/overseer"
 	"github.com/bcnelson/tendant/services/api/internal/toolflow"
 	"github.com/bcnelson/tendant/services/api/internal/tools"
 )
@@ -104,34 +107,52 @@ func (r *Resolver) proposeToolCallImpl(ctx context.Context, taskID, toolGlobalUR
 		Payload: rawPayload,
 	}
 
-	g := gate.NewDefaultGate(&principalLookupFromQueries{q: r.Queries})
+	// Phase 4: construct the gate with the resolver's wired overseer (nil
+	// in Phase 3 tests; non-nil in production + Phase 4 integration tests).
+	g := gate.NewDefaultGateWithOverseer(&principalLookupFromQueries{q: r.Queries}, r.Overseer)
 	verdict, err := g.Evaluate(ctx, call, &toolRow)
 	if err != nil {
 		return nil, fmt.Errorf("gate: %w", err)
 	}
 
-	// Audit: tool_call_composed → gate_verdict. Persist before we branch on
-	// the verdict so the audit DAG records every composition the system
-	// saw, including denied ones (Phase 3 currently never returns Deny,
-	// but the shape is final).
-	if err := r.writeComposeAndVerdictAudit(ctx, tid, &toolRow, rawPayload, principal.GlobalURI, verdict); err != nil {
+	// Pre-allocate a decision id so the auto-approve and request-decision
+	// branches can write a consistent decision_id into the overseer_evaluated
+	// audit payload. The Approve branch reuses it for the synthetic
+	// pending_decisions row that drives the existing ToolCallWorkflow.
+	decisionID := uuid.New()
+
+	// Audit: tool_call_composed → gate_verdict [→ overseer_evaluated].
+	// Persist before we branch on the verdict so the audit DAG records every
+	// composition the system saw, including denied ones (Phase 4 still
+	// never returns Deny, but the shape is final).
+	if err := r.writeComposeVerdictOverseerAudit(ctx, tid, &toolRow, rawPayload, principal.GlobalURI, verdict, decisionID); err != nil {
 		return nil, fmt.Errorf("audit compose: %w", err)
 	}
 
 	switch verdict.Decision {
 	case gate.DecisionApprove:
-		// Read-only short-circuit. Dispatch synchronously, record outcome,
-		// and return an immediately-resolved ApprovalRequest so the schema
-		// shape is consistent. Phase 3 send-email is not read-only, so
-		// this branch is exercised by future tools / unit tests.
+		// Two distinct Approve sources:
+		//   (a) read-only short-circuit (perms.read_only=true): Phase 3
+		//       fall-through; no overseer verdict carried.
+		//   (b) overseer-approve: Phase 4 auto-approve path. Drive the
+		//       existing ToolCallWorkflow with a synthetic approval so
+		//       dispatch + outcome audit lands via the same Phase 3 path.
+		if verdict.OverseerVerdict != nil {
+			ar, err := r.writeAutoApprovedAndDispatch(ctx, tid, &toolRow, rawPayload, principal.GlobalURI, decisionID)
+			if err != nil {
+				return nil, err
+			}
+			return ar, nil
+		}
 		return r.dispatchReadOnly(ctx, tid, &toolRow, rawPayload, principal.GlobalURI)
 
 	case gate.DecisionDeny:
 		return nil, gateError(ctx, "GATE_DENY", "gate denied the call")
 
 	case gate.DecisionRequestDecision:
-		// Write the ApprovalRequest row and start the durable workflow.
-		decisionID, ar, err := r.writeApprovalRequest(ctx, tid, &toolRow, rawPayload)
+		// Write the ApprovalRequest row (with pre-allocated decision_id) and
+		// start the durable workflow.
+		ar, err := r.writeApprovalRequestWithID(ctx, tid, &toolRow, rawPayload, decisionID)
 		if err != nil {
 			return nil, err
 		}
@@ -141,16 +162,22 @@ func (r *Resolver) proposeToolCallImpl(ctx context.Context, taskID, toolGlobalUR
 		return ar, nil
 
 	case gate.DecisionAgentHandoff:
-		// Reserved for Phase 4 overseer; cannot happen in Phase 3.
-		return nil, gateError(ctx, "GATE_UNSUPPORTED", "agent handoff is not supported in Phase 3")
+		// Reserved for Phase 6 sub-agents.
+		return nil, gateError(ctx, "GATE_UNSUPPORTED", "agent handoff is not supported in Phase 4")
 	}
 	return nil, gateError(ctx, "GATE_UNKNOWN", fmt.Sprintf("unknown verdict: %s", verdict.Decision))
 }
 
-// writeComposeAndVerdictAudit inserts the two audit messages that bracket
-// the gate evaluation. Both share a transaction so a crash mid-write
-// leaves no partial audit chain.
-func (r *Resolver) writeComposeAndVerdictAudit(ctx context.Context, taskID uuid.UUID, tool *db.Tool, payload json.RawMessage, composedBy string, v gate.Verdict) error {
+// writeComposeVerdictOverseerAudit inserts the audit messages bracketing
+// the gate evaluation: tool_call_composed → gate_verdict, plus (when the
+// overseer was consulted) overseer_evaluated chained to gate_verdict. All
+// in one transaction so a crash mid-write leaves no partial audit chain.
+//
+// decisionID, when non-Nil, is recorded in the overseer_evaluated payload's
+// evidence.decision_id so ApprovalRequest.overseerEvaluation can locate
+// the row. The Approve path passes the pre-allocated id too — Phase 8
+// calibration treats auto-approves and human-approves symmetrically.
+func (r *Resolver) writeComposeVerdictOverseerAudit(ctx context.Context, taskID uuid.UUID, tool *db.Tool, payload json.RawMessage, composedBy string, v gate.Verdict, decisionID uuid.UUID) error {
 	return pgx.BeginFunc(ctx, r.Pool, func(tx pgx.Tx) error {
 		parent, err := latestTransitionIDInTx(ctx, tx, taskID)
 		if err != nil {
@@ -169,7 +196,7 @@ func (r *Resolver) writeComposeAndVerdictAudit(ctx context.Context, taskID uuid.
 		if err != nil {
 			return err
 		}
-		_, err = lifecycle.WriteAuditMessage(ctx, tx, taskID, lifecycle.SystemActorURI,
+		gateVerdictID, err := lifecycle.WriteAuditMessage(ctx, tx, taskID, lifecycle.SystemActorURI,
 			lifecycle.KindGateVerdict,
 			lifecycle.GateVerdictPayload{
 				ToolID:   tool.ID,
@@ -178,23 +205,46 @@ func (r *Resolver) writeComposeAndVerdictAudit(ctx context.Context, taskID uuid.
 			},
 			composed,
 		)
-		return err
+		if err != nil {
+			return err
+		}
+
+		// Phase 4: overseer_evaluated, chained to gate_verdict, only when
+		// the overseer was actually consulted (non-nil verdict).
+		if v.OverseerVerdict != nil {
+			ownerHash := hashOwnerInstructions(tool.OverseerInstructions)
+			payloadMap := overseer.AuditPayload(v.OverseerVerdict, decisionID, ownerHash)
+			if _, err := lifecycle.WriteAuditMessage(ctx, tx, taskID, lifecycle.SystemActorURI,
+				lifecycle.KindOverseerEvaluated, payloadMap, gateVerdictID); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
-// writeApprovalRequest inserts the pending_decisions row with the frozen
-// payload + workflow id + topic. Returns the decision id and a ready-to-
-// return model.ApprovalRequest.
-func (r *Resolver) writeApprovalRequest(ctx context.Context, taskID uuid.UUID, tool *db.Tool, frozen json.RawMessage) (uuid.UUID, *model.ApprovalRequest, error) {
+// hashOwnerInstructions returns the sha256-hex of the owner-authored
+// instructions string at gate-entry time. Used in audit so a later
+// calibration job can detect when instructions changed without
+// duplicating the text across tables.
+func hashOwnerInstructions(p *string) string {
+	if p == nil {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(*p))
+	return hex.EncodeToString(sum[:])
+}
+
+// writeApprovalRequestWithID inserts the pending_decisions row with the
+// frozen payload + workflow id + topic at a CALLER-supplied id (Phase 4
+// pre-allocates the id so the overseer_evaluated audit can reference it).
+// Returns a ready-to-return model.ApprovalRequest.
+func (r *Resolver) writeApprovalRequestWithID(ctx context.Context, taskID uuid.UUID, tool *db.Tool, frozen json.RawMessage, decisionID uuid.UUID) (*model.ApprovalRequest, error) {
 	envelope, err := encodeApprovalEnvelope(tool, frozen)
 	if err != nil {
-		return uuid.Nil, nil, fmt.Errorf("encode approval envelope: %w", err)
+		return nil, fmt.Errorf("encode approval envelope: %w", err)
 	}
 
-	// The workflow id is derived from the decision id (deterministic). We
-	// pre-allocate the decision id so we can write it into workflow_id +
-	// decision_topic atomically with the row.
-	decisionID := uuid.New()
 	wfID := toolflow.WorkflowID(decisionID)
 	topic := toolflow.ApprovalTopic(decisionID)
 
@@ -217,14 +267,70 @@ func (r *Resolver) writeApprovalRequest(ctx context.Context, taskID uuid.UUID, t
 		topic,
 	)
 	if err := row.Scan(&insertedID); err != nil {
-		return uuid.Nil, nil, fmt.Errorf("insert pending_decision: %w", err)
+		return nil, fmt.Errorf("insert pending_decision: %w", err)
 	}
 
 	ar := &model.ApprovalRequest{
 		ID:        insertedID.String(),
 		CreatedAt: time.Now().UTC(), // resolver-side approximation; field-resolved Task fetches the real row if needed
 	}
-	return insertedID, ar, nil
+	return ar, nil
+}
+
+// writeAutoApprovedAndDispatch is the overseer-Approve path. Writes the
+// pending_decisions row with a system-authored resolution populated up
+// front (so it never shows in the inbox), starts the tool-call workflow
+// with the pre-allocated decision_id, and immediately Sends a synthetic
+// approval to wake it. The existing toolflow.ToolCallWorkflow handles
+// dispatch + outcome audit; resolved_by=system distinguishes auto-approve
+// from human-approve in the audit DAG.
+func (r *Resolver) writeAutoApprovedAndDispatch(ctx context.Context, taskID uuid.UUID, tool *db.Tool, frozen json.RawMessage, composedBy string, decisionID uuid.UUID) (*model.ApprovalRequest, error) {
+	envelope, err := encodeApprovalEnvelope(tool, frozen)
+	if err != nil {
+		return nil, fmt.Errorf("encode approval envelope: %w", err)
+	}
+
+	wfID := toolflow.WorkflowID(decisionID)
+	topic := toolflow.ApprovalTopic(decisionID)
+
+	resolution, err := json.Marshal(map[string]any{
+		"approved":    true,
+		"reason":      "overseer-approved",
+		"resolved_by": lifecycle.SystemActorURI,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal auto-resolution: %w", err)
+	}
+
+	var insertedID uuid.UUID
+	row := r.Pool.QueryRow(ctx, `
+		INSERT INTO pending_decisions
+		  (id, task_id, tool_id, kind, payload, frozen_payload, workflow_id, decision_topic,
+		   resolved_at, resolution)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), $9)
+		RETURNING id`,
+		decisionID, taskID, tool.ID, db.DecisionKindApprovalRequest,
+		envelope, frozen, wfID, topic, resolution,
+	)
+	if err := row.Scan(&insertedID); err != nil {
+		return nil, fmt.Errorf("insert auto-approved pending_decision: %w", err)
+	}
+
+	// Start the workflow and immediately Send the synthetic approval.
+	// DBOS persists the Send until a Recv matches, so the workflow's Recv
+	// (started below) will wake regardless of ordering.
+	if err := toolflow.StartToolCallWorkflow(r.DBOS, decisionID); err != nil {
+		return nil, fmt.Errorf("start auto-approve workflow: %w", err)
+	}
+	if err := toolflow.ResolveDecision(r.DBOS, decisionID, true, "overseer-approved", lifecycle.SystemActorURI); err != nil {
+		return nil, fmt.Errorf("send synthetic approval: %w", err)
+	}
+
+	_ = composedBy // composed-by is recorded by writeComposeVerdictOverseerAudit already
+	return &model.ApprovalRequest{
+		ID:        insertedID.String(),
+		CreatedAt: time.Now().UTC(),
+	}, nil
 }
 
 // encodeApprovalEnvelope produces the JSON stored in pending_decisions.payload

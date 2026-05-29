@@ -65,11 +65,12 @@ type ComplexityRoot struct {
 	}
 
 	ApprovalRequest struct {
-		CreatedAt func(childComplexity int) int
-		ID        func(childComplexity int) int
-		Payload   func(childComplexity int) int
-		Task      func(childComplexity int) int
-		Tool      func(childComplexity int) int
+		CreatedAt          func(childComplexity int) int
+		ID                 func(childComplexity int) int
+		OverseerEvaluation func(childComplexity int) int
+		Payload            func(childComplexity int) int
+		Task               func(childComplexity int) int
+		Tool               func(childComplexity int) int
 	}
 
 	Artifact struct {
@@ -91,20 +92,22 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		AcceptProposedTask    func(childComplexity int, taskID string) int
-		AnswerQuestion        func(childComplexity int, decisionID string, answer string) int
-		ApproveArtifact       func(childComplexity int, decisionID string) int
-		CancelTask            func(childComplexity int, taskID string) int
-		CompleteTask          func(childComplexity int, taskID string, result map[string]any) int
-		CreateTask            func(childComplexity int, title string, description *string) int
-		DecidePromotion       func(childComplexity int, decisionID string, accept bool) int
-		DismissProposedTask   func(childComplexity int, taskID string, reason *string) int
-		PairDevice            func(childComplexity int, setupSecret string, displayName string) int
-		ProposeToolCall       func(childComplexity int, taskID string, toolGlobalURI string, payload map[string]any) int
-		RegisterDeviceToken   func(childComplexity int, token string, platform model.DevicePlatform) int
-		RejectApproval        func(childComplexity int, decisionID string, reason *string) int
-		RevokeSession         func(childComplexity int, sessionID string) int
-		UnregisterDeviceToken func(childComplexity int, token string) int
+		AcceptProposedTask          func(childComplexity int, taskID string) int
+		AnswerQuestion              func(childComplexity int, decisionID string, answer string) int
+		ApproveArtifact             func(childComplexity int, decisionID string) int
+		CancelTask                  func(childComplexity int, taskID string) int
+		CompleteTask                func(childComplexity int, taskID string, result map[string]any) int
+		CreateTask                  func(childComplexity int, title string, description *string) int
+		DecidePromotion             func(childComplexity int, decisionID string, accept bool) int
+		DismissProposedTask         func(childComplexity int, taskID string, reason *string) int
+		PairDevice                  func(childComplexity int, setupSecret string, displayName string) int
+		ProposeToolCall             func(childComplexity int, taskID string, toolGlobalURI string, payload map[string]any) int
+		RegisterDeviceToken         func(childComplexity int, token string, platform model.DevicePlatform) int
+		RejectApproval              func(childComplexity int, decisionID string, reason *string) int
+		RevokeSession               func(childComplexity int, sessionID string) int
+		SetToolOverseerInstructions func(childComplexity int, toolID string, instructions string) int
+		SetToolPermissions          func(childComplexity int, toolID string, permissions map[string]any) int
+		UnregisterDeviceToken       func(childComplexity int, token string) int
 	}
 
 	Notification struct {
@@ -112,6 +115,18 @@ type ComplexityRoot struct {
 		ID        func(childComplexity int) int
 		Kind      func(childComplexity int) int
 		TaskID    func(childComplexity int) int
+	}
+
+	OverseerEvaluation struct {
+		At               func(childComplexity int) int
+		ConsideredFields func(childComplexity int) int
+		EstimatedCostUsd func(childComplexity int) int
+		ModelID          func(childComplexity int) int
+		Provider         func(childComplexity int) int
+		Summary          func(childComplexity int) int
+		TokensIn         func(childComplexity int) int
+		TokensOut        func(childComplexity int) int
+		Verdict          func(childComplexity int) int
 	}
 
 	PageInfo struct {
@@ -220,6 +235,7 @@ type ApprovalRequestResolver interface {
 
 	Tool(ctx context.Context, obj *model.ApprovalRequest) (*model.Tool, error)
 	Payload(ctx context.Context, obj *model.ApprovalRequest) (model.ApprovalPayload, error)
+	OverseerEvaluation(ctx context.Context, obj *model.ApprovalRequest) (*model.OverseerEvaluation, error)
 }
 type MutationResolver interface {
 	CreateTask(ctx context.Context, title string, description *string) (*model.Task, error)
@@ -236,6 +252,8 @@ type MutationResolver interface {
 	AnswerQuestion(ctx context.Context, decisionID string, answer string) (model.PendingDecision, error)
 	DecidePromotion(ctx context.Context, decisionID string, accept bool) (model.PendingDecision, error)
 	ProposeToolCall(ctx context.Context, taskID string, toolGlobalURI string, payload map[string]any) (*model.ApprovalRequest, error)
+	SetToolPermissions(ctx context.Context, toolID string, permissions map[string]any) (*model.Tool, error)
+	SetToolOverseerInstructions(ctx context.Context, toolID string, instructions string) (*model.Tool, error)
 }
 type PromotionProposalResolver interface {
 	Task(ctx context.Context, obj *model.PromotionProposal) (*model.Task, error)
@@ -373,6 +391,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ApprovalRequest.ID(childComplexity), true
+	case "ApprovalRequest.overseerEvaluation":
+		if e.ComplexityRoot.ApprovalRequest.OverseerEvaluation == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ApprovalRequest.OverseerEvaluation(childComplexity), true
 	case "ApprovalRequest.payload":
 		if e.ComplexityRoot.ApprovalRequest.Payload == nil {
 			break
@@ -592,6 +616,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RevokeSession(childComplexity, args["sessionId"].(string)), true
+	case "Mutation.setToolOverseerInstructions":
+		if e.ComplexityRoot.Mutation.SetToolOverseerInstructions == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setToolOverseerInstructions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetToolOverseerInstructions(childComplexity, args["toolId"].(string), args["instructions"].(string)), true
+	case "Mutation.setToolPermissions":
+		if e.ComplexityRoot.Mutation.SetToolPermissions == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setToolPermissions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetToolPermissions(childComplexity, args["toolId"].(string), args["permissions"].(map[string]any)), true
 	case "Mutation.unregisterDeviceToken":
 		if e.ComplexityRoot.Mutation.UnregisterDeviceToken == nil {
 			break
@@ -628,6 +674,61 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Notification.TaskID(childComplexity), true
+
+	case "OverseerEvaluation.at":
+		if e.ComplexityRoot.OverseerEvaluation.At == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OverseerEvaluation.At(childComplexity), true
+	case "OverseerEvaluation.consideredFields":
+		if e.ComplexityRoot.OverseerEvaluation.ConsideredFields == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OverseerEvaluation.ConsideredFields(childComplexity), true
+	case "OverseerEvaluation.estimatedCostUsd":
+		if e.ComplexityRoot.OverseerEvaluation.EstimatedCostUsd == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OverseerEvaluation.EstimatedCostUsd(childComplexity), true
+	case "OverseerEvaluation.modelId":
+		if e.ComplexityRoot.OverseerEvaluation.ModelID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OverseerEvaluation.ModelID(childComplexity), true
+	case "OverseerEvaluation.provider":
+		if e.ComplexityRoot.OverseerEvaluation.Provider == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OverseerEvaluation.Provider(childComplexity), true
+	case "OverseerEvaluation.summary":
+		if e.ComplexityRoot.OverseerEvaluation.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OverseerEvaluation.Summary(childComplexity), true
+	case "OverseerEvaluation.tokensIn":
+		if e.ComplexityRoot.OverseerEvaluation.TokensIn == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OverseerEvaluation.TokensIn(childComplexity), true
+	case "OverseerEvaluation.tokensOut":
+		if e.ComplexityRoot.OverseerEvaluation.TokensOut == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OverseerEvaluation.TokensOut(childComplexity), true
+	case "OverseerEvaluation.verdict":
+		if e.ComplexityRoot.OverseerEvaluation.Verdict == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OverseerEvaluation.Verdict(childComplexity), true
 
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
@@ -1148,6 +1249,8 @@ func (ec *executionContext) childFields_ApprovalRequest(ctx context.Context, fie
 		return ec.fieldContext_ApprovalRequest_tool(ctx, field)
 	case "payload":
 		return ec.fieldContext_ApprovalRequest_payload(ctx, field)
+	case "overseerEvaluation":
+		return ec.fieldContext_ApprovalRequest_overseerEvaluation(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ApprovalRequest", field.Name)
 }
@@ -1164,6 +1267,30 @@ func (ec *executionContext) childFields_Notification(ctx context.Context, field 
 		return ec.fieldContext_Notification_taskId(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Notification", field.Name)
+}
+
+func (ec *executionContext) childFields_OverseerEvaluation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "verdict":
+		return ec.fieldContext_OverseerEvaluation_verdict(ctx, field)
+	case "summary":
+		return ec.fieldContext_OverseerEvaluation_summary(ctx, field)
+	case "consideredFields":
+		return ec.fieldContext_OverseerEvaluation_consideredFields(ctx, field)
+	case "modelId":
+		return ec.fieldContext_OverseerEvaluation_modelId(ctx, field)
+	case "provider":
+		return ec.fieldContext_OverseerEvaluation_provider(ctx, field)
+	case "tokensIn":
+		return ec.fieldContext_OverseerEvaluation_tokensIn(ctx, field)
+	case "tokensOut":
+		return ec.fieldContext_OverseerEvaluation_tokensOut(ctx, field)
+	case "estimatedCostUsd":
+		return ec.fieldContext_OverseerEvaluation_estimatedCostUsd(ctx, field)
+	case "at":
+		return ec.fieldContext_OverseerEvaluation_at(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OverseerEvaluation", field.Name)
 }
 
 func (ec *executionContext) childFields_PageInfo(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -1669,6 +1796,50 @@ func (ec *executionContext) field_Mutation_revokeSession_args(ctx context.Contex
 		return nil, err
 	}
 	args["sessionId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setToolOverseerInstructions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "toolId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["toolId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "instructions",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["instructions"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setToolPermissions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "toolId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["toolId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "permissions",
+		func(ctx context.Context, v any) (map[string]any, error) {
+			return ec.unmarshalNJSON2map(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["permissions"] = arg1
 	return args, nil
 }
 
@@ -2361,6 +2532,38 @@ func (ec *executionContext) _ApprovalRequest_payload(ctx context.Context, field 
 }
 func (ec *executionContext) fieldContext_ApprovalRequest_payload(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("ApprovalRequest", field, true, true, errors.New("field of type ApprovalPayload does not have child fields"))
+}
+
+func (ec *executionContext) _ApprovalRequest_overseerEvaluation(ctx context.Context, field graphql.CollectedField, obj *model.ApprovalRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ApprovalRequest_overseerEvaluation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.ApprovalRequest().OverseerEvaluation(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.OverseerEvaluation) graphql.Marshaler {
+			return ec.marshalOOverseerEvaluation2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐOverseerEvaluation(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ApprovalRequest_overseerEvaluation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ApprovalRequest",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OverseerEvaluation(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Artifact_kind(ctx context.Context, field graphql.CollectedField, obj *model.Artifact) (ret graphql.Marshaler) {
@@ -3186,6 +3389,94 @@ func (ec *executionContext) fieldContext_Mutation_proposeToolCall(ctx context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_setToolPermissions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setToolPermissions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetToolPermissions(ctx, fc.Args["toolId"].(string), fc.Args["permissions"].(map[string]any))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Tool) graphql.Marshaler {
+			return ec.marshalNTool2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setToolPermissions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Tool(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setToolPermissions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setToolOverseerInstructions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setToolOverseerInstructions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetToolOverseerInstructions(ctx, fc.Args["toolId"].(string), fc.Args["instructions"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Tool) graphql.Marshaler {
+			return ec.marshalNTool2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setToolOverseerInstructions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Tool(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setToolOverseerInstructions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Notification_id(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -3276,6 +3567,213 @@ func (ec *executionContext) _Notification_taskId(ctx context.Context, field grap
 }
 func (ec *executionContext) fieldContext_Notification_taskId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Notification", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _OverseerEvaluation_verdict(ctx context.Context, field graphql.CollectedField, obj *model.OverseerEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OverseerEvaluation_verdict(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Verdict, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OverseerEvaluation_verdict(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OverseerEvaluation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OverseerEvaluation_summary(ctx context.Context, field graphql.CollectedField, obj *model.OverseerEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OverseerEvaluation_summary(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OverseerEvaluation_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OverseerEvaluation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OverseerEvaluation_consideredFields(ctx context.Context, field graphql.CollectedField, obj *model.OverseerEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OverseerEvaluation_consideredFields(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ConsideredFields, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OverseerEvaluation_consideredFields(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OverseerEvaluation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OverseerEvaluation_modelId(ctx context.Context, field graphql.CollectedField, obj *model.OverseerEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OverseerEvaluation_modelId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ModelID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OverseerEvaluation_modelId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OverseerEvaluation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OverseerEvaluation_provider(ctx context.Context, field graphql.CollectedField, obj *model.OverseerEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OverseerEvaluation_provider(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Provider, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OverseerEvaluation_provider(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OverseerEvaluation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OverseerEvaluation_tokensIn(ctx context.Context, field graphql.CollectedField, obj *model.OverseerEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OverseerEvaluation_tokensIn(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TokensIn, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OverseerEvaluation_tokensIn(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OverseerEvaluation", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _OverseerEvaluation_tokensOut(ctx context.Context, field graphql.CollectedField, obj *model.OverseerEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OverseerEvaluation_tokensOut(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TokensOut, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OverseerEvaluation_tokensOut(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OverseerEvaluation", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _OverseerEvaluation_estimatedCostUsd(ctx context.Context, field graphql.CollectedField, obj *model.OverseerEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OverseerEvaluation_estimatedCostUsd(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EstimatedCostUsd, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OverseerEvaluation_estimatedCostUsd(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OverseerEvaluation", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _OverseerEvaluation_at(ctx context.Context, field graphql.CollectedField, obj *model.OverseerEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OverseerEvaluation_at(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.At, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OverseerEvaluation_at(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OverseerEvaluation", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _PageInfo_hasNextPage(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
@@ -6396,6 +6894,39 @@ func (ec *executionContext) _ApprovalRequest(ctx context.Context, sel ast.Select
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "overseerEvaluation":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._ApprovalRequest_overseerEvaluation(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -6680,6 +7211,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setToolPermissions":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setToolPermissions(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setToolOverseerInstructions":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setToolOverseerInstructions(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -6731,6 +7276,85 @@ func (ec *executionContext) _Notification(ctx context.Context, sel ast.Selection
 			}
 		case "taskId":
 			out.Values[i] = ec._Notification_taskId(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var overseerEvaluationImplementors = []string{"OverseerEvaluation"}
+
+func (ec *executionContext) _OverseerEvaluation(ctx context.Context, sel ast.SelectionSet, obj *model.OverseerEvaluation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, overseerEvaluationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OverseerEvaluation")
+		case "verdict":
+			out.Values[i] = ec._OverseerEvaluation_verdict(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "summary":
+			out.Values[i] = ec._OverseerEvaluation_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "consideredFields":
+			out.Values[i] = ec._OverseerEvaluation_consideredFields(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "modelId":
+			out.Values[i] = ec._OverseerEvaluation_modelId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "provider":
+			out.Values[i] = ec._OverseerEvaluation_provider(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tokensIn":
+			out.Values[i] = ec._OverseerEvaluation_tokensIn(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tokensOut":
+			out.Values[i] = ec._OverseerEvaluation_tokensOut(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "estimatedCostUsd":
+			out.Values[i] = ec._OverseerEvaluation_estimatedCostUsd(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "at":
+			out.Values[i] = ec._OverseerEvaluation_at(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -8032,6 +8656,22 @@ func (ec *executionContext) marshalNDevicePlatform2githubᚗcomᚋbcnelsonᚋten
 	return v
 }
 
+func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v any) (float64, error) {
+	res, err := graphql.UnmarshalFloatContext(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.SelectionSet, v float64) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalFloatContext(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return graphql.WrapContextMarshaler(ctx, res)
+}
+
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalID(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -8072,6 +8712,22 @@ func (ec *executionContext) marshalNInboxItem2ᚕgithubᚗcomᚋbcnelsonᚋtenda
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v any) (int, error) {
+	res, err := graphql.UnmarshalInt(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.SelectionSet, v int) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalInt(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
 }
 
 func (ec *executionContext) unmarshalNJSON2map(ctx context.Context, v any) (map[string]any, error) {
@@ -8198,6 +8854,36 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNTask2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTask(ctx context.Context, sel ast.SelectionSet, v model.Task) graphql.Marshaler {
@@ -8524,6 +9210,13 @@ func (ec *executionContext) marshalOJSON2map(ctx context.Context, sel ast.Select
 	_ = ctx
 	res := graphql.MarshalMap(v)
 	return res
+}
+
+func (ec *executionContext) marshalOOverseerEvaluation2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐOverseerEvaluation(ctx context.Context, sel ast.SelectionSet, v *model.OverseerEvaluation) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._OverseerEvaluation(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOPendingDecision2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐPendingDecision(ctx context.Context, sel ast.SelectionSet, v model.PendingDecision) graphql.Marshaler {

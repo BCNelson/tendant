@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/core"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/durable"
+	"github.com/bcnelson/tendant/services/api/internal/overseer"
 	"github.com/bcnelson/tendant/services/api/internal/push"
 	"github.com/bcnelson/tendant/services/api/internal/realtime"
 	"github.com/bcnelson/tendant/services/api/internal/server"
@@ -90,6 +92,9 @@ func runServe() error {
 	if err := tools.SeedSendEmail(ctx, q); err != nil {
 		return fmt.Errorf("seed send-email: %w", err)
 	}
+	if err := tools.SeedSendEmailOverseerInstructions(ctx, q); err != nil {
+		return fmt.Errorf("seed send-email overseer instructions: %w", err)
+	}
 	ownerURI := ownerGlobalURI(ctx, q)
 
 	// 3b. In-process tool registry. Phase 3 ships one tool (send-email)
@@ -132,6 +137,28 @@ func runServe() error {
 	go disp.Run(ctx)
 	defer disp.Stop(context.Background())
 
+	// 6b. Phase 4 overseer gateway. Provider selected at boot from env
+	// (TENDANT_OVERSEER_PROVIDER). LogProvider is the deterministic default
+	// — CI uses it; production opts in to anthropic/openai. Anthropic /
+	// OpenAI provider construction lands in US4.
+	overseerProvider := buildOverseerProvider()
+	overseerModelID := os.Getenv("TENDANT_OVERSEER_MODEL_ID")
+	if overseerModelID == "" {
+		overseerModelID = "log"
+	}
+	maxEvalPerTask := overseer.DefaultMaxEvalPerTask
+	if raw := os.Getenv("TENDANT_OVERSEER_MAX_EVAL_PER_TASK"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			maxEvalPerTask = n
+		}
+	}
+	gateway := overseer.NewGateway(overseerProvider, q, maxEvalPerTask, overseerModelID)
+	slog.Info("overseer.gateway",
+		"provider", overseerProvider.Name(),
+		"model_id", overseerModelID,
+		"max_eval_per_task", maxEvalPerTask,
+	)
+
 	// 7. Operator-edge auth registry assertion.
 	graph.RegisterOperatorEdgeAuth(auth.DefaultRegistry)
 	auth.DefaultRegistry.AssertCovers(graph.OperatorEdgeRequiredFields())
@@ -144,6 +171,8 @@ func runServe() error {
 			PushSelector: pushSel,
 			PushQueue:    durable.PushQueueName,
 			SetupSecret:  auth.SetupSecret,
+			Overseer:     gateway,
+			ToolRegistry: toolRegistry,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
@@ -189,6 +218,32 @@ func (a pushAdapter) EnqueuePush(ctx context.Context, p chain.PushJobPayload) er
 		DeepLinkID:         p.DeepLinkID,
 		Title:              p.Title,
 	})
+}
+
+// buildOverseerProvider selects the active overseer Provider from
+// TENDANT_OVERSEER_PROVIDER at boot. The choice is intentionally NOT
+// addressable at runtime — agents cannot reroute inference. Empty /
+// "log" → deterministic LogProvider (CI default + production fallback
+// if real-provider creds are missing).
+func buildOverseerProvider() overseer.Provider {
+	switch os.Getenv("TENDANT_OVERSEER_PROVIDER") {
+	case "anthropic":
+		p, err := overseer.NewAnthropicProviderFromEnv()
+		if err != nil {
+			slog.Error("overseer: anthropic provider construction failed; falling back to LogProvider", "err", err)
+			return overseer.NewLogProvider()
+		}
+		return p
+	case "openai":
+		p, err := overseer.NewOpenAIProviderFromEnv()
+		if err != nil {
+			slog.Error("overseer: openai provider construction failed; falling back to LogProvider", "err", err)
+			return overseer.NewLogProvider()
+		}
+		return p
+	default:
+		return overseer.NewLogProvider()
+	}
 }
 
 // buildPushSelector reads TENDANT_APNS_* / TENDANT_FCM_* env vars and

@@ -114,6 +114,14 @@ func (r *approvalRequestResolver) Payload(ctx context.Context, obj *model.Approv
 	return r.loadDecisionPayload(ctx, obj.ID)
 }
 
+// OverseerEvaluation is the resolver for the overseerEvaluation field.
+// Phase 4: joins audit_messages on the overseer_evaluated row whose
+// evidence.decision_id matches this approval. Returns nil for floor-raised
+// approvals (no overseer row) — the UI hides the card in that case.
+func (r *approvalRequestResolver) OverseerEvaluation(ctx context.Context, obj *model.ApprovalRequest) (*model.OverseerEvaluation, error) {
+	return r.loadOverseerEvaluation(ctx, obj.ID)
+}
+
 // CreateTask is the resolver for the createTask field.
 func (r *mutationResolver) CreateTask(ctx context.Context, title string, description *string) (*model.Task, error) {
 	if r.DBOS == nil {
@@ -458,8 +466,25 @@ func (r *mutationResolver) DecidePromotion(ctx context.Context, decisionID strin
 // composes a tool call, runs the gate, on RequestDecision writes an
 // ApprovalRequest row and starts the durable ToolCallWorkflow that awaits
 // resolution. See specs/004-universal-gate-floor/spec.md.
-func (r *mutationResolver) ProposeToolCall(ctx context.Context, taskID, toolGlobalURI string, payload map[string]any) (*model.ApprovalRequest, error) {
+func (r *mutationResolver) ProposeToolCall(ctx context.Context, taskID string, toolGlobalURI string, payload map[string]any) (*model.ApprovalRequest, error) {
 	return r.proposeToolCallImpl(ctx, taskID, toolGlobalURI, payload)
+}
+
+// SetToolPermissions is the resolver for the setToolPermissions field.
+// Phase 4 owner-only: rejects any viewer whose Kind != "user" BEFORE any
+// DB write, then validates against the floor's schema. On success writes
+// the row and a tool_permissions_changed audit message (no task — uses
+// the optional audit shape).
+func (r *mutationResolver) SetToolPermissions(ctx context.Context, toolID string, permissions map[string]any) (*model.Tool, error) {
+	return r.setToolPermissionsImpl(ctx, toolID, permissions)
+}
+
+// SetToolOverseerInstructions is the resolver for the
+// setToolOverseerInstructions field. Phase 4 owner-only; same structure
+// as SetToolPermissions but writes only the instructions hash + length
+// to audit (the canonical text lives in tools.overseer_instructions).
+func (r *mutationResolver) SetToolOverseerInstructions(ctx context.Context, toolID string, instructions string) (*model.Tool, error) {
+	return r.setToolOverseerInstructionsImpl(ctx, toolID, instructions)
 }
 
 // Task is the resolver for the task field.

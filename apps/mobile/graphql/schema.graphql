@@ -1,10 +1,14 @@
-# Tendant operator-edge GraphQL — v1 (Phase 2: Operator Edge & the Wake Channel).
-# Source of truth: specs/003-operator-edge-wake/contracts/graphql.v1.graphqls.
-# Versioning policy: specs/003-operator-edge-wake/contracts/versioning-policy.md.
+# Tendant operator-edge GraphQL — v1.
+# Source of truth: specs/003-operator-edge-wake/contracts/graphql.v1.graphqls
+# + per-phase additive deltas (Phase 3: specs/004-universal-gate-floor/,
+#   Phase 4: specs/005-overseer-tool-grader/).
+# Versioning policy: specs/003-operator-edge-wake/contracts/versioning-policy.md
+#   — additive-by-default; field deprecation before any removal; a versioned
+#   endpoint is reserved only for unavoidable breaking changes.
 # Kept in sync; CI checks gqlgen drift.
 #
-# Phase 2 is strictly additive on the Phase 1 baseline; no existing field is
-# renamed, removed, or retyped.
+# Every phase since Phase 1 has been strictly additive; no existing field has
+# been renamed, removed, or retyped.
 
 scalar Time
 scalar JSON
@@ -105,6 +109,25 @@ interface PendingDecision { id: ID!  task: Task!  createdAt: Time! }
 type ApprovalRequest implements PendingDecision {
   id: ID!  task: Task!  createdAt: Time!
   tool: Tool!  payload: ApprovalPayload!
+  # Phase 4 additive: non-null when the overseer was the layer that
+  # escalated this approval. Null when the floor tripped (floor evidence
+  # is implicit in the gate_verdict audit row) or when the overseer was
+  # not consulted.
+  overseerEvaluation: OverseerEvaluation
+}
+
+# Phase 4 additive: OverseerEvaluation carries the verdict + evidence the
+# overseer wrote when it escalated an ApprovalRequest.
+type OverseerEvaluation {
+  verdict: String!
+  summary: String!
+  consideredFields: [String!]!
+  modelId: String!
+  provider: String!
+  tokensIn: Int!
+  tokensOut: Int!
+  estimatedCostUsd: Float!
+  at: Time!
 }
 type AgentQuestion implements PendingDecision {
   id: ID!  task: Task!  createdAt: Time!
@@ -161,6 +184,25 @@ extend type Mutation {
     toolGlobalUri: String!
     payload: JSON!
   ): ApprovalRequest!
+
+  # Phase 4 — OWNER-PRINCIPAL-ONLY tool tuning mutations. Resolver MUST
+  # reject any viewer with Principal.Kind != "user" with PERMISSION_DENIED
+  # before any DB write (structural check via auth.RequireOwner, not a
+  # runtime feature flag).
+  #
+  # setToolPermissions validates against the floor's schema:
+  #   { read_only: bool, spend: bool,
+  #     irreversible_third_party: "never"|"always"|"stranger_recipient",
+  #     secret_classes: [string] }
+  # Errors:
+  #   PERMISSION_DENIED, TOOL_UNKNOWN, INVALID_PERMISSIONS.
+  setToolPermissions(toolId: ID!, permissions: JSON!): Tool!
+
+  # setToolOverseerInstructions replaces the tool's overseer instructions
+  # string. Empty string is allowed (treated as "no owner guidance" — the
+  # overseer returns RequestDecision conservatively).
+  # Errors: PERMISSION_DENIED, TOOL_UNKNOWN.
+  setToolOverseerInstructions(toolId: ID!, instructions: String!): Tool!
 }
 
 # ----- Subscriptions ---------------------------------------------------

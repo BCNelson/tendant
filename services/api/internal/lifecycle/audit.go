@@ -28,6 +28,11 @@ const (
 	KindDecisionResolved    = "decision_resolved"
 	KindToolDispatched      = "tool_dispatched"
 	KindToolOutcomeRecorded = "tool_outcome_recorded"
+
+	// Phase 4 (overseer + owner tuning).
+	KindOverseerEvaluated           = "overseer_evaluated"
+	KindOverseerInstructionsChanged = "overseer_instructions_changed"
+	KindToolPermissionsChanged      = "tool_permissions_changed"
 )
 
 // SystemActorURI is the principal globalUri used for system-authored audit

@@ -182,4 +182,38 @@ it in Phase 4). The Flutter app adds `ApprovalDetailPage` +
 refusing real offline approvals. Design artifacts:
 `specs/004-universal-gate-floor/{spec,plan,research,data-model,quickstart}.md`;
 contract delta: `specs/004-universal-gate-floor/contracts/graphql.v1.graphqls`.
+
+Phase 4 (The Overseer — Per-Tool LLM Grader) is **complete** — the
+gate's Layer-4 slot is wired to the new `internal/overseer` package: a
+`Grader` interface, a `Gateway` choke point that owns the rolling
+60-second rate window + per-task cap, and three `Provider` impls
+(`LogProvider` default + `Anthropic` and `OpenAI` via stdlib `net/http`
+with forced structured tool-use output — no new SDK dep). The gate
+calls the overseer only after the floor declines to trip (constitution
+III preserved); on Approve the resolver writes a system-resolved
+`pending_decisions` row that the Phase-3 `ToolCallWorkflow` dispatches,
+skipping the human-wait while keeping the audit DAG uniform. Owner-only
+mutations `setToolPermissions` and `setToolOverseerInstructions` land
+on the operator-edge GraphQL contract, structurally guarded by the new
+`auth.RequireOwner(ctx)` helper (`Principal.Kind == "user"` before any
+DB write). The labeled-slots discipline is a struct boundary
+(`OverseerInput{OwnerInstructions, ConcreteCall, ...}`) plus a fixed
+`SystemPreamble` declaring `[OWNER_INSTRUCTIONS]` authoritative, so a
+payload field cannot pose as an owner instruction (proven by
+`prompt_test.go` injection cases). Cost control ships three layers:
+per-call `tokens_in`/`tokens_out`/`estimated_cost_usd` in
+`audit_messages` under `kind="overseer_evaluated"`, a rolling
+`overseer.evaluations_per_minute` field on `/healthz`, and a per-task
+hard cap (`TENDANT_OVERSEER_MAX_EVAL_PER_TASK`, default `50`) that
+fail-closes to `RequestDecision` without invoking the provider. **No
+new tables, no new migration** — all new state rides
+`audit_messages.payload jsonb` plus the existing
+`tools.{permissions,overseer_instructions}` columns reserved in Phase 0.
+**No verdict cache** — real tool payloads rarely collide, so the
+carrying cost would outweigh the benefit. The Flutter app adds
+`OverseerEvaluationCard` on `ApprovalDetailPage` (shows verdict +
+summary + considered fields when present) and a read-only
+`ToolDetailPage` for owner reference. Design artifacts:
+`specs/005-overseer-tool-grader/{spec,plan,research,data-model,quickstart}.md`;
+contract delta: `specs/005-overseer-tool-grader/contracts/graphql.v1.graphqls`.
 <!-- SPECKIT END -->

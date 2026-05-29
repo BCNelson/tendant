@@ -1,18 +1,21 @@
 // Package gate is the universal gate that every outward tool call passes
-// through. Phase 3 ships two of the four layers:
+// through. Phase 4 ships three of the four layers actively:
 //
 //	read-only short-circuit  → AUTO Approve, no grading.
 //	HARD-RULE FLOOR          → categorical; trips RequestDecision.
 //	gate script              → stub; falls through (Phase 5).
-//	overseer (LLM grader)    → stub; falls through (Phase 4).
+//	overseer (LLM grader)    → wired (Phase 4); evaluates non-floor-tripping
+//	                            calls via internal/overseer.Grader.
 //
-// Any graded call that does not trip the floor still returns
-// RequestDecision in Phase 3, because the script and overseer are not yet
-// wired. Phases 4 and 5 will replace the stubs in-place without changing
-// this file's surface.
+// Order is immutable (constitution III): the floor is consulted before the
+// overseer, and the overseer can never un-trip the floor. When no Grader is
+// wired (Overseer == nil), the gate falls through to RequestDecision exactly
+// as in Phase 3, which keeps Phase 3 tests deterministic without an overseer
+// in the test harness.
 //
 // The package is intentionally pure (no I/O, no DB) so the floor is
-// trivially unit-testable from JSON fixtures.
+// trivially unit-testable from JSON fixtures. The overseer-call branch
+// delegates all I/O to the Grader behind the seam.
 package gate
 
 import (
@@ -23,6 +26,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/bcnelson/tendant/services/api/internal/overseer"
 )
 
 // Decision is the four-valued verdict shape from the architecture spec.
@@ -55,6 +59,12 @@ func (d Decision) String() string {
 type Verdict struct {
 	Decision Decision        `json:"decision"`
 	Context  json.RawMessage `json:"context,omitempty"`
+	// OverseerVerdict, when non-nil, carries the overseer's verdict
+	// alongside the gate's overall decision. Phase 4 callers (the
+	// resolver) use it to write the overseer_evaluated audit row chained
+	// to gate_verdict. Phase 3 callers — and Phase 4 calls that never
+	// reached Layer 4 (read-only, floor-trip) — leave this nil.
+	OverseerVerdict *overseer.OverseerVerdict `json:"-"`
 }
 
 // ToolCall is the composed tool invocation handed to the gate. The Payload
@@ -81,20 +91,34 @@ type Gate interface {
 	Evaluate(ctx context.Context, call *ToolCall, tool *db.Tool) (Verdict, error)
 }
 
-// DefaultGate is the Phase 3 implementation. Script and overseer are nil
-// stubs that fall through to RequestDecision.
+// DefaultGate is the Phase 4 implementation. Overseer is optional: nil
+// keeps Phase 3 semantics (non-floor-tripping calls escalate); non-nil
+// activates the Layer-4 evaluation.
 type DefaultGate struct {
-	Floor *Floor
+	Floor    *Floor
+	Overseer overseer.Grader
 }
 
-// NewDefaultGate constructs a gate wired to the given principal lookup.
+// NewDefaultGate constructs a gate wired to the given principal lookup, no
+// overseer. Phase 3 behaviour. Tests use this form to drive the unchanged
+// floor-trip + escalate paths.
 func NewDefaultGate(lookup PrincipalLookup) *DefaultGate {
 	return &DefaultGate{Floor: NewFloor(lookup)}
 }
 
+// NewDefaultGateWithOverseer is the Phase 4 form: same Floor, plus the
+// Grader to consult at Layer 4. Pass nil to ovs to behave like
+// NewDefaultGate.
+func NewDefaultGateWithOverseer(lookup PrincipalLookup, ovs overseer.Grader) *DefaultGate {
+	return &DefaultGate{Floor: NewFloor(lookup), Overseer: ovs}
+}
+
 // Evaluate runs the gate layers in order. Any error from a layer aborts
 // evaluation and surfaces the error to the caller — gate failures are
-// fail-closed (the caller treats an error like a Deny).
+// fail-closed (the caller treats an error like a Deny). The overseer is
+// the exception: it fail-closes inside the Grader (returns
+// RequestDecision with a reason), so an overseer outage doesn't surface
+// as an error from Evaluate.
 func (g *DefaultGate) Evaluate(ctx context.Context, call *ToolCall, tool *db.Tool) (Verdict, error) {
 	if g == nil || g.Floor == nil {
 		return Verdict{}, fmt.Errorf("gate: not initialised")
@@ -116,7 +140,8 @@ func (g *DefaultGate) Evaluate(ctx context.Context, call *ToolCall, tool *db.Too
 	}
 
 	// Layer 2: HARD-RULE FLOOR. Categorical; trips RequestDecision regardless
-	// of any downstream layer.
+	// of any downstream layer. Constitution III: the overseer is NEVER
+	// consulted on a floor-tripping call.
 	floorTripped, floorCtx, err := g.Floor.Check(ctx, call, perms)
 	if err != nil {
 		return Verdict{}, fmt.Errorf("gate: floor: %w", err)
@@ -131,15 +156,77 @@ func (g *DefaultGate) Evaluate(ctx context.Context, call *ToolCall, tool *db.Too
 	}
 
 	// Layer 3: gate script. Phase 5 will plug a WASM evaluator here.
-	// Phase 3 stub: no script ⇒ fall through.
+	// Phase 4 stub: no script ⇒ fall through.
 
-	// Layer 4: overseer (LLM grader). Phase 4 will plug the model here.
-	// Phase 3 stub: no overseer ⇒ a graded call that did not trip the floor
-	// still escalates. The spec is explicit: non-floor graded calls escalate
-	// to the operator until the overseer lands.
-	ctxJSON, _ := json.Marshal(map[string]string{
-		"layer":  "no_overseer_yet",
-		"reason": "phase3_fallback",
+	// Layer 4: overseer (LLM grader). Phase 4 wires this via the Grader
+	// seam. When Overseer == nil (Phase 3 test harness), fall back to the
+	// Phase 3 behaviour — escalate to the operator.
+	if g.Overseer == nil {
+		ctxJSON, _ := json.Marshal(map[string]string{
+			"layer":  "no_overseer_wired",
+			"reason": "phase3_fallback",
+		})
+		return Verdict{Decision: DecisionRequestDecision, Context: ctxJSON}, nil
+	}
+
+	in := overseer.OverseerInput{
+		OwnerInstructions: stringFromNullable(tool.OverseerInstructions),
+		ToolName:          tool.Name,
+		ToolGlobalURI:     tool.GlobalUri,
+		ConcreteCall:      call.Payload,
+		Permissions:       tool.Permissions,
+		TaskID:            call.TaskID,
+	}
+	verdict, gerr := g.Overseer.Grade(ctx, &in)
+	if gerr != nil {
+		// The Gateway already fail-closes; treat any returned error as a
+		// belt-and-suspenders fail-closed path too. Don't surface — write
+		// a synthetic RequestDecision with a generic reason.
+		ctxJSON, _ := json.Marshal(map[string]any{
+			"layer":  "overseer",
+			"reason": "grader_error",
+			"err":    gerr.Error(),
+		})
+		return Verdict{
+			Decision: DecisionRequestDecision,
+			Context:  ctxJSON,
+			OverseerVerdict: &overseer.OverseerVerdict{
+				Decision: overseer.DecisionRequestDecision,
+				Reason:   "gateway_error",
+				Evidence: overseer.Evidence{
+					Summary:          fmt.Sprintf("grader returned error: %v", gerr),
+					ConsideredFields: []string{},
+				},
+			},
+		}, nil
+	}
+
+	var gateDec Decision
+	switch verdict.Decision {
+	case overseer.DecisionApprove:
+		gateDec = DecisionApprove
+	default:
+		gateDec = DecisionRequestDecision
+	}
+	ctxJSON, _ := json.Marshal(map[string]any{
+		"layer":    "overseer",
+		"provider": verdict.Provider,
+		"model_id": verdict.ModelID,
+		"verdict":  verdict.Decision.String(),
+		"reason":   verdict.Reason,
 	})
-	return Verdict{Decision: DecisionRequestDecision, Context: ctxJSON}, nil
+	return Verdict{
+		Decision:        gateDec,
+		Context:         ctxJSON,
+		OverseerVerdict: &verdict,
+	}, nil
+}
+
+// stringFromNullable centralises the *string → string fold so the gate's
+// call site doesn't sprinkle dereferences. nil and "" both produce "".
+func stringFromNullable(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }

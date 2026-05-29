@@ -39,6 +39,12 @@ func RegisterOperatorEdgeAuth(r *auth.Registry) {
 	// Mutation — Phase 3 gate composition surface.
 	r.MustRegister("Mutation", "proposeToolCall", "propose_tool_call", "Task")
 
+	// Mutation — Phase 4 owner-only tool tuning. The resolver enforces
+	// the structural owner check (auth.RequireOwner); registration here
+	// just keeps the registry's coverage assertion happy.
+	r.MustRegister("Mutation", "setToolPermissions", "set_tool_permissions", "Tool")
+	r.MustRegister("Mutation", "setToolOverseerInstructions", "set_tool_overseer_instructions", "Tool")
+
 	// Subscription
 	r.MustRegister("Subscription", "inboxItemArrived", "view", "InboxItem")
 	r.MustRegister("Subscription", "taskChanged", "view", "Task")
@@ -70,6 +76,8 @@ func OperatorEdgeRequiredFields() []auth.FieldKey {
 		{TypeName: "Mutation", FieldName: "answerQuestion"},
 		{TypeName: "Mutation", FieldName: "decidePromotion"},
 		{TypeName: "Mutation", FieldName: "proposeToolCall"},
+		{TypeName: "Mutation", FieldName: "setToolPermissions"},
+		{TypeName: "Mutation", FieldName: "setToolOverseerInstructions"},
 		{TypeName: "Subscription", FieldName: "inboxItemArrived"},
 		{TypeName: "Subscription", FieldName: "taskChanged"},
 		{TypeName: "Subscription", FieldName: "notificationReceived"},

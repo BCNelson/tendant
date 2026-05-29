@@ -58,6 +58,9 @@ models:
         resolver: true
       payload:
         resolver: true
+      # Phase 4 — overseerEvaluation joins audit_messages lazily.
+      overseerEvaluation:
+        resolver: true
   AgentQuestion:
     fields:
       task:

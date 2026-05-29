@@ -1,0 +1,66 @@
+# Tendant operator-edge GraphQL — v1 (Phase 4 additive delta).
+# Versioning policy: specs/003-operator-edge-wake/contracts/versioning-policy.md.
+#
+# Phase 4 is strictly additive on Phase 3; no existing field is renamed,
+# removed, or retyped. Three additions:
+#
+#   1. setToolPermissions(toolId, permissions)            -> Tool!
+#   2. setToolOverseerInstructions(toolId, instructions)  -> Tool!
+#   3. ApprovalRequest.overseerEvaluation                  optional nested field
+#
+# (1) and (2) are OWNER-PRINCIPAL-ONLY — the resolver MUST reject any viewer
+# with Principal.Kind != "user" with PERMISSION_DENIED *before* any DB write.
+# This is a structural check (`auth.RequireOwner`), not a runtime feature flag.
+#
+# (3) carries the overseer's verdict + evidence when an ApprovalRequest was
+# escalated by the overseer (rather than the floor or a fall-through). It is
+# null when the floor tripped (the floor verdict is already implicit) or when
+# the overseer was not consulted.
+
+# ----- Tool tuning mutations (Phase 4) ----------------------------------
+
+extend type Mutation {
+  # OWNER-AUTHORED ONLY (Principal.Kind = "user"). Replaces the tool's
+  # permissions JSON wholesale. Validates against the floor's schema:
+  #   { read_only: bool,
+  #     spend: bool,
+  #     irreversible_third_party: "never"|"always"|"stranger_recipient",
+  #     secret_classes: [string] }
+  # Errors:
+  #   - PERMISSION_DENIED:   viewer is not the owner (Kind != "user")
+  #   - TOOL_UNKNOWN:        toolId does not match any tool row
+  #   - INVALID_PERMISSIONS: JSON fails the floor schema (incl. unknown keys)
+  setToolPermissions(toolId: ID!, permissions: JSON!): Tool!
+
+  # OWNER-AUTHORED ONLY (Principal.Kind = "user"). Replaces the tool's
+  # overseer instructions string. Empty string is allowed (treated as "no
+  # owner guidance" → overseer returns RequestDecision conservatively).
+  # Errors:
+  #   - PERMISSION_DENIED: viewer is not the owner (Kind != "user")
+  #   - TOOL_UNKNOWN:      toolId does not match any tool row
+  setToolOverseerInstructions(toolId: ID!, instructions: String!): Tool!
+}
+
+# ----- Overseer evidence on escalated approvals (Phase 4) ----------------
+
+# OverseerEvaluation captures the verdict + evidence the overseer wrote when
+# it escalated an ApprovalRequest. Null when the ApprovalRequest was raised
+# by the floor (floor evidence is implicit in the gate_verdict audit row) or
+# when the overseer was not consulted.
+type OverseerEvaluation {
+  verdict: String!                  # "request_decision" | "fail_closed_request_decision" | "fail_closed_per_task_cap"
+  summary: String!                  # one or two sentence reasoning
+  consideredFields: [String!]!      # e.g. ["payload.body", "payload.to"]
+  modelId: String!                  # e.g. "claude-sonnet-4-6" | "log"
+  provider: String!                 # "log" | "anthropic" | "openai"
+  tokensIn: Int!
+  tokensOut: Int!
+  estimatedCostUsd: Float!
+  at: Time!                         # audit_messages.at for the overseer_evaluated row
+}
+
+extend type ApprovalRequest {
+  # Non-null when the overseer was the layer that escalated this approval.
+  # Resolver joins audit_messages on the related overseer_evaluated row.
+  overseerEvaluation: OverseerEvaluation
+}

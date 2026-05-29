@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"net/http"
 	"time"
 
@@ -20,18 +19,22 @@ import (
 	"github.com/bcnelson/tendant/services/api/graph"
 	"github.com/bcnelson/tendant/services/api/internal/auth"
 	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/bcnelson/tendant/services/api/internal/overseer"
 	"github.com/bcnelson/tendant/services/api/internal/push"
 	"github.com/bcnelson/tendant/services/api/internal/realtime"
+	"github.com/bcnelson/tendant/services/api/internal/tools"
 )
 
-// Options carries the optional Phase 2 wiring for the chi router. Zero values
-// mean "Phase 0/1 mode": no auth middleware, no subscription transport, no
-// push surface. Phase 2 fills these in.
+// Options carries the optional wiring for the chi router. Zero values
+// mean "Phase 0/1 mode": no auth middleware, no subscription transport,
+// no push surface, no overseer. Phase 2/3/4 fill these in.
 type Options struct {
 	Dispatcher   *realtime.Dispatcher
 	PushSelector push.Selector
 	PushQueue    string
 	SetupSecret  *auth.SetupSecretState
+	Overseer     overseer.Grader // Phase 4 — gate's Layer-4 grader; nil = Phase-3 fallthrough
+	ToolRegistry *tools.Registry // Phase 4 — used by auto-approve dispatch path
 }
 
 // New builds the chi router with the gqlgen handler mounted at /graphql,
@@ -52,6 +55,8 @@ func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 		PushSelector:  opts.PushSelector,
 		PushQueueName: opts.PushQueue,
 		SetupSecret:   opts.SetupSecret,
+		Overseer:      opts.Overseer,
+		ToolRegistry:  opts.ToolRegistry,
 	}
 
 	// Mount /graphql with auth.Middleware applied via With() so that both
@@ -61,7 +66,12 @@ func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 	// path where exact "/graphql" bypassed auth — broke session-bearer tests.
 	r.With(auth.Middleware(q)).Handle("/graphql", graphqlHandler(resolver))
 	r.Handle("/playground", playground.Handler("Tendant", "/graphql"))
-	r.Get("/healthz", healthz(pool))
+	// Phase 4: extend /healthz with the overseer rate counter when wired.
+	var rate RateProvider
+	if g, ok := opts.Overseer.(RateProvider); ok {
+		rate = g
+	}
+	r.Get("/healthz", healthzWithOverseer(pool, rate))
 
 	return r
 }
@@ -84,17 +94,4 @@ func graphqlHandler(resolver *graph.Resolver) http.Handler {
 	srv.SetQueryCache(lru.New[*ast.QueryDocument](1000))
 	srv.Use(extension.Introspection{})
 	return srv
-}
-
-func healthz(pool *pgxpool.Pool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-		defer cancel()
-		if err := pool.Ping(ctx); err != nil {
-			http.Error(w, "db unavailable", http.StatusServiceUnavailable)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	}
 }

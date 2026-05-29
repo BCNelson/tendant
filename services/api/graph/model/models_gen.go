@@ -62,11 +62,12 @@ func (this AgentQuestion) GetCreatedAt() time.Time { return this.CreatedAt }
 func (AgentQuestion) IsInboxItem() {}
 
 type ApprovalRequest struct {
-	ID        string          `json:"id"`
-	Task      *Task           `json:"task"`
-	CreatedAt time.Time       `json:"createdAt"`
-	Tool      *Tool           `json:"tool"`
-	Payload   ApprovalPayload `json:"payload"`
+	ID                 string              `json:"id"`
+	Task               *Task               `json:"task"`
+	CreatedAt          time.Time           `json:"createdAt"`
+	Tool               *Tool               `json:"tool"`
+	Payload            ApprovalPayload     `json:"payload"`
+	OverseerEvaluation *OverseerEvaluation `json:"overseerEvaluation,omitempty"`
 }
 
 func (ApprovalRequest) IsPendingDecision()           {}
@@ -111,6 +112,18 @@ type Notification struct {
 	Kind      string    `json:"kind"`
 	CreatedAt time.Time `json:"createdAt"`
 	TaskID    *string   `json:"taskId,omitempty"`
+}
+
+type OverseerEvaluation struct {
+	Verdict          string    `json:"verdict"`
+	Summary          string    `json:"summary"`
+	ConsideredFields []string  `json:"consideredFields"`
+	ModelID          string    `json:"modelId"`
+	Provider         string    `json:"provider"`
+	TokensIn         int       `json:"tokensIn"`
+	TokensOut        int       `json:"tokensOut"`
+	EstimatedCostUsd float64   `json:"estimatedCostUsd"`
+	At               time.Time `json:"at"`
 }
 
 type PageInfo struct {

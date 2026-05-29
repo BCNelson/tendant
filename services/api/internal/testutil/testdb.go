@@ -31,7 +31,7 @@ var (
 	containerErr    error
 )
 
-func getContainer(t *testing.T) (string, error) {
+func getContainer(t testing.TB) (string, error) {
 	t.Helper()
 	containerOnce.Do(func() {
 		ctx := context.Background()
@@ -54,8 +54,9 @@ func getContainer(t *testing.T) (string, error) {
 
 // TestDB returns a pgx pool connected to a fresh database on the shared
 // testcontainers Postgres instance. The database is dropped on test cleanup.
-// Safe for parallel tests.
-func TestDB(t *testing.T) *pgxpool.Pool {
+// Safe for parallel tests. Accepts testing.TB so benchmarks can use it
+// too (just_test runs with -race + benchmarks behind -bench).
+func TestDB(t testing.TB) *pgxpool.Pool {
 	t.Helper()
 	ctx := context.Background()
 

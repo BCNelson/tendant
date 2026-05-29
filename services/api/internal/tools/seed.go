@@ -3,10 +3,15 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/bcnelson/tendant/services/api/internal/db"
 )
+
+func errIsNoRows(err error) bool { return errors.Is(err, pgx.ErrNoRows) }
 
 // SeedSendEmail upserts the canonical send-email tool row on boot.
 // Idempotent — safe to run on every startup (the queries.tools UpsertTool
@@ -20,6 +25,9 @@ import (
 //	                                    — trips the floor when payload.to is
 //	                                      not a known principal globalUri.
 //	secret_classes           : []      — reserved (Phase 9 sub-agents).
+//
+// overseer_instructions is left null here; SeedSendEmailOverseerInstructions
+// fills it on first boot only (idempotent — never clobbers owner edits).
 func SeedSendEmail(ctx context.Context, q *db.Queries) error {
 	perms, err := json.Marshal(map[string]any{
 		"read_only":                false,
@@ -41,3 +49,30 @@ func SeedSendEmail(ctx context.Context, q *db.Queries) error {
 	}
 	return nil
 }
+
+// DefaultSendEmailOverseerInstructions is the FR-013 default. Surfaced as
+// a package-level constant so tests can pin the exact text.
+const DefaultSendEmailOverseerInstructions = "Approve sends to known principals whose body does not mention money. Flag anything else for owner review."
+
+// SeedSendEmailOverseerInstructions sets tools.overseer_instructions for
+// the send-email row to the FR-013 default IFF the column is currently
+// NULL. Idempotent across boots and respectful of owner edits — once an
+// owner has tuned the value via setToolOverseerInstructions, subsequent
+// boots leave it alone.
+func SeedSendEmailOverseerInstructions(ctx context.Context, q *db.Queries) error {
+	_, err := q.UpdateToolOverseerInstructionsIfNull(ctx, db.UpdateToolOverseerInstructionsIfNullParams{
+		GlobalUri:            SendEmailGlobalURI,
+		OverseerInstructions: stringPtr(DefaultSendEmailOverseerInstructions),
+	})
+	if err != nil {
+		// pgx.ErrNoRows happens when overseer_instructions is already set —
+		// the WHERE clause filters that row out. Silently treat as success.
+		if errIsNoRows(err) {
+			return nil
+		}
+		return fmt.Errorf("seed send-email overseer instructions: %w", err)
+	}
+	return nil
+}
+
+func stringPtr(s string) *string { return &s }

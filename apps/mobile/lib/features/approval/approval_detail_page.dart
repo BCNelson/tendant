@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'approval_models.dart';
 import 'approval_provider.dart';
+import 'overseer_evaluation_card.dart';
 
 /// ApprovalDetailPage renders one ApprovalRequest's frozen Artifact and
 /// exposes Approve / Reject actions. Both actions flow through the
@@ -95,6 +96,10 @@ class _ApprovalBodyState extends ConsumerState<_ApprovalBody> {
           _toolHeader(r),
           const SizedBox(height: 16),
           _ArtifactView(artifact: r.artifact),
+          if (r.overseerEvaluation != null) ...[
+            const SizedBox(height: 16),
+            OverseerEvaluationCard(eval: r.overseerEvaluation!),
+          ],
           const SizedBox(height: 24),
           Row(
             children: [

@@ -35,6 +35,32 @@ class Artifact {
   String get body => (content['body'] ?? '') as String;
 }
 
+/// OverseerEvaluationView is the read-only view-model for the Phase 4
+/// `OverseerEvaluation` GraphQL type. Lives here so both
+/// `ApprovalRequestView` and the card widget can reference it without an
+/// import cycle.
+class OverseerEvaluationView {
+  const OverseerEvaluationView({
+    required this.verdict,
+    required this.summary,
+    required this.consideredFields,
+    required this.modelId,
+    required this.provider,
+    required this.tokensIn,
+    required this.tokensOut,
+    required this.estimatedCostUsd,
+  });
+
+  final String verdict;
+  final String summary;
+  final List<String> consideredFields;
+  final String modelId;
+  final String provider;
+  final int tokensIn;
+  final int tokensOut;
+  final double estimatedCostUsd;
+}
+
 /// ApprovalRequestView is what the ApprovalDetailPage renders. The
 /// `toolName` is the human-readable name (display label) of the tool
 /// behind the request — pulled from the `Tool.name` field.
@@ -44,10 +70,15 @@ class ApprovalRequestView {
     required this.toolName,
     required this.toolGlobalUri,
     required this.artifact,
+    this.overseerEvaluation,
   });
 
   final String id;
   final String toolName;
   final String toolGlobalUri;
   final Artifact artifact;
+
+  /// Phase 4: non-null when the overseer was the layer that escalated
+  /// this approval; null for floor-raised approvals.
+  final OverseerEvaluationView? overseerEvaluation;
 }
