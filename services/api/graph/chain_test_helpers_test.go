@@ -13,11 +13,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bcnelson/tendant/services/api/graph"
 	"github.com/bcnelson/tendant/services/api/internal/chain"
+	"github.com/bcnelson/tendant/services/api/internal/connector"
 	"github.com/bcnelson/tendant/services/api/internal/core"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/durable"
 	"github.com/bcnelson/tendant/services/api/internal/gatescript"
+	"github.com/bcnelson/tendant/services/api/internal/intake"
 	"github.com/bcnelson/tendant/services/api/internal/server"
 	"github.com/bcnelson/tendant/services/api/internal/testutil"
 	"github.com/bcnelson/tendant/services/api/internal/tools"
@@ -54,6 +57,12 @@ func newChainEnv(t *testing.T) *chainEnv {
 	registry.Register(tools.NewSendEmail(nil))
 	durable.RegisterToolCallWorkflow(dctx, pool, q, registry)
 	require.NoError(t, tools.SeedSendEmail(ctx, q))
+	// Phase 7: register the intake poll workflow + connector registry so the
+	// connector owner-mutation resolvers (enableConnector → schedule) work.
+	connRegistry := connector.NewRegistry()
+	connector.RegisterBaseSet(connRegistry, nil)
+	disposer := &intake.Disposer{Pool: pool, DBOS: dctx, Queries: q}
+	intake.RegisterPoll(dctx, pool, q, connRegistry, disposer, nil, nil)
 	require.NoError(t, durable.Launch(dctx))
 	t.Cleanup(func() {
 		durable.Shutdown(dctx, 5*time.Second)
@@ -70,7 +79,14 @@ func newChainEnv(t *testing.T) *chainEnv {
 	t.Cleanup(func() { _ = scriptRunner.Close(context.Background()) })
 	scriptSvc := gatescript.NewService(scriptRunner, q, gatescript.DefaultCeilings(), owner.GlobalUri)
 
-	handler := server.New(pool, dctx, server.Options{GateScript: scriptSvc})
+	handler := server.New(pool, dctx, server.Options{
+		GateScript: scriptSvc,
+		ConnectorResolver: graph.ConnectorDeps{
+			HasType:        connRegistry.Has,
+			CreateSchedule: intake.CreateSchedule,
+			DeleteSchedule: intake.DeleteSchedule,
+		},
+	})
 	return &chainEnv{pool: pool, dctx: dctx, handler: handler, queries: q}
 }
 

@@ -52,6 +52,17 @@ const (
 	KindAgentCallRefused     = "agent_call_refused"
 	KindBudgetExhausted      = "budget_exhausted"
 	KindMaxIterationsReached = "max_iterations_reached"
+
+	// Phase 7 (the intake edge). Scope annotations refer to the migration-00006
+	// CHECK (audit_task_required_unless_owner_scope, extended): the three
+	// pre-task kinds may carry task_id = NULL; the three task-scope kinds MUST
+	// carry a non-NULL task_id.
+	KindSignalEmitted      = "signal_emitted"       // pre-task (task_id NULL)
+	KindSignalDeduped      = "signal_deduped"       // pre-task (task_id NULL)
+	KindLLMJudgeCapped     = "llm_judge_capped"     // pre-task (task_id NULL)
+	KindDispositionApplied = "disposition_applied"  // task-scope
+	KindIntakeAutoAccepted = "intake_auto_accepted" // task-scope
+	KindLLMJudgeInvoked    = "llm_judge_invoked"    // task-scope
 )
 
 // SystemActorURI is the principal globalUri used for system-authored audit
@@ -217,6 +228,57 @@ type OwnerRuleSetPayload struct {
 	Key           string  `json:"key"`
 	PreviousValue *string `json:"previous_value"`
 	NewValue      string  `json:"new_value"`
+}
+
+// --- Phase 7 (the intake edge) audit payloads. ------------------------------
+
+// SignalEmittedPayload — kind=signal_emitted (pre-task, task_id NULL). Written
+// when a connector emission is persisted to intake_signals.
+type SignalEmittedPayload struct {
+	ConnectorID    string `json:"connector_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+	Disposition    string `json:"disposition"`
+	SignalID       string `json:"signal_id"`
+}
+
+// SignalDedupedPayload — kind=signal_deduped (pre-task, task_id NULL). Written
+// when an emission collides with an existing (connector_id, idempotency_key).
+type SignalDedupedPayload struct {
+	ConnectorID    string `json:"connector_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
+// LLMJudgeCappedPayload — kind=llm_judge_capped (pre-task, task_id NULL).
+// Written when a llm_judge item exceeds the per-poll cap; no model is called.
+type LLMJudgeCappedPayload struct {
+	ConnectorID string `json:"connector_id"`
+	Cap         int    `json:"cap"`
+	Count       int    `json:"count"`
+}
+
+// DispositionAppliedPayload — kind=disposition_applied (task-scope). Written
+// when the router creates or holds a task. Outcome is one of
+// "forced" | "auto_accept" | "proposed".
+type DispositionAppliedPayload struct {
+	Disposition string `json:"disposition"`
+	Outcome     string `json:"outcome"`
+	SignalID    string `json:"signal_id"`
+}
+
+// IntakeAutoAcceptedPayload — kind=intake_auto_accepted (task-scope). Written
+// when a rich_event clears both the confidence floor and the stakes ceiling.
+type IntakeAutoAcceptedPayload struct {
+	Confidence      float64 `json:"confidence"`
+	StakesHint      float64 `json:"stakes_hint"`
+	ConfidenceFloor float64 `json:"confidence_floor"`
+	StakesCeiling   float64 `json:"stakes_ceiling"`
+}
+
+// LLMJudgeInvokedPayload — kind=llm_judge_invoked (task-scope). Written when
+// the triage model is invoked for an llm_judge item.
+type LLMJudgeInvokedPayload struct {
+	SignalID string `json:"signal_id"`
+	IsTask   *bool  `json:"is_task,omitempty"`
 }
 
 // WriteAuditMessage inserts one audit_messages row inside the provided tx.

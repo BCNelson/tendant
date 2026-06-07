@@ -1,0 +1,33 @@
+# Phase 7 — The Intake Edge (Connectors & Dispositions). Additive (Path 1).
+# Contract: specs/008-intake-edge-connectors/contracts/graphql.v1.graphqls.
+#
+# A configured integration: one trusted connector bound to a coarse filter, a
+# schedule, and disposition rules. `config` (JSON) carries connector_type,
+# filter, schedule, disposition_rules, enabled. Credentials are NEVER exposed
+# here — they live sealed in source_credentials and never cross the read surface.
+#
+# All three operations are OWNER-PRINCIPAL-ONLY: the resolver MUST reject any
+# viewer with Principal.Kind != "user" with PERMISSION_DENIED *before* any DB
+# read or write (auth.RequireOwner — a structural check, not a feature flag).
+
+type Connector {
+  id: ID!
+  connectorType: String!
+  enabled: Boolean!
+  config: JSON!
+}
+
+extend type Query {
+  # Owner-only. Lists configured integrations (which sources are connected).
+  connectors: [Connector!]!
+}
+
+extend type Mutation {
+  # Owner-only. Upsert the integration's config (connector_type, filter,
+  # schedule, disposition_rules). Validates connector_type against the registry.
+  setConnectorConfig(connectorId: ID!, config: JSON!): Connector!
+
+  # Owner-only. Enable/disable polling. Enabling creates the per-connector DBOS
+  # schedule; disabling deletes it. Requires a valid cron schedule to enable.
+  enableConnector(connectorId: ID!, enabled: Boolean!): Connector!
+}

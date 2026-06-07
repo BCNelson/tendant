@@ -1,0 +1,27 @@
+# Owner-only connector management (Phase 7). All three operations are rejected
+# for non-owner principals with PERMISSION_DENIED before any DB access.
+
+query Connectors {
+  connectors {
+    id
+    connectorType
+    enabled
+    config
+  }
+}
+
+mutation SetConnectorConfig($connectorId: ID!, $config: JSON!) {
+  setConnectorConfig(connectorId: $connectorId, config: $config) {
+    id
+    connectorType
+    enabled
+    config
+  }
+}
+
+mutation EnableConnector($connectorId: ID!, $enabled: Boolean!) {
+  enableConnector(connectorId: $connectorId, enabled: $enabled) {
+    id
+    enabled
+  }
+}

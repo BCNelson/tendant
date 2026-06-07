@@ -27,7 +27,34 @@ func Transition(
 	reason string,
 	stage ChainStage, // optional; pass "" if not relevant
 ) (uuid.UUID, error) {
-	if !IsLegal(from, to) {
+	return transition(ctx, tx, taskID, from, to, reason, stage, IsLegal)
+}
+
+// TransitionIntake is Transition under the intake-origin legality table — it
+// additionally permits accepted → dismissed for auto-accepted enrich-only
+// tasks (research R4 / D5). Callers MUST have verified the task is intake-origin
+// (intake_signal_id IS NOT NULL) before calling.
+func TransitionIntake(
+	ctx context.Context,
+	tx pgx.Tx,
+	taskID uuid.UUID,
+	from, to TaskState,
+	reason string,
+	stage ChainStage,
+) (uuid.UUID, error) {
+	return transition(ctx, tx, taskID, from, to, reason, stage, IsLegalIntake)
+}
+
+func transition(
+	ctx context.Context,
+	tx pgx.Tx,
+	taskID uuid.UUID,
+	from, to TaskState,
+	reason string,
+	stage ChainStage,
+	legal func(from, to TaskState) bool,
+) (uuid.UUID, error) {
+	if !legal(from, to) {
 		return uuid.Nil, &ErrIllegalTransition{From: from, To: to}
 	}
 	q := db.New(tx)

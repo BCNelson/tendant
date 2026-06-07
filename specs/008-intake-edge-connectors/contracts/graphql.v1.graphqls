@@ -1,0 +1,65 @@
+# Tendant operator-edge GraphQL — v1 (Phase 7 additive delta).
+# Versioning policy: specs/003-operator-edge-wake/contracts/versioning-policy.md.
+#
+# Phase 7 is strictly additive on Phase 6; no existing field is renamed,
+# removed, or retyped. Additions:
+#
+#   1. type Connector                                      (id, connectorType, enabled, config)
+#   2. Query.connectors: [Connector!]!                     (owner-only)
+#   3. Mutation.setConnectorConfig(connectorId, config)    -> Connector!   (owner-only)
+#   4. Mutation.enableConnector(connectorId, enabled)      -> Connector!   (owner-only)
+#
+# Provenance for intake-origin tasks is surfaced via the EXISTING
+# `Task.provenance: JSON` field (Phase 0) — no schema change required for
+# SC-006 beyond client rendering.
+#
+# All three new operations are OWNER-PRINCIPAL-ONLY — the resolver MUST reject
+# any viewer with Principal.Kind != "user" with PERMISSION_DENIED *before* any
+# DB read or write. This is a structural check (auth.RequireOwner, Phase 4),
+# not a runtime feature flag. The `connectors` query is owner-only because it
+# reveals which sources are connected.
+#
+# PR template: Path 1 — Additive only.
+
+# ----- Connector (Phase 7) ------------------------------------------------
+
+# A configured integration: one trusted connector bound to credentials + a
+# coarse filter + a schedule + disposition rules. `config` (JSON) carries
+# connector_type, filter, schedule, disposition_rules (confidence_floor,
+# stakes_ceiling, llm_judge_per_poll, ...) and enabled. Credentials are NEVER
+# exposed here — they live sealed in source_credentials and never cross the
+# read surface.
+type Connector {
+  id: ID!
+  connectorType: String!
+  enabled: Boolean!
+  config: JSON!
+}
+
+extend type Query {
+  # Owner-only. Lists configured integrations (which sources are connected).
+  connectors: [Connector!]!
+}
+
+extend type Mutation {
+  # Owner-only. Upsert the integration's config (filter, schedule,
+  # disposition_rules). Validates connector_type against the registry and,
+  # when enabling, requires a valid cron `schedule` (no framework default).
+  setConnectorConfig(connectorId: ID!, config: JSON!): Connector!
+
+  # Owner-only. Enable/disable polling. Enabling creates the per-connector
+  # DBOS schedule; disabling deletes it. Requires a valid schedule to enable.
+  enableConnector(connectorId: ID!, enabled: Boolean!): Connector!
+}
+
+# ----- Notes (no schema change) -------------------------------------------
+#
+# Task.provenance: JSON   (Phase 0) renders the intake reference + reason:
+#   { "raw_ref": "gmail:message/<id>", "reason": "matched filter: ..." }
+#
+# Task.autonomy: AutonomyLevel  (Phase 6) reports the derived "enrich-only"
+# posture for auto-accepted intake tasks — resolver-computed, no stored dial.
+#
+# dismissProposedTask(taskId, reason)  (Phase 2) records the dismissal reason
+# for intake tasks too (the lifecycle now permits dismissing an auto-accepted
+# enrich-only task); Phase 8 reads it as the intake half of the calibration loop.

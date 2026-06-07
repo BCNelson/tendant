@@ -12,6 +12,24 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/router"
 )
 
+// deriveTaskAutonomy computes a task's autonomy, layering the Phase-7 intake
+// readout on top of the Phase-6 specialist derivation:
+//
+//   - An intake-origin task (intake_signal_id set) that is still `accepted` and
+//     whose originating signal was an auto-accepted rich_event reports
+//     ENRICH_ONLY — it ran expansion but execution still routes to the owner
+//     (research R4 / D5). This is the derived posture, no stored dial.
+//   - Otherwise the normal findings-based derivation applies.
+func deriveTaskAutonomy(ctx context.Context, q *db.Queries, t *db.Task) model.AutonomyLevel {
+	if q != nil && t.IntakeSignalID.Valid && t.State == db.TaskStateAccepted {
+		if sig, err := q.GetSignal(ctx, t.IntakeSignalID.Bytes); err == nil &&
+			sig.Disposition == db.SignalDispositionRichEvent {
+			return model.AutonomyLevelEnrichOnly
+		}
+	}
+	return DeriveAutonomy(ctx, q, t.Findings)
+}
+
 // DeriveAutonomy computes the autonomy level for a task based on:
 // 1. Which specialist (if any) would hold the execution stage given current findings.
 // 2. The highest tool rung reachable through that specialist's allowlist.

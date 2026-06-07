@@ -37,6 +37,13 @@ type Options struct {
 	Overseer     overseer.Grader            // Phase 4 — gate's Layer-4 grader; nil = Phase-3 fallthrough
 	ToolRegistry *tools.Registry            // Phase 4 — used by auto-approve dispatch path
 	GateScript   gatescript.ScriptEvaluator // Phase 5 — gate's Layer-3 evaluator; nil = no script layer
+
+	// Phase 7 — the intake edge. Handlers are built in main (so server stays
+	// decoupled from internal/connector). nil ⇒ the route is not mounted.
+	WebhookIngress    http.Handler        // POST /intake/webhook/{connectorID}
+	OAuthCallback     http.Handler        // GET  /oauth/callback/{connectorType}
+	ConnectorResolver graph.ConnectorDeps // owner-mutation wiring for setConnectorConfig/enableConnector
+	IntakeRate        IntakeRateProvider  // /healthz intake counters (nil ⇒ block omitted)
 }
 
 // New builds the chi router with the gqlgen handler mounted at /graphql,
@@ -60,6 +67,7 @@ func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 		Overseer:        opts.Overseer,
 		ToolRegistry:    opts.ToolRegistry,
 		ScriptEvaluator: opts.GateScript,
+		Connectors:      opts.ConnectorResolver,
 	}
 
 	// Mount /graphql with auth.Middleware applied via With() so that both
@@ -79,7 +87,15 @@ func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 	if s, ok := opts.GateScript.(GateScriptRateProvider); ok {
 		scriptRate = s
 	}
-	r.Get("/healthz", healthzWithOverseer(pool, rate, scriptRate))
+	r.Get("/healthz", healthzWithOverseer(pool, rate, scriptRate, opts.IntakeRate))
+
+	// Phase 7 intake edge routes (mounted only when wired).
+	if opts.WebhookIngress != nil {
+		r.Handle("/intake/webhook/*", opts.WebhookIngress)
+	}
+	if opts.OAuthCallback != nil {
+		r.Handle("/oauth/callback/*", opts.OAuthCallback)
+	}
 
 	return r
 }

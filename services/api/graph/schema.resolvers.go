@@ -290,11 +290,21 @@ func (r *mutationResolver) DismissProposedTask(ctx context.Context, taskID strin
 		if err != nil {
 			return fmt.Errorf("lock task: %w", err)
 		}
-		if t.State != lifecycle.StateProposed {
-			return fmt.Errorf("task is not PROPOSED (current: %s)", t.State)
-		}
-		if _, err := lifecycle.Transition(ctx, tx, tid, lifecycle.StateProposed, lifecycle.StateDismissed, reasonStr, t.CurrentStage); err != nil {
-			return err
+		intakeOrigin := t.IntakeSignalID.Valid
+		switch {
+		case t.State == lifecycle.StateProposed:
+			if _, err := lifecycle.Transition(ctx, tx, tid, lifecycle.StateProposed, lifecycle.StateDismissed, reasonStr, t.CurrentStage); err != nil {
+				return err
+			}
+		case t.State == lifecycle.StateAccepted && intakeOrigin:
+			// Auto-accepted enrich-only intake task: dismissible via the relaxed
+			// intake-origin edge (research R4 / D5). Records the reason on the
+			// same calibration path Phase 8 reads.
+			if _, err := lifecycle.TransitionIntake(ctx, tx, tid, lifecycle.StateAccepted, lifecycle.StateDismissed, reasonStr, t.CurrentStage); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("task is not dismissible (state: %s, intake_origin: %v)", t.State, intakeOrigin)
 		}
 		return nil
 	}); err != nil {
@@ -529,7 +539,7 @@ func (r *queryResolver) Task(ctx context.Context, id string) (*model.Task, error
 		}
 		return nil, fmt.Errorf("get task: %w", err)
 	}
-	return mapTask(&t)
+	return mapTaskWithAutonomy(&t, deriveTaskAutonomy(ctx, r.Queries, &t))
 }
 
 // Tasks is the resolver for the tasks field. Keyset pagination over

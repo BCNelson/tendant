@@ -97,6 +97,13 @@ type ComplexityRoot struct {
 		ID          func(childComplexity int) int
 	}
 
+	Connector struct {
+		Config        func(childComplexity int) int
+		ConnectorType func(childComplexity int) int
+		Enabled       func(childComplexity int) int
+		ID            func(childComplexity int) int
+	}
+
 	GateScript struct {
 		AttachedAt          func(childComplexity int) int
 		AttachedByPrincipal func(childComplexity int) int
@@ -140,11 +147,13 @@ type ComplexityRoot struct {
 		DecidePromotion             func(childComplexity int, decisionID string, accept bool) int
 		DisableGateScript           func(childComplexity int, toolID string) int
 		DismissProposedTask         func(childComplexity int, taskID string, reason *string) int
+		EnableConnector             func(childComplexity int, connectorID string, enabled bool) int
 		PairDevice                  func(childComplexity int, setupSecret string, displayName string) int
 		ProposeToolCall             func(childComplexity int, taskID string, toolGlobalURI string, payload map[string]any) int
 		RegisterDeviceToken         func(childComplexity int, token string, platform model.DevicePlatform) int
 		RejectApproval              func(childComplexity int, decisionID string, reason *string) int
 		RevokeSession               func(childComplexity int, sessionID string) int
+		SetConnectorConfig          func(childComplexity int, connectorID string, config map[string]any) int
 		SetOwnerRule                func(childComplexity int, key string, value string) int
 		SetToolOverseerInstructions func(childComplexity int, toolID string, instructions string) int
 		SetToolPermissions          func(childComplexity int, toolID string, permissions map[string]any) int
@@ -194,6 +203,7 @@ type ComplexityRoot struct {
 	Query struct {
 		AgentAssignment func(childComplexity int, id string) int
 		AgentConfigs    func(childComplexity int, stage *model.AgentStage) int
+		Connectors      func(childComplexity int) int
 		Inbox           func(childComplexity int, first *int, after *string) int
 		PendingDecision func(childComplexity int, id string) int
 		Sessions        func(childComplexity int) int
@@ -308,6 +318,8 @@ type MutationResolver interface {
 	CancelTask(ctx context.Context, taskID string) (*model.Task, error)
 	AcceptProposedTask(ctx context.Context, taskID string) (*model.Task, error)
 	DismissProposedTask(ctx context.Context, taskID string, reason *string) (*model.Task, error)
+	SetConnectorConfig(ctx context.Context, connectorID string, config map[string]any) (*model.Connector, error)
+	EnableConnector(ctx context.Context, connectorID string, enabled bool) (*model.Connector, error)
 	AttachGateScript(ctx context.Context, toolID string, wasm model.Bytes, manifest map[string]any) (*model.GateScript, error)
 	CompileAndAttachGateScript(ctx context.Context, toolID string, source string, manifest map[string]any) (*model.GateScript, error)
 	DisableGateScript(ctx context.Context, toolID string) (*model.Tool, error)
@@ -333,6 +345,7 @@ type QueryResolver interface {
 	Viewer(ctx context.Context) (*model.User, error)
 	Task(ctx context.Context, id string) (*model.Task, error)
 	Tasks(ctx context.Context, first *int, after *string, state *model.TaskState) (*model.TaskConnection, error)
+	Connectors(ctx context.Context) ([]*model.Connector, error)
 	Inbox(ctx context.Context, first *int, after *string) ([]model.InboxItem, error)
 	PendingDecision(ctx context.Context, id string) (model.PendingDecision, error)
 	AgentAssignment(ctx context.Context, id string) (*model.AgentAssignment, error)
@@ -576,6 +589,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Bot.ID(childComplexity), true
+
+	case "Connector.config":
+		if e.ComplexityRoot.Connector.Config == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Connector.Config(childComplexity), true
+	case "Connector.connectorType":
+		if e.ComplexityRoot.Connector.ConnectorType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Connector.ConnectorType(childComplexity), true
+	case "Connector.enabled":
+		if e.ComplexityRoot.Connector.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Connector.Enabled(childComplexity), true
+	case "Connector.id":
+		if e.ComplexityRoot.Connector.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Connector.ID(childComplexity), true
 
 	case "GateScript.attachedAt":
 		if e.ComplexityRoot.GateScript.AttachedAt == nil {
@@ -833,6 +871,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DismissProposedTask(childComplexity, args["taskId"].(string), args["reason"].(*string)), true
+	case "Mutation.enableConnector":
+		if e.ComplexityRoot.Mutation.EnableConnector == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_enableConnector_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.EnableConnector(childComplexity, args["connectorId"].(string), args["enabled"].(bool)), true
 	case "Mutation.pairDevice":
 		if e.ComplexityRoot.Mutation.PairDevice == nil {
 			break
@@ -888,6 +937,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RevokeSession(childComplexity, args["sessionId"].(string)), true
+	case "Mutation.setConnectorConfig":
+		if e.ComplexityRoot.Mutation.SetConnectorConfig == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setConnectorConfig_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetConnectorConfig(childComplexity, args["connectorId"].(string), args["config"].(map[string]any)), true
 	case "Mutation.setOwnerRule":
 		if e.ComplexityRoot.Mutation.SetOwnerRule == nil {
 			break
@@ -1110,6 +1170,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AgentConfigs(childComplexity, args["stage"].(*model.AgentStage)), true
+	case "Query.connectors":
+		if e.ComplexityRoot.Query.Connectors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.Connectors(childComplexity), true
 	case "Query.inbox":
 		if e.ComplexityRoot.Query.Inbox == nil {
 			break
@@ -1575,7 +1641,7 @@ func newExecutionContext(
 	}
 }
 
-//go:embed "gatescript.graphqls" "schema.graphqls"
+//go:embed "connector.graphqls" "gatescript.graphqls" "schema.graphqls"
 var sourcesFS embed.FS
 
 func sourceData(filename string) string {
@@ -1587,6 +1653,7 @@ func sourceData(filename string) string {
 }
 
 var sources = []*ast.Source{
+	{Name: "connector.graphqls", Input: sourceData("connector.graphqls"), BuiltIn: false},
 	{Name: "gatescript.graphqls", Input: sourceData("gatescript.graphqls"), BuiltIn: false},
 	{Name: "schema.graphqls", Input: sourceData("schema.graphqls"), BuiltIn: false},
 }
@@ -1656,6 +1723,20 @@ func (ec *executionContext) childFields_ApprovalRequest(ctx context.Context, fie
 		return ec.fieldContext_ApprovalRequest_gateScriptEvaluation(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ApprovalRequest", field.Name)
+}
+
+func (ec *executionContext) childFields_Connector(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Connector_id(ctx, field)
+	case "connectorType":
+		return ec.fieldContext_Connector_connectorType(ctx, field)
+	case "enabled":
+		return ec.fieldContext_Connector_enabled(ctx, field)
+	case "config":
+		return ec.fieldContext_Connector_config(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Connector", field.Name)
 }
 
 func (ec *executionContext) childFields_GateScript(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -2246,6 +2327,28 @@ func (ec *executionContext) field_Mutation_dismissProposedTask_args(ctx context.
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_enableConnector_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "connectorId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["connectorId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "enabled",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["enabled"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_pairDevice_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2353,6 +2456,28 @@ func (ec *executionContext) field_Mutation_revokeSession_args(ctx context.Contex
 		return nil, err
 	}
 	args["sessionId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setConnectorConfig_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "connectorId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["connectorId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "config",
+		func(ctx context.Context, v any) (map[string]any, error) {
+			return ec.unmarshalNJSON2map(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["config"] = arg1
 	return args, nil
 }
 
@@ -3512,6 +3637,98 @@ func (ec *executionContext) fieldContext_Bot_displayName(_ context.Context, fiel
 	return graphql.NewScalarFieldContext("Bot", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Connector_id(ctx context.Context, field graphql.CollectedField, obj *model.Connector) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Connector_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Connector_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Connector", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _Connector_connectorType(ctx context.Context, field graphql.CollectedField, obj *model.Connector) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Connector_connectorType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ConnectorType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Connector_connectorType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Connector", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Connector_enabled(ctx context.Context, field graphql.CollectedField, obj *model.Connector) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Connector_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Connector_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Connector", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Connector_config(ctx context.Context, field graphql.CollectedField, obj *model.Connector) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Connector_config(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Config, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v map[string]any) graphql.Marshaler {
+			return ec.marshalNJSON2map(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Connector_config(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Connector", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
 func (ec *executionContext) _GateScript_id(ctx context.Context, field graphql.CollectedField, obj *model.GateScript) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -4241,6 +4458,94 @@ func (ec *executionContext) fieldContext_Mutation_dismissProposedTask(ctx contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_dismissProposedTask_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setConnectorConfig(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setConnectorConfig(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetConnectorConfig(ctx, fc.Args["connectorId"].(string), fc.Args["config"].(map[string]any))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Connector) graphql.Marshaler {
+			return ec.marshalNConnector2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐConnector(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setConnectorConfig(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Connector(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setConnectorConfig_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_enableConnector(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_enableConnector(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().EnableConnector(ctx, fc.Args["connectorId"].(string), fc.Args["enabled"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Connector) graphql.Marshaler {
+			return ec.marshalNConnector2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐConnector(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_enableConnector(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Connector(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_enableConnector_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -5616,6 +5921,38 @@ func (ec *executionContext) fieldContext_Query_tasks(ctx context.Context, field 
 	if fc.Args, err = ec.field_Query_tasks_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_connectors(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_connectors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().Connectors(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Connector) graphql.Marshaler {
+			return ec.marshalNConnector2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐConnectorᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_connectors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Connector(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -8983,6 +9320,60 @@ func (ec *executionContext) _Bot(ctx context.Context, sel ast.SelectionSet, obj 
 	return out
 }
 
+var connectorImplementors = []string{"Connector"}
+
+func (ec *executionContext) _Connector(ctx context.Context, sel ast.SelectionSet, obj *model.Connector) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, connectorImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Connector")
+		case "id":
+			out.Values[i] = ec._Connector_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "connectorType":
+			out.Values[i] = ec._Connector_connectorType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enabled":
+			out.Values[i] = ec._Connector_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "config":
+			out.Values[i] = ec._Connector_config(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var gateScriptImplementors = []string{"GateScript"}
 
 func (ec *executionContext) _GateScript(ctx context.Context, sel ast.SelectionSet, obj *model.GateScript) graphql.Marshaler {
@@ -9239,6 +9630,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "dismissProposedTask":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_dismissProposedTask(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setConnectorConfig":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setConnectorConfig(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enableConnector":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_enableConnector(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -9789,6 +10194,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_tasks(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "connectors":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_connectors(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -11061,6 +11488,36 @@ func (ec *executionContext) unmarshalNChainStage2githubᚗcomᚋbcnelsonᚋtenda
 
 func (ec *executionContext) marshalNChainStage2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐChainStage(ctx context.Context, sel ast.SelectionSet, v model.ChainStage) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNConnector2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐConnector(ctx context.Context, sel ast.SelectionSet, v model.Connector) graphql.Marshaler {
+	return ec._Connector(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNConnector2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐConnectorᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Connector) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNConnector2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐConnector(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNConnector2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐConnector(ctx context.Context, sel ast.SelectionSet, v *model.Connector) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Connector(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNDevicePlatform2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐDevicePlatform(ctx context.Context, v any) (model.DevicePlatform, error) {

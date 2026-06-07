@@ -51,6 +51,26 @@ pairing experience locally. For production deployments:
    either restart the container (re-arms the same secret) or rotate to a new
    value first.
 
+## Adding an intake connector (Phase 7)
+
+A new source is **one file in `services/api/internal/connector/` plus a registry
+entry** — and zero changes to `internal/intake` (Principle I, by construction):
+
+1. Implement the `connector.Connector` interface (`Type()` + `Run(ctx, cfg, emit)`).
+   `Run` polls the source and calls `emit` once per item with a normalized
+   `intake.PotentialTaskSignal` — the connector is the privacy firewall, so it
+   chooses what each signal's `Payload` carries.
+2. Register it in `connector.RegisterBaseSet` (or call `registry.Register`).
+3. The owner configures + enables it via the `setConnectorConfig` /
+   `enableConnector` GraphQL mutations; a DBOS schedule then polls it on the
+   connector's cron. Per-item disposition (`forced_task` / `rich_event` /
+   `llm_judge`) is the privacy/cost firewall — only `llm_judge` ever forwards a
+   payload to a model.
+
+Credentialed sources seal their tokens through `internal/crypto` into
+`source_credentials` (see the `gmail` OAuth exemplar). The contract is versioned
+(`intake.v1`) at `specs/008-intake-edge-connectors/contracts/signal.v1.md`.
+
 ## License
 
 Not yet licensed.

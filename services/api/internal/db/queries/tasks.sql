@@ -8,6 +8,27 @@ RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
           created_at, edited_at;
 
+-- name: CreateIntakeTask :one
+-- Intake-origin task (Phase 7): carries provenance (copied from the signal) and
+-- intake_signal_id (the back-link AND the marker that a task is intake-origin).
+INSERT INTO tasks (id, global_uri, title, description, state, current_stage, provenance, intake_signal_id)
+VALUES ($1, $2, $3, $4, sqlc.arg('state')::task_state, sqlc.arg('current_stage')::chain_stage,
+        $5, sqlc.arg('intake_signal_id')::uuid)
+RETURNING id, global_uri, title, description, state, current_stage,
+          provenance, context_refs, findings, intake_signal_id,
+          created_at, edited_at;
+
+-- name: GetTaskByIntakeSignal :one
+-- Idempotency guard for the poll's dispose step: returns the task already
+-- created for a signal (if any), so a crash between task-create and
+-- mark-processed never yields a duplicate task on replay.
+SELECT id, global_uri, title, description, state, current_stage,
+       provenance, context_refs, findings, intake_signal_id,
+       created_at, edited_at
+FROM tasks
+WHERE intake_signal_id = $1
+LIMIT 1;
+
 -- name: GetTask :one
 SELECT id, global_uri, title, description, state, current_stage,
        provenance, context_refs, findings, intake_signal_id,

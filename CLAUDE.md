@@ -287,4 +287,56 @@ Phase 6 (The Agent Layer — Specialists as Config & Routing) is **in progress**
 `007-agent-layer-routing`. Design artifacts:
 `specs/007-agent-layer-routing/{spec,plan,research,data-model,quickstart}.md`;
 contract delta: `specs/007-agent-layer-routing/contracts/graphql.v1.graphqls`.
+
+Phase 7 (The Intake Edge — Connectors & Dispositions) is **complete & green** on
+branch `008-intake-edge-connectors` (`go build` + `go test ./...` pass across all
+API packages). Two new trusted packages land: `internal/connector` (the
+source-adapter seam, mirrors `internal/push` — `Connector` interface + `Registry`)
+and `internal/intake` (the in-edge: the versioned `PotentialTaskSignal` contract,
+the disposition router, idempotent ingest, the DBOS-scheduled poll, and the
+scheduler glue). The dependency points inward — `connector` imports `intake`,
+never the reverse — so a new source is one file in `internal/connector` + a
+registry entry and **zero** changes to `internal/intake` (Principle I, by
+construction). The base set ships in two tiers (the push APNs/FCM precedent):
+**fully implemented + E2E-tested, zero-credential** (`webhook-in`, `rss` via
+stdlib `encoding/xml`); the **OAuth exemplar** (`gmail` — list/get over stdlib
+`net/http`, live call behind a `messageFetcher` seam, token refresh + sealed
+`source_credentials` via `internal/crypto`); and **stub providers** (`calendar`,
+`imap` — emit nothing; `imap`'s real client is the lone deferred dep-approval).
+Polling is a **DBOS dynamic schedule** (`intake:<connectorID>`, one per enabled
+connector, DB-backed + crash-recovered on `Launch`; boot `RehydrateSchedules`
+re-creates them). The per-emission **disposition** is the privacy/cost firewall:
+`forced_task` → accepted task directly (skip is-task, no model); `rich_event` →
+auto-accept iff `confidence ≥ confidence_floor` **AND** `stakes_hint ≤
+stakes_ceiling` (conservative fail-closed defaults, NFR-003) yielding a derived
+**enrich-only** task (`accepted`, runs the chain, EXECUTION routes to the owner;
+the relaxed `accepted→dismissed` edge via `lifecycle.TransitionIntake` makes it
+dismissible), else hold `PROPOSED`; `llm_judge` → hand the **normalized payload
+only** (NFR-001) to the triage seam as labeled `[INTAKE_SIGNAL]` evidence
+(Principle IV), bounded by a per-poll cap (`llm_judge_per_poll`, default 5;
+overflow holds `PROPOSED` with no model call + `llm_judge_capped` audit). Triage
+is a `TriageJudge` seam (nil = secure default, `llm_judge` holds `PROPOSED` with
+no model). Idempotency rides the Phase-0 `UNIQUE(connector_id, idempotency_key)`
+(`ON CONFLICT DO NOTHING`) plus a dispose-time task-exists guard, so a kill
+mid-poll resumes to the same task set (SC-005). `Task.autonomy` reports
+`ENRICH_ONLY` for auto-accepted intake tasks (resolver-derived, no stored dial);
+provenance is a **reference, not a content copy**, surfaced via the existing
+`Task.provenance` + a Flutter `ProvenanceCard`. GraphQL is strictly additive
+(**Path 1**): `Connector` type, owner-only `connectors` query +
+`setConnectorConfig`/`enableConnector` mutations (all `auth.RequireOwner` FIRST —
+rejected before any DB access; the wiring reaches the registry + scheduler via
+`graph.ConnectorDeps` func values so `graph` imports neither package). The owner
+controls integrations from a Flutter Connectors settings list. Six intake audit
+kinds land (`signal_emitted`/`signal_deduped`/`llm_judge_capped` pre-task with
+NULL `task_id`; `disposition_applied`/`intake_auto_accepted`/`llm_judge_invoked`
+task-scoped); `/healthz` gains intake rate counters (overseer parity). **Zero new
+deps** (stdlib `net/http`/`encoding/xml`/`net/mail`; `robfig/cron` transitive via
+DBOS); **one migration** (`00006`) extending the Phase-5
+`audit_messages.task_id`-NULL CHECK allowlist for the three pre-task kinds + a
+partial unprocessed-signal index. Webhook ingress (`POST
+/intake/webhook/<id>`) + OAuth callback (`GET /oauth/callback/gmail`) mount on the
+chi router. Design artifacts:
+`specs/008-intake-edge-connectors/{spec,plan,research,data-model,quickstart}.md`;
+contracts: `specs/008-intake-edge-connectors/contracts/{signal.v1.md,graphql.v1.graphqls}`.
+See `specs/008-intake-edge-connectors/tasks.md` for per-task status.
 <!-- SPECKIT END -->

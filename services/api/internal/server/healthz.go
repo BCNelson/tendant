@@ -23,10 +23,23 @@ type GateScriptRateProvider interface {
 	Stats() (evalsPerMinute int, failClosedPerMinute map[string]int)
 }
 
+// IntakeRateProvider is the surface healthz needs from the intake edge (T059).
+// internal/intake.Metrics satisfies it.
+type IntakeRateProvider interface {
+	Snapshot() (emitted, deduped, capped int)
+}
+
 type healthzResponse struct {
 	OK         bool                    `json:"ok"`
 	Overseer   *healthzOverseerBlock   `json:"overseer,omitempty"`
 	GateScript *healthzGateScriptBlock `json:"gatescript,omitempty"`
+	Intake     *healthzIntakeBlock     `json:"intake,omitempty"`
+}
+
+type healthzIntakeBlock struct {
+	SignalsEmittedPerMinute int `json:"signals_emitted_per_minute"`
+	SignalsDedupedPerMinute int `json:"signals_deduped_per_minute"`
+	LLMJudgeCappedPerMinute int `json:"llm_judge_capped_per_minute"`
 }
 
 type healthzOverseerBlock struct {
@@ -41,7 +54,7 @@ type healthzGateScriptBlock struct {
 // healthzWithOverseer extends the Phase 0 healthz with the overseer counter
 // (FR-010) and the Phase-5 gate-script counters (FR-039). Either provider may
 // be nil in tests that don't drive that layer; the block is omitted then.
-func healthzWithOverseer(pool *pgxpool.Pool, gateway RateProvider, scripts GateScriptRateProvider) http.HandlerFunc {
+func healthzWithOverseer(pool *pgxpool.Pool, gateway RateProvider, scripts GateScriptRateProvider, intakeRate IntakeRateProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
@@ -63,6 +76,14 @@ func healthzWithOverseer(pool *pgxpool.Pool, gateway RateProvider, scripts GateS
 			resp.GateScript = &healthzGateScriptBlock{
 				EvaluationsPerMinute: evals,
 				FailClosedPerMinute:  failed,
+			}
+		}
+		if intakeRate != nil {
+			emitted, deduped, capped := intakeRate.Snapshot()
+			resp.Intake = &healthzIntakeBlock{
+				SignalsEmittedPerMinute: emitted,
+				SignalsDedupedPerMinute: deduped,
+				LLMJudgeCappedPerMinute: capped,
 			}
 		}
 		w.Header().Set("Content-Type", "application/json")

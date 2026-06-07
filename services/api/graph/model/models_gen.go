@@ -107,6 +107,13 @@ func (this Bot) GetID() string          { return this.ID }
 func (this Bot) GetGlobalURI() string   { return this.GlobalURI }
 func (this Bot) GetDisplayName() string { return this.DisplayName }
 
+type Connector struct {
+	ID            string         `json:"id"`
+	ConnectorType string         `json:"connectorType"`
+	Enabled       bool           `json:"enabled"`
+	Config        map[string]any `json:"config"`
+}
+
 type GateScript struct {
 	ID                  string           `json:"id"`
 	Tool                *Tool            `json:"tool"`

@@ -70,6 +70,50 @@ func CreateTask(
 	}, nil
 }
 
+// CreateTaskFromSignal inserts an intake-origin Task carrying the signal's
+// provenance and a back-link to intake_signals (the marker that a task is
+// intake-origin). When state is 'accepted' and dctx is non-nil the chain
+// workflow is attached immediately (forced_task / auto-accepted rich_event);
+// 'proposed' tasks (rich-hold / llm_judge) attach their chain later, on
+// acceptProposedTask — mirroring the Phase-2 proposed-task path.
+//
+// The provenance argument is the raw jsonb from the signal ({raw_ref, reason}).
+func CreateTaskFromSignal(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	dctx dbos.DBOSContext,
+	signalID uuid.UUID,
+	title string,
+	provenance []byte,
+	state lifecycle.TaskState,
+) (CreatedTask, error) {
+	if title == "" {
+		title = "Untitled intake task"
+	}
+	id := uuid.New()
+	q := db.New(pool)
+	row, err := q.CreateIntakeTask(ctx, db.CreateIntakeTaskParams{
+		ID:             id,
+		GlobalUri:      TaskURI(id),
+		Title:          title,
+		State:          state,
+		CurrentStage:   lifecycle.StageCreation,
+		Provenance:     provenance,
+		IntakeSignalID: signalID,
+	})
+	if err != nil {
+		return CreatedTask{}, fmt.Errorf("create intake task: %w", err)
+	}
+
+	if state == lifecycle.StateAccepted && dctx != nil {
+		if err := AttachChainWorkflow(ctx, pool, dctx, row.ID); err != nil {
+			return CreatedTask{}, fmt.Errorf("attach chain workflow: %w", err)
+		}
+	}
+
+	return CreatedTask{ID: row.ID, GlobalURI: row.GlobalUri, Title: row.Title}, nil
+}
+
 // AttachChainWorkflow inserts the chain_workflows row, writes the initial
 // `workflow_started` audit row, commits, then starts the DBOS workflow with
 // the deterministic id `chain:<task_uuid>` (research R5). Idempotent against

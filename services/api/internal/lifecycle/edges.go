@@ -66,6 +66,17 @@ func IsLegal(from, to TaskState) bool {
 	return legalEdges[from][to]
 }
 
+// IsLegalIntake extends IsLegal with the one edge permitted only for
+// intake-origin tasks: an auto-accepted enrich-only task (accepted) is
+// dismissible (research R4 / D5). Owner-authored tasks never gain this edge —
+// callers MUST verify intake_signal_id IS NOT NULL before using it.
+func IsLegalIntake(from, to TaskState) bool {
+	if IsLegal(from, to) {
+		return true
+	}
+	return from == StateAccepted && to == StateDismissed
+}
+
 // IsTerminal reports whether s is a terminal sink with no outbound edges.
 func IsTerminal(s TaskState) bool {
 	return s == StateDone || s == StateDismissed || s == StateHalted

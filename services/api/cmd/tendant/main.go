@@ -23,6 +23,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/durable"
 	"github.com/bcnelson/tendant/services/api/internal/gatescript"
+	"github.com/bcnelson/tendant/services/api/internal/intake"
 	"github.com/bcnelson/tendant/services/api/internal/overseer"
 	"github.com/bcnelson/tendant/services/api/internal/push"
 	"github.com/bcnelson/tendant/services/api/internal/realtime"
@@ -102,6 +103,9 @@ func runServe() error {
 	if err := core.SeedAgentCatalog(ctx, q); err != nil {
 		return fmt.Errorf("seed agent catalog: %w", err)
 	}
+	if err := core.SeedExampleConnector(ctx, q); err != nil {
+		return fmt.Errorf("seed example connector: %w", err)
+	}
 	ownerURI := ownerGlobalURI(ctx, q)
 
 	// 3b. In-process tool registry. Phase 3 ships one tool (send-email)
@@ -131,10 +135,24 @@ func runServe() error {
 	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, nil, ownerURI, pushAdapter)
 	durable.RegisterPushQueue(dctx)
 	durable.RegisterToolCallWorkflow(dctx, pool, q, toolRegistry)
+
+	// 5b. Phase 7 intake edge: connector registry + disposition router +
+	// per-connector poll workflow. Registered before Launch so recovery and
+	// the dynamic-schedule reconciler find the function.
+	intakeWiring := buildIntakeWiring(pool, q, dctx)
+	intake.RegisterPoll(dctx, pool, q, intakeWiring.registry, intakeWiring.disposer, intakeWiring.credStore, intakeWiring.refresher)
+
 	if err := durable.Launch(dctx); err != nil {
 		return fmt.Errorf("dbos launch: %w", err)
 	}
 	slog.Info("dbos launched (recovery, if any, completed)")
+
+	// 5c. Rehydrate a schedule for every enabled connector (after Launch so the
+	// reconciler is running). Crash-safe by construction — schedules are
+	// DB-backed and recovered, this just ensures each enabled connector has one.
+	if err := intake.RehydrateSchedules(ctx, dctx); err != nil {
+		slog.Error("intake: schedule rehydration failed", "err", err)
+	}
 
 	// 6. LISTEN dispatcher.
 	disp, err := realtime.New(ctx, pool, q, nil)
@@ -210,13 +228,17 @@ func runServe() error {
 	httpServer := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: server.New(pool, dctx, server.Options{
-			Dispatcher:   disp,
-			PushSelector: pushSel,
-			PushQueue:    durable.PushQueueName,
-			SetupSecret:  auth.SetupSecret,
-			Overseer:     gateway,
-			ToolRegistry: toolRegistry,
-			GateScript:   scriptSvc,
+			Dispatcher:        disp,
+			PushSelector:      pushSel,
+			PushQueue:         durable.PushQueueName,
+			SetupSecret:       auth.SetupSecret,
+			Overseer:          gateway,
+			ToolRegistry:      toolRegistry,
+			GateScript:        scriptSvc,
+			WebhookIngress:    webhookIngressHandler(intakeWiring.inbound),
+			OAuthCallback:     oauthCallbackHandler(intakeWiring.credStore),
+			ConnectorResolver: intakeWiring.connectorResolverDeps(),
+			IntakeRate:        intakeWiring.metrics,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

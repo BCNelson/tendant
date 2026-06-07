@@ -12,6 +12,57 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createIntakeTask = `-- name: CreateIntakeTask :one
+INSERT INTO tasks (id, global_uri, title, description, state, current_stage, provenance, intake_signal_id)
+VALUES ($1, $2, $3, $4, $6::task_state, $7::chain_stage,
+        $5, $8::uuid)
+RETURNING id, global_uri, title, description, state, current_stage,
+          provenance, context_refs, findings, intake_signal_id,
+          created_at, edited_at
+`
+
+type CreateIntakeTaskParams struct {
+	ID             uuid.UUID  `json:"id"`
+	GlobalUri      string     `json:"global_uri"`
+	Title          string     `json:"title"`
+	Description    *string    `json:"description"`
+	Provenance     []byte     `json:"provenance"`
+	State          TaskState  `json:"state"`
+	CurrentStage   ChainStage `json:"current_stage"`
+	IntakeSignalID uuid.UUID  `json:"intake_signal_id"`
+}
+
+// Intake-origin task (Phase 7): carries provenance (copied from the signal) and
+// intake_signal_id (the back-link AND the marker that a task is intake-origin).
+func (q *Queries) CreateIntakeTask(ctx context.Context, arg CreateIntakeTaskParams) (Task, error) {
+	row := q.db.QueryRow(ctx, createIntakeTask,
+		arg.ID,
+		arg.GlobalUri,
+		arg.Title,
+		arg.Description,
+		arg.Provenance,
+		arg.State,
+		arg.CurrentStage,
+		arg.IntakeSignalID,
+	)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.GlobalUri,
+		&i.Title,
+		&i.Description,
+		&i.State,
+		&i.CurrentStage,
+		&i.Provenance,
+		&i.ContextRefs,
+		&i.Findings,
+		&i.IntakeSignalID,
+		&i.CreatedAt,
+		&i.EditedAt,
+	)
+	return i, err
+}
+
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (id, global_uri, title, description, state, current_stage)
 VALUES ($1, $2, $3, $4, $5::task_state, $6::chain_stage)
@@ -69,6 +120,38 @@ WHERE id = $1
 
 func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (Task, error) {
 	row := q.db.QueryRow(ctx, getTask, id)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.GlobalUri,
+		&i.Title,
+		&i.Description,
+		&i.State,
+		&i.CurrentStage,
+		&i.Provenance,
+		&i.ContextRefs,
+		&i.Findings,
+		&i.IntakeSignalID,
+		&i.CreatedAt,
+		&i.EditedAt,
+	)
+	return i, err
+}
+
+const getTaskByIntakeSignal = `-- name: GetTaskByIntakeSignal :one
+SELECT id, global_uri, title, description, state, current_stage,
+       provenance, context_refs, findings, intake_signal_id,
+       created_at, edited_at
+FROM tasks
+WHERE intake_signal_id = $1
+LIMIT 1
+`
+
+// Idempotency guard for the poll's dispose step: returns the task already
+// created for a signal (if any), so a crash between task-create and
+// mark-processed never yields a duplicate task on replay.
+func (q *Queries) GetTaskByIntakeSignal(ctx context.Context, intakeSignalID pgtype.UUID) (Task, error) {
+	row := q.db.QueryRow(ctx, getTaskByIntakeSignal, intakeSignalID)
 	var i Task
 	err := row.Scan(
 		&i.ID,

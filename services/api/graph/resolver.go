@@ -36,4 +36,5 @@ type Resolver struct {
 	Overseer        overseer.Grader
 	ToolRegistry    *tools.Registry
 	ScriptEvaluator gatescript.ScriptEvaluator
+	Connectors      ConnectorDeps // Phase 7 — owner connector mutations
 }
