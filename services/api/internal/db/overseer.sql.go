@@ -15,7 +15,7 @@ import (
 const countOverseerEvalsForTask = `-- name: CountOverseerEvalsForTask :one
 SELECT count(*) AS n
 FROM audit_messages
-WHERE task_id = $1
+WHERE task_id = $1::uuid
   AND kind = 'overseer_evaluated'
 `
 
@@ -99,7 +99,7 @@ const updateToolOverseerInstructions = `-- name: UpdateToolOverseerInstructions 
 UPDATE tools
 SET overseer_instructions = $2
 WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
 `
 
 type UpdateToolOverseerInstructionsParams struct {
@@ -118,6 +118,7 @@ func (q *Queries) UpdateToolOverseerInstructions(ctx context.Context, arg Update
 		&i.Rung,
 		&i.Permissions,
 		&i.OverseerInstructions,
+		&i.ActiveScriptVersion,
 	)
 	return i, err
 }
@@ -127,7 +128,7 @@ UPDATE tools
 SET overseer_instructions = $2
 WHERE global_uri = $1
   AND overseer_instructions IS NULL
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
 `
 
 type UpdateToolOverseerInstructionsIfNullParams struct {
@@ -147,6 +148,7 @@ func (q *Queries) UpdateToolOverseerInstructionsIfNull(ctx context.Context, arg 
 		&i.Rung,
 		&i.Permissions,
 		&i.OverseerInstructions,
+		&i.ActiveScriptVersion,
 	)
 	return i, err
 }
@@ -155,7 +157,7 @@ const updateToolPermissions = `-- name: UpdateToolPermissions :one
 UPDATE tools
 SET permissions = $2
 WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
 `
 
 type UpdateToolPermissionsParams struct {
@@ -174,6 +176,7 @@ func (q *Queries) UpdateToolPermissions(ctx context.Context, arg UpdateToolPermi
 		&i.Rung,
 		&i.Permissions,
 		&i.OverseerInstructions,
+		&i.ActiveScriptVersion,
 	)
 	return i, err
 }

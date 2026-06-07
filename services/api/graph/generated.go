@@ -38,6 +38,7 @@ type ResolverRoot interface {
 	Query() QueryResolver
 	Subscription() SubscriptionResolver
 	Task() TaskResolver
+	Tool() ToolResolver
 }
 
 type DirectiveRoot struct {
@@ -65,12 +66,13 @@ type ComplexityRoot struct {
 	}
 
 	ApprovalRequest struct {
-		CreatedAt          func(childComplexity int) int
-		ID                 func(childComplexity int) int
-		OverseerEvaluation func(childComplexity int) int
-		Payload            func(childComplexity int) int
-		Task               func(childComplexity int) int
-		Tool               func(childComplexity int) int
+		CreatedAt            func(childComplexity int) int
+		GateScriptEvaluation func(childComplexity int) int
+		ID                   func(childComplexity int) int
+		OverseerEvaluation   func(childComplexity int) int
+		Payload              func(childComplexity int) int
+		Task                 func(childComplexity int) int
+		Tool                 func(childComplexity int) int
 	}
 
 	Artifact struct {
@@ -85,6 +87,31 @@ type ComplexityRoot struct {
 		ID          func(childComplexity int) int
 	}
 
+	GateScript struct {
+		AttachedAt          func(childComplexity int) int
+		AttachedByPrincipal func(childComplexity int) int
+		ID                  func(childComplexity int) int
+		Manifest            func(childComplexity int) int
+		ManifestHash        func(childComplexity int) int
+		Source              func(childComplexity int) int
+		Status              func(childComplexity int) int
+		Tier                func(childComplexity int) int
+		Tool                func(childComplexity int) int
+		Version             func(childComplexity int) int
+		Wasm                func(childComplexity int) int
+	}
+
+	GateScriptEvaluation struct {
+		At               func(childComplexity int) int
+		ConsideredFields func(childComplexity int) int
+		HostcallTrace    func(childComplexity int) int
+		ManifestHash     func(childComplexity int) int
+		ScriptID         func(childComplexity int) int
+		ScriptVersion    func(childComplexity int) int
+		Summary          func(childComplexity int) int
+		Verdict          func(childComplexity int) int
+	}
+
 	Mandate struct {
 		Constraints func(childComplexity int) int
 		Goal        func(childComplexity int) int
@@ -95,16 +122,20 @@ type ComplexityRoot struct {
 		AcceptProposedTask          func(childComplexity int, taskID string) int
 		AnswerQuestion              func(childComplexity int, decisionID string, answer string) int
 		ApproveArtifact             func(childComplexity int, decisionID string) int
+		AttachGateScript            func(childComplexity int, toolID string, wasm model.Bytes, manifest map[string]any) int
 		CancelTask                  func(childComplexity int, taskID string) int
+		CompileAndAttachGateScript  func(childComplexity int, toolID string, source string, manifest map[string]any) int
 		CompleteTask                func(childComplexity int, taskID string, result map[string]any) int
 		CreateTask                  func(childComplexity int, title string, description *string) int
 		DecidePromotion             func(childComplexity int, decisionID string, accept bool) int
+		DisableGateScript           func(childComplexity int, toolID string) int
 		DismissProposedTask         func(childComplexity int, taskID string, reason *string) int
 		PairDevice                  func(childComplexity int, setupSecret string, displayName string) int
 		ProposeToolCall             func(childComplexity int, taskID string, toolGlobalURI string, payload map[string]any) int
 		RegisterDeviceToken         func(childComplexity int, token string, platform model.DevicePlatform) int
 		RejectApproval              func(childComplexity int, decisionID string, reason *string) int
 		RevokeSession               func(childComplexity int, sessionID string) int
+		SetOwnerRule                func(childComplexity int, key string, value string) int
 		SetToolOverseerInstructions func(childComplexity int, toolID string, instructions string) int
 		SetToolPermissions          func(childComplexity int, toolID string, permissions map[string]any) int
 		UnregisterDeviceToken       func(childComplexity int, token string) int
@@ -127,6 +158,12 @@ type ComplexityRoot struct {
 		TokensIn         func(childComplexity int) int
 		TokensOut        func(childComplexity int) int
 		Verdict          func(childComplexity int) int
+	}
+
+	OwnerRule struct {
+		Key       func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
+		Value     func(childComplexity int) int
 	}
 
 	PageInfo struct {
@@ -200,6 +237,8 @@ type ComplexityRoot struct {
 	}
 
 	Tool struct {
+		ActiveGateScript     func(childComplexity int) int
+		GateScripts          func(childComplexity int, limit *int, offset *int) int
 		GlobalURI            func(childComplexity int) int
 		ID                   func(childComplexity int) int
 		Name                 func(childComplexity int) int
@@ -236,6 +275,7 @@ type ApprovalRequestResolver interface {
 	Tool(ctx context.Context, obj *model.ApprovalRequest) (*model.Tool, error)
 	Payload(ctx context.Context, obj *model.ApprovalRequest) (model.ApprovalPayload, error)
 	OverseerEvaluation(ctx context.Context, obj *model.ApprovalRequest) (*model.OverseerEvaluation, error)
+	GateScriptEvaluation(ctx context.Context, obj *model.ApprovalRequest) (*model.GateScriptEvaluation, error)
 }
 type MutationResolver interface {
 	CreateTask(ctx context.Context, title string, description *string) (*model.Task, error)
@@ -243,6 +283,10 @@ type MutationResolver interface {
 	CancelTask(ctx context.Context, taskID string) (*model.Task, error)
 	AcceptProposedTask(ctx context.Context, taskID string) (*model.Task, error)
 	DismissProposedTask(ctx context.Context, taskID string, reason *string) (*model.Task, error)
+	AttachGateScript(ctx context.Context, toolID string, wasm model.Bytes, manifest map[string]any) (*model.GateScript, error)
+	CompileAndAttachGateScript(ctx context.Context, toolID string, source string, manifest map[string]any) (*model.GateScript, error)
+	DisableGateScript(ctx context.Context, toolID string) (*model.Tool, error)
+	SetOwnerRule(ctx context.Context, key string, value string) (*model.OwnerRule, error)
 	PairDevice(ctx context.Context, setupSecret string, displayName string) (*model.SessionMintResult, error)
 	RevokeSession(ctx context.Context, sessionID string) (*model.Session, error)
 	RegisterDeviceToken(ctx context.Context, token string, platform model.DevicePlatform) (bool, error)
@@ -277,6 +321,10 @@ type SubscriptionResolver interface {
 type TaskResolver interface {
 	Workflow(ctx context.Context, obj *model.Task) (*model.WorkflowRef, error)
 	OpenAssignment(ctx context.Context, obj *model.Task) (*model.AgentAssignment, error)
+}
+type ToolResolver interface {
+	ActiveGateScript(ctx context.Context, obj *model.Tool) (*model.GateScript, error)
+	GateScripts(ctx context.Context, obj *model.Tool, limit *int, offset *int) ([]*model.GateScript, error)
 }
 
 type executableSchema graphql.ExecutableSchemaState[ResolverRoot, DirectiveRoot, ComplexityRoot]
@@ -385,6 +433,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.ApprovalRequest.CreatedAt(childComplexity), true
+	case "ApprovalRequest.gateScriptEvaluation":
+		if e.ComplexityRoot.ApprovalRequest.GateScriptEvaluation == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ApprovalRequest.GateScriptEvaluation(childComplexity), true
 	case "ApprovalRequest.id":
 		if e.ComplexityRoot.ApprovalRequest.ID == nil {
 			break
@@ -454,6 +508,122 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Bot.ID(childComplexity), true
 
+	case "GateScript.attachedAt":
+		if e.ComplexityRoot.GateScript.AttachedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScript.AttachedAt(childComplexity), true
+	case "GateScript.attachedByPrincipal":
+		if e.ComplexityRoot.GateScript.AttachedByPrincipal == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScript.AttachedByPrincipal(childComplexity), true
+	case "GateScript.id":
+		if e.ComplexityRoot.GateScript.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScript.ID(childComplexity), true
+	case "GateScript.manifest":
+		if e.ComplexityRoot.GateScript.Manifest == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScript.Manifest(childComplexity), true
+	case "GateScript.manifestHash":
+		if e.ComplexityRoot.GateScript.ManifestHash == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScript.ManifestHash(childComplexity), true
+	case "GateScript.source":
+		if e.ComplexityRoot.GateScript.Source == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScript.Source(childComplexity), true
+	case "GateScript.status":
+		if e.ComplexityRoot.GateScript.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScript.Status(childComplexity), true
+	case "GateScript.tier":
+		if e.ComplexityRoot.GateScript.Tier == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScript.Tier(childComplexity), true
+	case "GateScript.tool":
+		if e.ComplexityRoot.GateScript.Tool == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScript.Tool(childComplexity), true
+	case "GateScript.version":
+		if e.ComplexityRoot.GateScript.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScript.Version(childComplexity), true
+	case "GateScript.wasm":
+		if e.ComplexityRoot.GateScript.Wasm == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScript.Wasm(childComplexity), true
+
+	case "GateScriptEvaluation.at":
+		if e.ComplexityRoot.GateScriptEvaluation.At == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScriptEvaluation.At(childComplexity), true
+	case "GateScriptEvaluation.consideredFields":
+		if e.ComplexityRoot.GateScriptEvaluation.ConsideredFields == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScriptEvaluation.ConsideredFields(childComplexity), true
+	case "GateScriptEvaluation.hostcallTrace":
+		if e.ComplexityRoot.GateScriptEvaluation.HostcallTrace == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScriptEvaluation.HostcallTrace(childComplexity), true
+	case "GateScriptEvaluation.manifestHash":
+		if e.ComplexityRoot.GateScriptEvaluation.ManifestHash == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScriptEvaluation.ManifestHash(childComplexity), true
+	case "GateScriptEvaluation.scriptId":
+		if e.ComplexityRoot.GateScriptEvaluation.ScriptID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScriptEvaluation.ScriptID(childComplexity), true
+	case "GateScriptEvaluation.scriptVersion":
+		if e.ComplexityRoot.GateScriptEvaluation.ScriptVersion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScriptEvaluation.ScriptVersion(childComplexity), true
+	case "GateScriptEvaluation.summary":
+		if e.ComplexityRoot.GateScriptEvaluation.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScriptEvaluation.Summary(childComplexity), true
+	case "GateScriptEvaluation.verdict":
+		if e.ComplexityRoot.GateScriptEvaluation.Verdict == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GateScriptEvaluation.Verdict(childComplexity), true
+
 	case "Mandate.constraints":
 		if e.ComplexityRoot.Mandate.Constraints == nil {
 			break
@@ -506,6 +676,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ApproveArtifact(childComplexity, args["decisionId"].(string)), true
+	case "Mutation.attachGateScript":
+		if e.ComplexityRoot.Mutation.AttachGateScript == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_attachGateScript_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.AttachGateScript(childComplexity, args["toolId"].(string), args["wasm"].(model.Bytes), args["manifest"].(map[string]any)), true
 	case "Mutation.cancelTask":
 		if e.ComplexityRoot.Mutation.CancelTask == nil {
 			break
@@ -517,6 +698,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CancelTask(childComplexity, args["taskId"].(string)), true
+	case "Mutation.compileAndAttachGateScript":
+		if e.ComplexityRoot.Mutation.CompileAndAttachGateScript == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_compileAndAttachGateScript_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CompileAndAttachGateScript(childComplexity, args["toolId"].(string), args["source"].(string), args["manifest"].(map[string]any)), true
 	case "Mutation.completeTask":
 		if e.ComplexityRoot.Mutation.CompleteTask == nil {
 			break
@@ -550,6 +742,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DecidePromotion(childComplexity, args["decisionId"].(string), args["accept"].(bool)), true
+	case "Mutation.disableGateScript":
+		if e.ComplexityRoot.Mutation.DisableGateScript == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_disableGateScript_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DisableGateScript(childComplexity, args["toolId"].(string)), true
 	case "Mutation.dismissProposedTask":
 		if e.ComplexityRoot.Mutation.DismissProposedTask == nil {
 			break
@@ -616,6 +819,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RevokeSession(childComplexity, args["sessionId"].(string)), true
+	case "Mutation.setOwnerRule":
+		if e.ComplexityRoot.Mutation.SetOwnerRule == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setOwnerRule_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetOwnerRule(childComplexity, args["key"].(string), args["value"].(string)), true
 	case "Mutation.setToolOverseerInstructions":
 		if e.ComplexityRoot.Mutation.SetToolOverseerInstructions == nil {
 			break
@@ -729,6 +943,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OverseerEvaluation.Verdict(childComplexity), true
+
+	case "OwnerRule.key":
+		if e.ComplexityRoot.OwnerRule.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OwnerRule.Key(childComplexity), true
+	case "OwnerRule.updatedAt":
+		if e.ComplexityRoot.OwnerRule.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OwnerRule.UpdatedAt(childComplexity), true
+	case "OwnerRule.value":
+		if e.ComplexityRoot.OwnerRule.Value == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OwnerRule.Value(childComplexity), true
 
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
@@ -1028,6 +1261,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.TaskEdge.Node(childComplexity), true
 
+	case "Tool.activeGateScript":
+		if e.ComplexityRoot.Tool.ActiveGateScript == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Tool.ActiveGateScript(childComplexity), true
+	case "Tool.gateScripts":
+		if e.ComplexityRoot.Tool.GateScripts == nil {
+			break
+		}
+
+		args, err := ec.field_Tool_gateScripts_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Tool.GateScripts(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
 	case "Tool.globalUri":
 		if e.ComplexityRoot.Tool.GlobalURI == nil {
 			break
@@ -1195,7 +1445,7 @@ func newExecutionContext(
 	}
 }
 
-//go:embed "schema.graphqls"
+//go:embed "gatescript.graphqls" "schema.graphqls"
 var sourcesFS embed.FS
 
 func sourceData(filename string) string {
@@ -1207,6 +1457,7 @@ func sourceData(filename string) string {
 }
 
 var sources = []*ast.Source{
+	{Name: "gatescript.graphqls", Input: sourceData("gatescript.graphqls"), BuiltIn: false},
 	{Name: "schema.graphqls", Input: sourceData("schema.graphqls"), BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
@@ -1251,8 +1502,60 @@ func (ec *executionContext) childFields_ApprovalRequest(ctx context.Context, fie
 		return ec.fieldContext_ApprovalRequest_payload(ctx, field)
 	case "overseerEvaluation":
 		return ec.fieldContext_ApprovalRequest_overseerEvaluation(ctx, field)
+	case "gateScriptEvaluation":
+		return ec.fieldContext_ApprovalRequest_gateScriptEvaluation(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ApprovalRequest", field.Name)
+}
+
+func (ec *executionContext) childFields_GateScript(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_GateScript_id(ctx, field)
+	case "tool":
+		return ec.fieldContext_GateScript_tool(ctx, field)
+	case "version":
+		return ec.fieldContext_GateScript_version(ctx, field)
+	case "manifest":
+		return ec.fieldContext_GateScript_manifest(ctx, field)
+	case "manifestHash":
+		return ec.fieldContext_GateScript_manifestHash(ctx, field)
+	case "tier":
+		return ec.fieldContext_GateScript_tier(ctx, field)
+	case "status":
+		return ec.fieldContext_GateScript_status(ctx, field)
+	case "attachedByPrincipal":
+		return ec.fieldContext_GateScript_attachedByPrincipal(ctx, field)
+	case "attachedAt":
+		return ec.fieldContext_GateScript_attachedAt(ctx, field)
+	case "wasm":
+		return ec.fieldContext_GateScript_wasm(ctx, field)
+	case "source":
+		return ec.fieldContext_GateScript_source(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GateScript", field.Name)
+}
+
+func (ec *executionContext) childFields_GateScriptEvaluation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "verdict":
+		return ec.fieldContext_GateScriptEvaluation_verdict(ctx, field)
+	case "summary":
+		return ec.fieldContext_GateScriptEvaluation_summary(ctx, field)
+	case "consideredFields":
+		return ec.fieldContext_GateScriptEvaluation_consideredFields(ctx, field)
+	case "hostcallTrace":
+		return ec.fieldContext_GateScriptEvaluation_hostcallTrace(ctx, field)
+	case "scriptId":
+		return ec.fieldContext_GateScriptEvaluation_scriptId(ctx, field)
+	case "scriptVersion":
+		return ec.fieldContext_GateScriptEvaluation_scriptVersion(ctx, field)
+	case "manifestHash":
+		return ec.fieldContext_GateScriptEvaluation_manifestHash(ctx, field)
+	case "at":
+		return ec.fieldContext_GateScriptEvaluation_at(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GateScriptEvaluation", field.Name)
 }
 
 func (ec *executionContext) childFields_Notification(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -1291,6 +1594,18 @@ func (ec *executionContext) childFields_OverseerEvaluation(ctx context.Context, 
 		return ec.fieldContext_OverseerEvaluation_at(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type OverseerEvaluation", field.Name)
+}
+
+func (ec *executionContext) childFields_OwnerRule(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_OwnerRule_key(ctx, field)
+	case "value":
+		return ec.fieldContext_OwnerRule_value(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_OwnerRule_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type OwnerRule", field.Name)
 }
 
 func (ec *executionContext) childFields_PageInfo(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -1395,6 +1710,10 @@ func (ec *executionContext) childFields_Tool(ctx context.Context, field graphql.
 		return ec.fieldContext_Tool_permissions(ctx, field)
 	case "overseerInstructions":
 		return ec.fieldContext_Tool_overseerInstructions(ctx, field)
+	case "activeGateScript":
+		return ec.fieldContext_Tool_activeGateScript(ctx, field)
+	case "gateScripts":
+		return ec.fieldContext_Tool_gateScripts(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Tool", field.Name)
 }
@@ -1587,6 +1906,36 @@ func (ec *executionContext) field_Mutation_approveArtifact_args(ctx context.Cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_attachGateScript_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "toolId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["toolId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "wasm",
+		func(ctx context.Context, v any) (model.Bytes, error) {
+			return ec.unmarshalNBytes2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐBytes(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["wasm"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "manifest",
+		func(ctx context.Context, v any) (map[string]any, error) {
+			return ec.unmarshalNJSON2map(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["manifest"] = arg2
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_cancelTask_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1598,6 +1947,36 @@ func (ec *executionContext) field_Mutation_cancelTask_args(ctx context.Context, 
 		return nil, err
 	}
 	args["taskId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_compileAndAttachGateScript_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "toolId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["toolId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "source",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["source"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "manifest",
+		func(ctx context.Context, v any) (map[string]any, error) {
+			return ec.unmarshalNJSON2map(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["manifest"] = arg2
 	return args, nil
 }
 
@@ -1664,6 +2043,20 @@ func (ec *executionContext) field_Mutation_decidePromotion_args(ctx context.Cont
 		return nil, err
 	}
 	args["accept"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_disableGateScript_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "toolId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["toolId"] = arg0
 	return args, nil
 }
 
@@ -1796,6 +2189,28 @@ func (ec *executionContext) field_Mutation_revokeSession_args(ctx context.Contex
 		return nil, err
 	}
 	args["sessionId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setOwnerRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "key",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["key"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "value",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["value"] = arg1
 	return args, nil
 }
 
@@ -1976,6 +2391,28 @@ func (ec *executionContext) field_Subscription_taskChanged_args(ctx context.Cont
 		return nil, err
 	}
 	args["taskId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Tool_gateScripts_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
 	return args, nil
 }
 
@@ -2566,6 +3003,38 @@ func (ec *executionContext) fieldContext_ApprovalRequest_overseerEvaluation(_ co
 	return fc, nil
 }
 
+func (ec *executionContext) _ApprovalRequest_gateScriptEvaluation(ctx context.Context, field graphql.CollectedField, obj *model.ApprovalRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ApprovalRequest_gateScriptEvaluation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.ApprovalRequest().GateScriptEvaluation(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.GateScriptEvaluation) graphql.Marshaler {
+			return ec.marshalOGateScriptEvaluation2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScriptEvaluation(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_ApprovalRequest_gateScriptEvaluation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ApprovalRequest",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GateScriptEvaluation(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Artifact_kind(ctx context.Context, field graphql.CollectedField, obj *model.Artifact) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -2702,6 +3171,452 @@ func (ec *executionContext) _Bot_displayName(ctx context.Context, field graphql.
 }
 func (ec *executionContext) fieldContext_Bot_displayName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Bot", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GateScript_id(ctx context.Context, field graphql.CollectedField, obj *model.GateScript) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScript_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScript_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScript", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _GateScript_tool(ctx context.Context, field graphql.CollectedField, obj *model.GateScript) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScript_tool(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Tool, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Tool) graphql.Marshaler {
+			return ec.marshalNTool2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScript_tool(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GateScript",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Tool(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GateScript_version(ctx context.Context, field graphql.CollectedField, obj *model.GateScript) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScript_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScript_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScript", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _GateScript_manifest(ctx context.Context, field graphql.CollectedField, obj *model.GateScript) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScript_manifest(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Manifest, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v map[string]any) graphql.Marshaler {
+			return ec.marshalNJSON2map(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScript_manifest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScript", field, false, false, errors.New("field of type JSON does not have child fields"))
+}
+
+func (ec *executionContext) _GateScript_manifestHash(ctx context.Context, field graphql.CollectedField, obj *model.GateScript) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScript_manifestHash(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ManifestHash, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScript_manifestHash(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScript", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GateScript_tier(ctx context.Context, field graphql.CollectedField, obj *model.GateScript) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScript_tier(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Tier, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.GateScriptTier) graphql.Marshaler {
+			return ec.marshalNGateScriptTier2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScriptTier(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScript_tier(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScript", field, false, false, errors.New("field of type GateScriptTier does not have child fields"))
+}
+
+func (ec *executionContext) _GateScript_status(ctx context.Context, field graphql.CollectedField, obj *model.GateScript) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScript_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.GateScriptStatus) graphql.Marshaler {
+			return ec.marshalNGateScriptStatus2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScriptStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScript_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScript", field, false, false, errors.New("field of type GateScriptStatus does not have child fields"))
+}
+
+func (ec *executionContext) _GateScript_attachedByPrincipal(ctx context.Context, field graphql.CollectedField, obj *model.GateScript) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScript_attachedByPrincipal(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AttachedByPrincipal, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScript_attachedByPrincipal(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScript", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GateScript_attachedAt(ctx context.Context, field graphql.CollectedField, obj *model.GateScript) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScript_attachedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AttachedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScript_attachedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScript", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _GateScript_wasm(ctx context.Context, field graphql.CollectedField, obj *model.GateScript) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScript_wasm(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Wasm, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.Bytes) graphql.Marshaler {
+			return ec.marshalOBytes2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐBytes(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GateScript_wasm(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScript", field, false, false, errors.New("field of type Bytes does not have child fields"))
+}
+
+func (ec *executionContext) _GateScript_source(ctx context.Context, field graphql.CollectedField, obj *model.GateScript) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScript_source(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_GateScript_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScript", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GateScriptEvaluation_verdict(ctx context.Context, field graphql.CollectedField, obj *model.GateScriptEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScriptEvaluation_verdict(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Verdict, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScriptEvaluation_verdict(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScriptEvaluation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GateScriptEvaluation_summary(ctx context.Context, field graphql.CollectedField, obj *model.GateScriptEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScriptEvaluation_summary(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScriptEvaluation_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScriptEvaluation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GateScriptEvaluation_consideredFields(ctx context.Context, field graphql.CollectedField, obj *model.GateScriptEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScriptEvaluation_consideredFields(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ConsideredFields, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScriptEvaluation_consideredFields(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScriptEvaluation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GateScriptEvaluation_hostcallTrace(ctx context.Context, field graphql.CollectedField, obj *model.GateScriptEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScriptEvaluation_hostcallTrace(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HostcallTrace, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScriptEvaluation_hostcallTrace(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScriptEvaluation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GateScriptEvaluation_scriptId(ctx context.Context, field graphql.CollectedField, obj *model.GateScriptEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScriptEvaluation_scriptId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ScriptID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScriptEvaluation_scriptId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScriptEvaluation", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _GateScriptEvaluation_scriptVersion(ctx context.Context, field graphql.CollectedField, obj *model.GateScriptEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScriptEvaluation_scriptVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ScriptVersion, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScriptEvaluation_scriptVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScriptEvaluation", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _GateScriptEvaluation_manifestHash(ctx context.Context, field graphql.CollectedField, obj *model.GateScriptEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScriptEvaluation_manifestHash(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ManifestHash, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScriptEvaluation_manifestHash(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScriptEvaluation", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _GateScriptEvaluation_at(ctx context.Context, field graphql.CollectedField, obj *model.GateScriptEvaluation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GateScriptEvaluation_at(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.At, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GateScriptEvaluation_at(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GateScriptEvaluation", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _Mandate_goal(ctx context.Context, field graphql.CollectedField, obj *model.Mandate) (ret graphql.Marshaler) {
@@ -2987,6 +3902,182 @@ func (ec *executionContext) fieldContext_Mutation_dismissProposedTask(ctx contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_dismissProposedTask_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_attachGateScript(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_attachGateScript(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AttachGateScript(ctx, fc.Args["toolId"].(string), fc.Args["wasm"].(model.Bytes), fc.Args["manifest"].(map[string]any))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.GateScript) graphql.Marshaler {
+			return ec.marshalNGateScript2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScript(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_attachGateScript(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GateScript(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_attachGateScript_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_compileAndAttachGateScript(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_compileAndAttachGateScript(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CompileAndAttachGateScript(ctx, fc.Args["toolId"].(string), fc.Args["source"].(string), fc.Args["manifest"].(map[string]any))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.GateScript) graphql.Marshaler {
+			return ec.marshalNGateScript2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScript(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_compileAndAttachGateScript(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GateScript(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_compileAndAttachGateScript_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_disableGateScript(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_disableGateScript(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DisableGateScript(ctx, fc.Args["toolId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Tool) graphql.Marshaler {
+			return ec.marshalNTool2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_disableGateScript(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Tool(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_disableGateScript_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setOwnerRule(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setOwnerRule(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetOwnerRule(ctx, fc.Args["key"].(string), fc.Args["value"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.OwnerRule) graphql.Marshaler {
+			return ec.marshalNOwnerRule2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐOwnerRule(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setOwnerRule(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_OwnerRule(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setOwnerRule_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -3774,6 +4865,75 @@ func (ec *executionContext) _OverseerEvaluation_at(ctx context.Context, field gr
 }
 func (ec *executionContext) fieldContext_OverseerEvaluation_at(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OverseerEvaluation", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _OwnerRule_key(ctx context.Context, field graphql.CollectedField, obj *model.OwnerRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OwnerRule_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OwnerRule_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OwnerRule", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OwnerRule_value(ctx context.Context, field graphql.CollectedField, obj *model.OwnerRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OwnerRule_value(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Value, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OwnerRule_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OwnerRule", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _OwnerRule_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.OwnerRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OwnerRule_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OwnerRule_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OwnerRule", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _PageInfo_hasNextPage(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
@@ -5202,6 +6362,82 @@ func (ec *executionContext) _Tool_overseerInstructions(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_Tool_overseerInstructions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Tool", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Tool_activeGateScript(ctx context.Context, field graphql.CollectedField, obj *model.Tool) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Tool_activeGateScript(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Tool().ActiveGateScript(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.GateScript) graphql.Marshaler {
+			return ec.marshalOGateScript2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScript(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Tool_activeGateScript(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Tool",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GateScript(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Tool_gateScripts(ctx context.Context, field graphql.CollectedField, obj *model.Tool) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Tool_gateScripts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Tool().GateScripts(ctx, obj, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.GateScript) graphql.Marshaler {
+			return ec.marshalNGateScript2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScriptᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Tool_gateScripts(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Tool",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GateScript(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Tool_gateScripts_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
@@ -6927,6 +8163,39 @@ func (ec *executionContext) _ApprovalRequest(ctx context.Context, sel ast.Select
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "gateScriptEvaluation":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._ApprovalRequest_gateScriptEvaluation(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -7019,6 +8288,163 @@ func (ec *executionContext) _Bot(ctx context.Context, sel ast.SelectionSet, obj 
 			}
 		case "displayName":
 			out.Values[i] = ec._Bot_displayName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var gateScriptImplementors = []string{"GateScript"}
+
+func (ec *executionContext) _GateScript(ctx context.Context, sel ast.SelectionSet, obj *model.GateScript) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, gateScriptImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GateScript")
+		case "id":
+			out.Values[i] = ec._GateScript_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tool":
+			out.Values[i] = ec._GateScript_tool(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "version":
+			out.Values[i] = ec._GateScript_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "manifest":
+			out.Values[i] = ec._GateScript_manifest(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "manifestHash":
+			out.Values[i] = ec._GateScript_manifestHash(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tier":
+			out.Values[i] = ec._GateScript_tier(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._GateScript_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attachedByPrincipal":
+			out.Values[i] = ec._GateScript_attachedByPrincipal(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attachedAt":
+			out.Values[i] = ec._GateScript_attachedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "wasm":
+			out.Values[i] = ec._GateScript_wasm(ctx, field, obj)
+		case "source":
+			out.Values[i] = ec._GateScript_source(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var gateScriptEvaluationImplementors = []string{"GateScriptEvaluation"}
+
+func (ec *executionContext) _GateScriptEvaluation(ctx context.Context, sel ast.SelectionSet, obj *model.GateScriptEvaluation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, gateScriptEvaluationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GateScriptEvaluation")
+		case "verdict":
+			out.Values[i] = ec._GateScriptEvaluation_verdict(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "summary":
+			out.Values[i] = ec._GateScriptEvaluation_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "consideredFields":
+			out.Values[i] = ec._GateScriptEvaluation_consideredFields(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hostcallTrace":
+			out.Values[i] = ec._GateScriptEvaluation_hostcallTrace(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scriptId":
+			out.Values[i] = ec._GateScriptEvaluation_scriptId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scriptVersion":
+			out.Values[i] = ec._GateScriptEvaluation_scriptVersion(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "manifestHash":
+			out.Values[i] = ec._GateScriptEvaluation_manifestHash(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "at":
+			out.Values[i] = ec._GateScriptEvaluation_at(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -7144,6 +8570,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "dismissProposedTask":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_dismissProposedTask(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attachGateScript":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_attachGateScript(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "compileAndAttachGateScript":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_compileAndAttachGateScript(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "disableGateScript":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_disableGateScript(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setOwnerRule":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setOwnerRule(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -7352,6 +8806,55 @@ func (ec *executionContext) _OverseerEvaluation(ctx context.Context, sel ast.Sel
 			}
 		case "at":
 			out.Values[i] = ec._OverseerEvaluation_at(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var ownerRuleImplementors = []string{"OwnerRule"}
+
+func (ec *executionContext) _OwnerRule(ctx context.Context, sel ast.SelectionSet, obj *model.OwnerRule) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, ownerRuleImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OwnerRule")
+		case "key":
+			out.Values[i] = ec._OwnerRule_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "value":
+			out.Values[i] = ec._OwnerRule_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._OwnerRule_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -8111,30 +9614,99 @@ func (ec *executionContext) _Tool(ctx context.Context, sel ast.SelectionSet, obj
 		case "id":
 			out.Values[i] = ec._Tool_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "globalUri":
 			out.Values[i] = ec._Tool_globalUri(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._Tool_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "rung":
 			out.Values[i] = ec._Tool_rung(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "permissions":
 			out.Values[i] = ec._Tool_permissions(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "overseerInstructions":
 			out.Values[i] = ec._Tool_overseerInstructions(ctx, field, obj)
+		case "activeGateScript":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Tool_activeGateScript(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "gateScripts":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Tool_gateScripts(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -8636,6 +10208,22 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) unmarshalNBytes2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐBytes(ctx context.Context, v any) (model.Bytes, error) {
+	var res model.Bytes
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNBytes2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐBytes(ctx context.Context, sel ast.SelectionSet, v model.Bytes) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return v
+}
+
 func (ec *executionContext) unmarshalNChainStage2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐChainStage(ctx context.Context, v any) (model.ChainStage, error) {
 	var res model.ChainStage
 	err := res.UnmarshalGQL(v)
@@ -8670,6 +10258,56 @@ func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.S
 		}
 	}
 	return graphql.WrapContextMarshaler(ctx, res)
+}
+
+func (ec *executionContext) marshalNGateScript2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScript(ctx context.Context, sel ast.SelectionSet, v model.GateScript) graphql.Marshaler {
+	return ec._GateScript(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNGateScript2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScriptᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.GateScript) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNGateScript2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScript(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNGateScript2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScript(ctx context.Context, sel ast.SelectionSet, v *model.GateScript) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GateScript(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNGateScriptStatus2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScriptStatus(ctx context.Context, v any) (model.GateScriptStatus, error) {
+	var res model.GateScriptStatus
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNGateScriptStatus2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScriptStatus(ctx context.Context, sel ast.SelectionSet, v model.GateScriptStatus) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNGateScriptTier2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScriptTier(ctx context.Context, v any) (model.GateScriptTier, error) {
+	var res model.GateScriptTier
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNGateScriptTier2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScriptTier(ctx context.Context, sel ast.SelectionSet, v model.GateScriptTier) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {
@@ -8764,6 +10402,20 @@ func (ec *executionContext) marshalNNotification2ᚖgithubᚗcomᚋbcnelsonᚋte
 		return graphql.Null
 	}
 	return ec._Notification(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOwnerRule2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐOwnerRule(ctx context.Context, sel ast.SelectionSet, v model.OwnerRule) graphql.Marshaler {
+	return ec._OwnerRule(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOwnerRule2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐOwnerRule(ctx context.Context, sel ast.SelectionSet, v *model.OwnerRule) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OwnerRule(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
@@ -9156,6 +10808,36 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOBytes2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐBytes(ctx context.Context, v any) (model.Bytes, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res model.Bytes
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOBytes2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐBytes(ctx context.Context, sel ast.SelectionSet, v model.Bytes) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
+}
+
+func (ec *executionContext) marshalOGateScript2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScript(ctx context.Context, sel ast.SelectionSet, v *model.GateScript) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._GateScript(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOGateScriptEvaluation2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScriptEvaluation(ctx context.Context, sel ast.SelectionSet, v *model.GateScriptEvaluation) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._GateScriptEvaluation(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v any) (*string, error) {

@@ -1,0 +1,101 @@
+# Tendant operator-edge GraphQL — Phase 5 additive delta (gate scripts).
+# Versioning policy: specs/003-operator-edge-wake/contracts/versioning-policy.md.
+# Strictly additive on Phase 4 — PR template Path 1. No existing field renamed,
+# removed, or retyped. Contract of record: specs/006-gate-script-sandbox/
+# contracts/graphql.v1.graphqls.
+#
+# All four mutations are OWNER-PRINCIPAL-ONLY: the resolver MUST reject any
+# viewer with Principal.Kind != "user" with PERMISSION_DENIED before any DB
+# write (structural check via auth.RequireOwner, not a runtime feature flag).
+
+# Base64-encoded byte sequence. Used for WASM module uploads/downloads.
+scalar Bytes
+
+enum GateScriptTier {
+  # Authored as AssemblyScript source; server-compiled via the vendored
+  # asc-on-wazero sandbox. `source` is populated.
+  ASSEMBLYSCRIPT_IN_APP
+  # Authored locally against the published SDK; .wasm uploaded by the owner.
+  # `source` is null.
+  BYO_WASM
+}
+
+enum GateScriptStatus {
+  # The version pointed at by tools.active_script_version.
+  ACTIVE
+  # A previously-active version retired by disableGateScript or superseded.
+  DISABLED
+}
+
+# A persisted, immutable WASM gate script. Append-only modulo `status`.
+type GateScript {
+  id: ID!
+  tool: Tool!
+  version: Int!
+  manifest: JSON!                # the v1 capability manifest
+  manifestHash: String!          # sha256 of canonicalized manifest
+  tier: GateScriptTier!
+  status: GateScriptStatus!
+  attachedByPrincipal: String!   # viewer.global_uri who attached
+  attachedAt: Time!
+
+  # Opt-in heavy field. The .wasm bytes — typically 50-500 KiB. NOT selected
+  # by default by list queries.
+  wasm: Bytes
+  # Opt-in heavy field. AssemblyScript source for Tier 1; null for Tier 2.
+  source: String
+}
+
+# A free-form (key, value) preference the owner can set and gate scripts can
+# read via the owner.rule(key) host function.
+type OwnerRule {
+  key: String!
+  value: String!
+  updatedAt: Time!
+}
+
+# Captures the verdict + evidence a script wrote when it escalated an
+# ApprovalRequest via RequestDecision.
+type GateScriptEvaluation {
+  verdict: String!
+  summary: String!
+  consideredFields: [String!]!
+  hostcallTrace: [String!]!
+  scriptId: ID!
+  scriptVersion: Int!
+  manifestHash: String!
+  at: Time!
+}
+
+extend type Tool {
+  # The currently-active gate script, or null when none is attached.
+  activeGateScript: GateScript
+  # Version history newest-first. limit/offset clamped to a max of 100.
+  gateScripts(limit: Int = 20, offset: Int = 0): [GateScript!]!
+}
+
+extend type ApprovalRequest {
+  # Non-null when a gate script escalated this approval; null when the floor
+  # or the overseer was the escalator (mutually exclusive in practice).
+  gateScriptEvaluation: GateScriptEvaluation
+}
+
+extend type Mutation {
+  # OWNER-ONLY. Uploads a pre-compiled .wasm + capability manifest, runs the
+  # static-validation pipeline, stores tier=BYO_WASM, advances active version.
+  # Errors: PERMISSION_DENIED, TOOL_UNKNOWN, INVALID_MANIFEST, MODULE_TOO_LARGE.
+  attachGateScript(toolId: ID!, wasm: Bytes!, manifest: JSON!): GateScript!
+
+  # OWNER-ONLY. Compiles AssemblyScript source via the asc-on-wazero sandbox,
+  # then runs the SAME pipeline; stores tier=ASSEMBLYSCRIPT_IN_APP + source.
+  # Errors: PERMISSION_DENIED, TOOL_UNKNOWN, COMPILE_FAILED, INVALID_MANIFEST.
+  compileAndAttachGateScript(toolId: ID!, source: String!, manifest: JSON!): GateScript!
+
+  # OWNER-ONLY. Clears tools.active_script_version and disables the prior row.
+  # Errors: PERMISSION_DENIED, TOOL_UNKNOWN, NO_ACTIVE_SCRIPT.
+  disableGateScript(toolId: ID!): Tool!
+
+  # OWNER-ONLY. Upserts an owner rule read by owner.rule(key).
+  # Errors: PERMISSION_DENIED, INVALID_RULE.
+  setOwnerRule(key: String!, value: String!): OwnerRule!
+}

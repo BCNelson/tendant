@@ -53,6 +53,30 @@ type OverseerInput struct {
 	ConcreteCall      json.RawMessage // the frozen ToolCall.Payload
 	Permissions       json.RawMessage // tools.permissions, for [TOOL_METADATA]
 	TaskID            uuid.UUID       // for the per-task cap query
+
+	// ScriptEvidence (Phase 5) is non-nil only when a gate script handed off
+	// to the overseer via AgentHandoff. It is serialized into the separate
+	// [SCRIPT_EVIDENCE] slot — third-party evidence the overseer weighs, never
+	// obeys. It MUST NOT be concatenated into OwnerInstructions and MUST NOT be
+	// reachable as a payload field (the labeled-slots invariant, FR-034).
+	ScriptEvidence *ScriptEvidence
+
+	// SystemNote (Phase 5) is an optional system-authored line appended to the
+	// [SYSTEM] preamble — used to name a prior script's failure reason when the
+	// gate fell through on a fail-closed run (FR-033). It is system text, not
+	// owner/script/payload data.
+	SystemNote string
+}
+
+// ScriptEvidence is the gate script's hand-off context, mirrored from the
+// runner's ScriptVerdict.Evidence (Phase 5, FR-032). The overseer treats it as
+// untrusted third-party input.
+type ScriptEvidence struct {
+	Summary          string
+	ConsideredFields []string
+	HostcallTrace    []string
+	ScriptID         uuid.UUID
+	ScriptVersion    int
 }
 
 // Evidence is the structured reasoning the overseer attaches to its

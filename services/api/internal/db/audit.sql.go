@@ -30,7 +30,7 @@ RETURNING id, task_id, from_principal, to_principal, in_reply_to, kind, payload,
 
 type InsertAuditMessageParams struct {
 	ID            uuid.UUID          `json:"id"`
-	TaskID        uuid.UUID          `json:"task_id"`
+	TaskID        pgtype.UUID        `json:"task_id"`
 	FromPrincipal string             `json:"from_principal"`
 	ToPrincipal   *string            `json:"to_principal"`
 	InReplyTo     pgtype.UUID        `json:"in_reply_to"`
@@ -71,7 +71,7 @@ func (q *Queries) InsertAuditMessage(ctx context.Context, arg InsertAuditMessage
 const latestTransitionForTask = `-- name: LatestTransitionForTask :one
 SELECT id, task_id, from_principal, to_principal, in_reply_to, kind, payload, at
 FROM audit_messages
-WHERE task_id = $1
+WHERE task_id = $1::uuid
   AND kind IN ('state_transition','stage_advance','workflow_started','workflow_cancelled','assignment_created','assignment_resolved')
 ORDER BY at DESC, id DESC
 LIMIT 1
@@ -98,7 +98,7 @@ func (q *Queries) LatestTransitionForTask(ctx context.Context, taskID uuid.UUID)
 const listAuditForTask = `-- name: ListAuditForTask :many
 SELECT id, task_id, from_principal, to_principal, in_reply_to, kind, payload, at
 FROM audit_messages
-WHERE task_id = $1
+WHERE task_id = $1::uuid
 ORDER BY at ASC, id ASC
 `
 

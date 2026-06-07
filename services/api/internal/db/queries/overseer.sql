@@ -4,7 +4,7 @@
 -- Covered by idx_audit_task (task_id, at).
 SELECT count(*) AS n
 FROM audit_messages
-WHERE task_id = $1
+WHERE task_id = sqlc.arg('task_id')::uuid
   AND kind = 'overseer_evaluated';
 
 -- name: UpdateToolPermissions :one
@@ -12,14 +12,14 @@ WHERE task_id = $1
 UPDATE tools
 SET permissions = $2
 WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions;
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version;
 
 -- name: UpdateToolOverseerInstructions :one
 -- Owner-only update; resolver enforces RequireOwner first.
 UPDATE tools
 SET overseer_instructions = $2
 WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions;
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version;
 
 -- name: UpdateToolOverseerInstructionsIfNull :one
 -- Idempotent Phase-4 seeder helper for send-email. Writes only if the column
@@ -28,7 +28,7 @@ UPDATE tools
 SET overseer_instructions = $2
 WHERE global_uri = $1
   AND overseer_instructions IS NULL
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions;
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version;
 
 -- name: LatestOverseerInstructionsChangedForTool :one
 -- Returns the most recent overseer_instructions_changed audit row for a tool,

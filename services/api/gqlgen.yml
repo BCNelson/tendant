@@ -34,6 +34,10 @@ models:
   JSON:
     model: github.com/99designs/gqlgen/graphql.Map
 
+  # Phase 5 — Bytes scalar (base64 string), hand-written marshaler.
+  Bytes:
+    model: github.com/bcnelson/tendant/services/api/graph/model.Bytes
+
   # Phase 0/1 — Task/AgentAssignment use field resolvers for nested loads.
   Task:
     fields:
@@ -61,6 +65,9 @@ models:
       # Phase 4 — overseerEvaluation joins audit_messages lazily.
       overseerEvaluation:
         resolver: true
+      # Phase 5 — gateScriptEvaluation joins the gate_script_evaluated row.
+      gateScriptEvaluation:
+        resolver: true
   AgentQuestion:
     fields:
       task:
@@ -72,4 +79,14 @@ models:
       task:
         resolver: true
       tool:
+        resolver: true
+
+  # Phase 5 — gate-script lazy joins. Tool gains two script-history fields.
+  # GateScript.tool is populated eagerly by the mapper (the parent Tool is
+  # always in hand), so it is a plain model field, not a field resolver.
+  Tool:
+    fields:
+      activeGateScript:
+        resolver: true
+      gateScripts:
         resolver: true

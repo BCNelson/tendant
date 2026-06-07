@@ -19,6 +19,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/auth"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/gate"
+	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/lifecycle"
 	"github.com/bcnelson/tendant/services/api/internal/overseer"
 	"github.com/bcnelson/tendant/services/api/internal/toolflow"
@@ -107,9 +108,11 @@ func (r *Resolver) proposeToolCallImpl(ctx context.Context, taskID, toolGlobalUR
 		Payload: rawPayload,
 	}
 
-	// Phase 4: construct the gate with the resolver's wired overseer (nil
-	// in Phase 3 tests; non-nil in production + Phase 4 integration tests).
+	// Phase 4/5: construct the gate with the resolver's wired overseer (nil
+	// in Phase 3 tests) and the Layer-3 script evaluator (nil when no script
+	// layer is wired). Order is fixed: read-only → floor → script → overseer.
 	g := gate.NewDefaultGateWithOverseer(&principalLookupFromQueries{q: r.Queries}, r.Overseer)
+	g.Script = r.ScriptEvaluator
 	verdict, err := g.Evaluate(ctx, call, &toolRow)
 	if err != nil {
 		return nil, fmt.Errorf("gate: %w", err)
@@ -131,13 +134,14 @@ func (r *Resolver) proposeToolCallImpl(ctx context.Context, taskID, toolGlobalUR
 
 	switch verdict.Decision {
 	case gate.DecisionApprove:
-		// Two distinct Approve sources:
+		// Three distinct Approve sources:
 		//   (a) read-only short-circuit (perms.read_only=true): Phase 3
-		//       fall-through; no overseer verdict carried.
-		//   (b) overseer-approve: Phase 4 auto-approve path. Drive the
-		//       existing ToolCallWorkflow with a synthetic approval so
-		//       dispatch + outcome audit lands via the same Phase 3 path.
-		if verdict.OverseerVerdict != nil {
+		//       fall-through; no overseer/script verdict carried.
+		//   (b) overseer-approve: Phase 4 auto-approve path.
+		//   (c) script-approve: Phase 5 — a gate script returned Approve and
+		//       the floor stayed silent. Same auto-dispatch path so the clean
+		//       outcome + audit land via the existing workflow.
+		if verdict.OverseerVerdict != nil || verdict.ScriptVerdict != nil {
 			ar, err := r.writeAutoApprovedAndDispatch(ctx, tid, &toolRow, rawPayload, principal.GlobalURI, decisionID)
 			if err != nil {
 				return nil, err
@@ -147,7 +151,15 @@ func (r *Resolver) proposeToolCallImpl(ctx context.Context, taskID, toolGlobalUR
 		return r.dispatchReadOnly(ctx, tid, &toolRow, rawPayload, principal.GlobalURI)
 
 	case gate.DecisionDeny:
-		return nil, gateError(ctx, "GATE_DENY", "gate denied the call")
+		// Phase 5: a gate script's terminal Deny. Record a denied_by_script
+		// tool_outcome + audit (overseer never consulted), then surface the
+		// deny as a GraphQL error (a denied call produces no ApprovalRequest).
+		if verdict.ScriptVerdict != nil {
+			if derr := r.writeDeniedByScript(ctx, tid, &toolRow); derr != nil {
+				return nil, fmt.Errorf("record denied_by_script: %w", derr)
+			}
+		}
+		return nil, gateError(ctx, "GATE_DENY", "gate script denied the call")
 
 	case gate.DecisionRequestDecision:
 		// Write the ApprovalRequest row (with pre-allocated decision_id) and
@@ -209,13 +221,35 @@ func (r *Resolver) writeComposeVerdictOverseerAudit(ctx context.Context, taskID 
 			return err
 		}
 
-		// Phase 4: overseer_evaluated, chained to gate_verdict, only when
-		// the overseer was actually consulted (non-nil verdict).
+		// Phase 5: gate_script_evaluated, chained to gate_verdict, when a script
+		// ran (FR-035). The overseer row (if any) then chains to THIS row so the
+		// DAG reflects script → overseer hand-off.
+		chainParent := gateVerdictID
+		if v.ScriptVerdict != nil {
+			scriptPayload := gatescript.AuditPayload(*v.ScriptVerdict)
+			// Stamp the pre-allocated decision id so
+			// ApprovalRequest.gateScriptEvaluation can locate this row when the
+			// script's RequestDecision raised an approval.
+			scriptPayload["decision_id"] = decisionID.String()
+			scriptID, err := lifecycle.WriteAuditMessage(ctx, tx, taskID, lifecycle.SystemActorURI,
+				lifecycle.KindGateScriptEvaluated,
+				scriptPayload,
+				gateVerdictID,
+			)
+			if err != nil {
+				return err
+			}
+			chainParent = scriptID
+		}
+
+		// Phase 4: overseer_evaluated, chained to gate_script_evaluated (or
+		// gate_verdict when no script ran), only when the overseer was actually
+		// consulted (non-nil verdict).
 		if v.OverseerVerdict != nil {
 			ownerHash := hashOwnerInstructions(tool.OverseerInstructions)
 			payloadMap := overseer.AuditPayload(v.OverseerVerdict, decisionID, ownerHash)
 			if _, err := lifecycle.WriteAuditMessage(ctx, tx, taskID, lifecycle.SystemActorURI,
-				lifecycle.KindOverseerEvaluated, payloadMap, gateVerdictID); err != nil {
+				lifecycle.KindOverseerEvaluated, payloadMap, chainParent); err != nil {
 				return err
 			}
 		}
@@ -376,6 +410,38 @@ func (r *Resolver) dispatchReadOnly(ctx context.Context, taskID uuid.UUID, tool 
 	// instance the resolver doesn't own directly). For Phase 3 we resolve
 	// via a small per-resolver registry hook so tests can inject.
 	return nil, gateError(ctx, "GATE_UNSUPPORTED", "no read-only tools registered in Phase 3")
+}
+
+// writeDeniedByScript records a gate script's terminal Deny: a
+// tool_outcomes(denied_by_script) row + a tool_outcome_recorded audit message.
+// No dispatch, no ApprovalRequest. The gate_script_evaluated row was already
+// written by writeComposeVerdictOverseerAudit.
+func (r *Resolver) writeDeniedByScript(ctx context.Context, taskID uuid.UUID, tool *db.Tool) error {
+	return pgx.BeginFunc(ctx, r.Pool, func(tx pgx.Tx) error {
+		q := db.New(tx)
+		parent, err := latestTransitionIDInTx(ctx, tx, taskID)
+		if err != nil {
+			return err
+		}
+		outcome, err := q.InsertToolOutcome(ctx, db.InsertToolOutcomeParams{
+			ToolID:  tool.ID,
+			TaskID:  taskID,
+			Outcome: db.ToolOutcomeKindDeniedByScript,
+		})
+		if err != nil {
+			return fmt.Errorf("insert denied_by_script outcome: %w", err)
+		}
+		_, err = lifecycle.WriteAuditMessage(ctx, tx, taskID, lifecycle.SystemActorURI,
+			lifecycle.KindToolOutcomeRecorded,
+			lifecycle.ToolOutcomeRecordedPayload{
+				ToolID:    tool.ID,
+				OutcomeID: outcome.ID,
+				Outcome:   string(db.ToolOutcomeKindDeniedByScript),
+			},
+			parent,
+		)
+		return err
+	})
 }
 
 // resolveDecisionMutation is the shared body behind approveArtifact and

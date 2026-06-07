@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tendant.dev/contracts/gatescript/manifest.v1.json",
+  "title": "Tendant Gate Script Capability Manifest v1",
+  "description": "Statically-enforced capability manifest a WASM gate script ships with. The host inspects the WASM import section before instantiation; any import outside this manifest's `reads` allowlist rejects the upload without running the module.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest_version", "tool", "entrypoint", "reads", "egress", "limits"],
+  "properties": {
+    "manifest_version": {
+      "description": "The manifest grammar version. v1 is the only supported value in Phase 5. Bumping this is a versioned breaking change per the Phase-2 contract-versioning policy.",
+      "const": "1"
+    },
+    "tool": {
+      "description": "The tool's globalUri (e.g. 'tendant://tools/send-email'). MUST match the toolId argument of attachGateScript / compileAndAttachGateScript or the upload is rejected with INVALID_MANIFEST(reason: 'tool_mismatch').",
+      "type": "string",
+      "pattern": "^tendant://tools/[a-z][a-z0-9-]{0,63}$"
+    },
+    "entrypoint": {
+      "description": "The single exported function name the host will call. v1 only supports 'evaluate'.",
+      "const": "evaluate"
+    },
+    "reads": {
+      "description": "The static allowlist of host data domains this script reads. Each entry maps 1:1 to a host-function module: 'call.args' → call.get(); 'contacts' → contacts.isKnown(addr); 'calendar' → calendar.query(window); 'task.context' → task.context(key); 'owner.rule' → owner.rule(key). The host walks the WASM import section before instantiation and rejects any import whose corresponding `reads` entry is missing. `log(msg)` is always available and does NOT require a `reads` entry — it is a bounded sink, not a read.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": ["call.args", "contacts", "calendar", "task.context", "owner.rule"]
+      }
+    },
+    "egress": {
+      "description": "Reserved for the future `external_fetch` capability. v1 only accepts the empty array — a script that names ANY egress endpoint is rejected at upload with INVALID_MANIFEST(reason: 'unknown_capability'). Re-introducing egress later will require a manifest_version bump.",
+      "type": "array",
+      "maxItems": 0
+    },
+    "limits": {
+      "description": "Per-script resource limits. The host enforces min(manifest-declared, deployment-ceiling) at runtime; a manifest declaring limits above the deployment ceiling is rejected at upload (INVALID_MANIFEST: timeout_exceeds_ceiling | memory_exceeds_ceiling).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timeout_ms", "memory_pages"],
+      "properties": {
+        "timeout_ms": {
+          "description": "Wall-clock timeout for evaluate(). On expiry the host closes the wazero module via context cancellation. Default 250; deployment ceiling default 1000 (TENDANT_GATESCRIPT_MAX_TIMEOUT_MS).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 250
+        },
+        "memory_pages": {
+          "description": "Linear-memory cap in WASM pages (64 KiB each). Default 64 pages = 4 MiB; deployment ceiling default 256 pages = 16 MiB (TENDANT_GATESCRIPT_MAX_MEMORY_PAGES).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256,
+          "default": 64
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "manifest_version": "1",
+      "tool": "tendant://tools/send-email",
+      "entrypoint": "evaluate",
+      "reads": ["call.args", "contacts"],
+      "egress": [],
+      "limits": { "timeout_ms": 250, "memory_pages": 64 }
+    }
+  ]
+}

@@ -30,6 +30,7 @@ type PromptPayload struct {
 	OwnerInstructions string // [OWNER_INSTRUCTIONS] slot
 	ToolMetadata      string // [TOOL_METADATA] slot (name + global_uri + permissions JSON)
 	ConcreteCall      string // [CONCRETE_CALL] slot — JSON-stringified payload
+	ScriptEvidence    string // [SCRIPT_EVIDENCE] slot (Phase 5); "" when no script handed off
 }
 
 // RawResponse is what a Provider hands back; the Gateway translates this

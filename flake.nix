@@ -4,6 +4,10 @@
   inputs = {
     nixpkgs.url = "github:cachix/devenv-nixpkgs/rolling";
     devenv.url = "github:cachix/devenv";
+    # Required by languages.rust.channel ("stable") for the wasm32 cross-target
+    # used to build the Rust gate-script SDK (sdks/gate-sdk-rust).
+    rust-overlay.url = "github:oxalica/rust-overlay";
+    rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = { self, nixpkgs, devenv, ... } @ inputs:

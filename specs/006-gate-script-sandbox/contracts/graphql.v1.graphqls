@@ -1,0 +1,168 @@
+# Tendant operator-edge GraphQL — v1 (Phase 5 additive delta).
+# Versioning policy: specs/003-operator-edge-wake/contracts/versioning-policy.md.
+#
+# Phase 5 is strictly additive on Phase 4; no existing field is renamed,
+# removed, or retyped. Additions:
+#
+#   1. GateScript type + GateScriptTier + GateScriptStatus enums
+#   2. Tool.activeGateScript: GateScript                  (nullable)
+#   3. Tool.gateScripts(limit, offset): [GateScript!]!    (version history)
+#   4. ApprovalRequest.gateScriptEvaluation               (nullable)
+#   5. attachGateScript(toolId, wasm, manifest)           -> GateScript!
+#   6. compileAndAttachGateScript(toolId, source, manifest) -> GateScript!
+#   7. disableGateScript(toolId)                          -> Tool!
+#   8. setOwnerRule(key, value)                           -> OwnerRule!
+#   9. OwnerRule type
+#
+# All four mutations are OWNER-PRINCIPAL-ONLY — the resolver MUST reject any
+# viewer with Principal.Kind != "user" with PERMISSION_DENIED *before* any DB
+# write. This is a structural check (auth.RequireOwner from Phase 4), not a
+# runtime feature flag.
+#
+# The `Bytes` scalar is a base64-encoded string carrying the WASM module bytes.
+
+# ----- Scalars (Phase 5) -------------------------------------------------
+
+# Base64-encoded byte sequence. Used for WASM module uploads.
+scalar Bytes
+
+# ----- GateScript types --------------------------------------------------
+
+enum GateScriptTier {
+  # Authored as AssemblyScript source; server-compiled via the vendored
+  # asc-on-wazero sandbox. `source` is populated.
+  ASSEMBLYSCRIPT_IN_APP
+
+  # Authored locally against the published SDK; .wasm uploaded by the owner.
+  # `source` is null.
+  BYO_WASM
+}
+
+enum GateScriptStatus {
+  # The version pointed at by tools.active_script_version. The gate executes
+  # this version on every call.
+  ACTIVE
+
+  # A previously-active version that has been retired by disableGateScript or
+  # superseded by a newer attach.
+  DISABLED
+}
+
+# A persisted, immutable WASM gate script. Append-only modulo `status`.
+# A Tool has at most one ACTIVE GateScript at a time
+# (referenced by Tool.activeGateScript). All prior versions are retained.
+type GateScript {
+  id: ID!
+  tool: Tool!
+  version: Int!
+  manifest: JSON!                # the v1 capability manifest
+  manifestHash: String!          # sha256 of canonicalized manifest
+  tier: GateScriptTier!
+  status: GateScriptStatus!
+  attachedByPrincipal: String!   # viewer.global_uri who attached
+  attachedAt: Time!
+
+  # Opt-in heavy field. The .wasm bytes — typically 50-500 KiB. NOT selected
+  # by default by list queries. Resolvers must guard against accidental
+  # selection in large lists (Ferry codegen flags it; manual queries should
+  # only include it on detail pages).
+  wasm: Bytes
+
+  # Opt-in heavy field. AssemblyScript source for Tier 1; null for Tier 2.
+  source: String
+}
+
+# An OwnerRule is a free-form (key, value) preference the owner can set and
+# gate scripts can read via the owner.rule(key) host function.
+type OwnerRule {
+  key: String!
+  value: String!
+  updatedAt: Time!
+}
+
+# ----- Tool extension ----------------------------------------------------
+
+extend type Tool {
+  # The currently-active gate script for this tool. Null when no script is
+  # attached or after disableGateScript clears the pointer.
+  activeGateScript: GateScript
+
+  # Version history newest-first. Includes both ACTIVE and DISABLED rows.
+  # Default limit/offset are 20/0; clamped to a server-side max of 100.
+  gateScripts(limit: Int = 20, offset: Int = 0): [GateScript!]!
+}
+
+# ----- ApprovalRequest extension -----------------------------------------
+
+# GateScriptEvaluation captures the verdict + evidence the script wrote when
+# it escalated an ApprovalRequest via RequestDecision. Null when the
+# ApprovalRequest was raised by the floor or by the overseer (in which case
+# overseerEvaluation is populated instead).
+type GateScriptEvaluation {
+  verdict: String!                  # "request_decision" — the only script-originated verdict that lands on an ApprovalRequest
+  summary: String!                  # the script's evidence.summary
+  consideredFields: [String!]!      # e.g. ["payload.to"]
+  hostcallTrace: [String!]!         # capped at 64 entries × 256 bytes
+  scriptId: ID!
+  scriptVersion: Int!
+  manifestHash: String!
+  at: Time!                         # audit_messages.at for the gate_script_evaluated row
+}
+
+extend type ApprovalRequest {
+  # Non-null when a gate script was the layer that escalated this approval.
+  # Null when the floor or the overseer was the escalator. Mutually exclusive
+  # with overseerEvaluation in practice (the gate calls one or the other).
+  gateScriptEvaluation: GateScriptEvaluation
+}
+
+# ----- Mutations ---------------------------------------------------------
+
+extend type Mutation {
+  # OWNER-AUTHORED ONLY (Principal.Kind = "user"). Uploads a pre-compiled
+  # .wasm module and a capability manifest. Runs the static-validation
+  # pipeline (import section ⊆ manifest.reads, entrypoint = "evaluate",
+  # size ≤ cap, manifest.tool == toolId). On success: inserts a new
+  # gate_scripts row with tier = BYO_WASM and source = null; advances
+  # tools.active_script_version; writes a gate_script_attached audit row.
+  # Errors:
+  #   - PERMISSION_DENIED:  viewer is not the owner (Kind != "user")
+  #   - TOOL_UNKNOWN:       toolId does not match any tool row
+  #   - INVALID_MANIFEST:   manifest violates v1 grammar OR import section
+  #                         includes an undeclared host function OR exports
+  #                         a function other than "evaluate" OR manifest.tool
+  #                         != toolId OR manifest.limits exceed deployment
+  #                         ceiling OR manifest_version != "1"
+  #   - MODULE_TOO_LARGE:   wasm bytes exceed TENDANT_GATESCRIPT_MAX_MODULE_BYTES
+  attachGateScript(toolId: ID!, wasm: Bytes!, manifest: JSON!): GateScript!
+
+  # OWNER-AUTHORED ONLY. Pipes the AssemblyScript source through the
+  # vendored asc-on-wazero sandbox, then runs the SAME static-validation
+  # pipeline as attachGateScript on the produced .wasm. On success: stores
+  # the row with tier = ASSEMBLYSCRIPT_IN_APP and source = the input source.
+  # Errors:
+  #   - PERMISSION_DENIED:  viewer is not the owner
+  #   - TOOL_UNKNOWN:       toolId does not match
+  #   - COMPILE_FAILED:     asc compile error; payload includes diagnostics
+  #                         {file, line, col, severity, msg}[]
+  #   - (any error from attachGateScript's static-validation pipeline)
+  compileAndAttachGateScript(toolId: ID!, source: String!, manifest: JSON!): GateScript!
+
+  # OWNER-AUTHORED ONLY. Sets tools.active_script_version = NULL and the
+  # previously-active row's status = DISABLED. The row is preserved (history
+  # is append-only). Writes a gate_script_disabled audit row.
+  # Errors:
+  #   - PERMISSION_DENIED:  viewer is not the owner
+  #   - TOOL_UNKNOWN:       toolId does not match
+  #   - NO_ACTIVE_SCRIPT:   tools.active_script_version was already NULL
+  disableGateScript(toolId: ID!): Tool!
+
+  # OWNER-AUTHORED ONLY. Upserts an owner rule. The gate script reads this
+  # value via the owner.rule(key) host function. Writes an owner_rule_set
+  # audit row.
+  # Errors:
+  #   - PERMISSION_DENIED:  viewer is not the owner
+  #   - INVALID_RULE:       key is empty OR key/value exceed length limits
+  #                         (key ≤ 64 chars, value ≤ 1024 chars)
+  setOwnerRule(key: String!, value: String!): OwnerRule!
+}

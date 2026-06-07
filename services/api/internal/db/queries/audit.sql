@@ -6,7 +6,7 @@
 INSERT INTO audit_messages (id, task_id, from_principal, to_principal, in_reply_to, kind, payload, at)
 VALUES (
     sqlc.arg('id')::uuid,
-    sqlc.arg('task_id')::uuid,
+    sqlc.narg('task_id')::uuid,
     sqlc.arg('from_principal')::text,
     sqlc.narg('to_principal')::text,
     sqlc.narg('in_reply_to')::uuid,
@@ -21,7 +21,7 @@ RETURNING id, task_id, from_principal, to_principal, in_reply_to, kind, payload,
 -- "transition" classes; used to wire in_reply_to on the next transition.
 SELECT id, task_id, from_principal, to_principal, in_reply_to, kind, payload, at
 FROM audit_messages
-WHERE task_id = $1
+WHERE task_id = sqlc.arg('task_id')::uuid
   AND kind IN ('state_transition','stage_advance','workflow_started','workflow_cancelled','assignment_created','assignment_resolved')
 ORDER BY at DESC, id DESC
 LIMIT 1;
@@ -31,5 +31,5 @@ LIMIT 1;
 -- assert per-transition rows and in_reply_to wiring.
 SELECT id, task_id, from_principal, to_principal, in_reply_to, kind, payload, at
 FROM audit_messages
-WHERE task_id = $1
+WHERE task_id = sqlc.arg('task_id')::uuid
 ORDER BY at ASC, id ASC;

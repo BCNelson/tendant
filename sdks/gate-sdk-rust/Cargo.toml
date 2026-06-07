@@ -1,0 +1,23 @@
+[package]
+name = "tendant-gate-sdk"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Rust SDK for authoring Tendant gate scripts (the untrusted-code gate layer)."
+repository = "https://github.com/bcnelson/tendant"
+keywords = ["tendant", "gate-script", "wasm"]
+categories = ["wasm"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+
+# Build for the gate-script target:
+#   cargo build --target wasm32-unknown-unknown --release
+# Upload target/wasm32-unknown-unknown/release/<crate>.wasm via attachGateScript.

@@ -806,6 +806,9 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // Task returns TaskResolver implementation.
 func (r *Resolver) Task() TaskResolver { return &taskResolver{r} }
 
+// Tool returns ToolResolver implementation.
+func (r *Resolver) Tool() ToolResolver { return &toolResolver{r} }
+
 type agentAssignmentResolver struct{ *Resolver }
 type agentQuestionResolver struct{ *Resolver }
 type approvalRequestResolver struct{ *Resolver }
@@ -814,3 +817,4 @@ type promotionProposalResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
 type taskResolver struct{ *Resolver }
+type toolResolver struct{ *Resolver }

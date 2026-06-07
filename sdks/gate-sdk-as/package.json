@@ -1,0 +1,19 @@
+{
+  "name": "@tendant/gate-sdk",
+  "version": "0.1.0",
+  "description": "AssemblyScript SDK for authoring Tendant gate scripts (the untrusted-code gate layer).",
+  "license": "MIT",
+  "type": "module",
+  "files": ["assembly", "README.md"],
+  "scripts": {
+    "build:example": "asc examples/send-email.ts --target release --use abort= --use Date.now= -o build/send-email.wasm",
+    "test": "echo \"compile-check the example\" && npm run build:example"
+  },
+  "keywords": ["tendant", "gate-script", "assemblyscript", "wasm"],
+  "devDependencies": {
+    "assemblyscript": "0.27.31"
+  },
+  "exports": {
+    ".": "./assembly/index.ts"
+  }
+}

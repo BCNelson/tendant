@@ -62,12 +62,13 @@ func (this AgentQuestion) GetCreatedAt() time.Time { return this.CreatedAt }
 func (AgentQuestion) IsInboxItem() {}
 
 type ApprovalRequest struct {
-	ID                 string              `json:"id"`
-	Task               *Task               `json:"task"`
-	CreatedAt          time.Time           `json:"createdAt"`
-	Tool               *Tool               `json:"tool"`
-	Payload            ApprovalPayload     `json:"payload"`
-	OverseerEvaluation *OverseerEvaluation `json:"overseerEvaluation,omitempty"`
+	ID                   string                `json:"id"`
+	Task                 *Task                 `json:"task"`
+	CreatedAt            time.Time             `json:"createdAt"`
+	Tool                 *Tool                 `json:"tool"`
+	Payload              ApprovalPayload       `json:"payload"`
+	OverseerEvaluation   *OverseerEvaluation   `json:"overseerEvaluation,omitempty"`
+	GateScriptEvaluation *GateScriptEvaluation `json:"gateScriptEvaluation,omitempty"`
 }
 
 func (ApprovalRequest) IsPendingDecision()           {}
@@ -95,6 +96,31 @@ func (Bot) IsPrincipal()                {}
 func (this Bot) GetID() string          { return this.ID }
 func (this Bot) GetGlobalURI() string   { return this.GlobalURI }
 func (this Bot) GetDisplayName() string { return this.DisplayName }
+
+type GateScript struct {
+	ID                  string           `json:"id"`
+	Tool                *Tool            `json:"tool"`
+	Version             int              `json:"version"`
+	Manifest            map[string]any   `json:"manifest"`
+	ManifestHash        string           `json:"manifestHash"`
+	Tier                GateScriptTier   `json:"tier"`
+	Status              GateScriptStatus `json:"status"`
+	AttachedByPrincipal string           `json:"attachedByPrincipal"`
+	AttachedAt          time.Time        `json:"attachedAt"`
+	Wasm                Bytes            `json:"wasm,omitempty"`
+	Source              *string          `json:"source,omitempty"`
+}
+
+type GateScriptEvaluation struct {
+	Verdict          string    `json:"verdict"`
+	Summary          string    `json:"summary"`
+	ConsideredFields []string  `json:"consideredFields"`
+	HostcallTrace    []string  `json:"hostcallTrace"`
+	ScriptID         string    `json:"scriptId"`
+	ScriptVersion    int       `json:"scriptVersion"`
+	ManifestHash     string    `json:"manifestHash"`
+	At               time.Time `json:"at"`
+}
 
 type Mandate struct {
 	Goal        string         `json:"goal"`
@@ -124,6 +150,12 @@ type OverseerEvaluation struct {
 	TokensOut        int       `json:"tokensOut"`
 	EstimatedCostUsd float64   `json:"estimatedCostUsd"`
 	At               time.Time `json:"at"`
+}
+
+type OwnerRule struct {
+	Key       string    `json:"key"`
+	Value     string    `json:"value"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type PageInfo struct {
@@ -200,6 +232,8 @@ type Tool struct {
 	Rung                 AutonomyLevel  `json:"rung"`
 	Permissions          map[string]any `json:"permissions"`
 	OverseerInstructions *string        `json:"overseerInstructions,omitempty"`
+	ActiveGateScript     *GateScript    `json:"activeGateScript,omitempty"`
+	GateScripts          []*GateScript  `json:"gateScripts"`
 }
 
 type User struct {
@@ -392,6 +426,116 @@ func (e *DevicePlatform) UnmarshalJSON(b []byte) error {
 }
 
 func (e DevicePlatform) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type GateScriptStatus string
+
+const (
+	GateScriptStatusActive   GateScriptStatus = "ACTIVE"
+	GateScriptStatusDisabled GateScriptStatus = "DISABLED"
+)
+
+var AllGateScriptStatus = []GateScriptStatus{
+	GateScriptStatusActive,
+	GateScriptStatusDisabled,
+}
+
+func (e GateScriptStatus) IsValid() bool {
+	switch e {
+	case GateScriptStatusActive, GateScriptStatusDisabled:
+		return true
+	}
+	return false
+}
+
+func (e GateScriptStatus) String() string {
+	return string(e)
+}
+
+func (e *GateScriptStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = GateScriptStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid GateScriptStatus", str)
+	}
+	return nil
+}
+
+func (e GateScriptStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *GateScriptStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e GateScriptStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type GateScriptTier string
+
+const (
+	GateScriptTierAssemblyscriptInApp GateScriptTier = "ASSEMBLYSCRIPT_IN_APP"
+	GateScriptTierByoWasm             GateScriptTier = "BYO_WASM"
+)
+
+var AllGateScriptTier = []GateScriptTier{
+	GateScriptTierAssemblyscriptInApp,
+	GateScriptTierByoWasm,
+}
+
+func (e GateScriptTier) IsValid() bool {
+	switch e {
+	case GateScriptTierAssemblyscriptInApp, GateScriptTierByoWasm:
+		return true
+	}
+	return false
+}
+
+func (e GateScriptTier) String() string {
+	return string(e)
+}
+
+func (e *GateScriptTier) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = GateScriptTier(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid GateScriptTier", str)
+	}
+	return nil
+}
+
+func (e GateScriptTier) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *GateScriptTier) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e GateScriptTier) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

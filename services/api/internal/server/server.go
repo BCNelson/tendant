@@ -19,6 +19,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/graph"
 	"github.com/bcnelson/tendant/services/api/internal/auth"
 	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/overseer"
 	"github.com/bcnelson/tendant/services/api/internal/push"
 	"github.com/bcnelson/tendant/services/api/internal/realtime"
@@ -33,8 +34,9 @@ type Options struct {
 	PushSelector push.Selector
 	PushQueue    string
 	SetupSecret  *auth.SetupSecretState
-	Overseer     overseer.Grader // Phase 4 — gate's Layer-4 grader; nil = Phase-3 fallthrough
-	ToolRegistry *tools.Registry // Phase 4 — used by auto-approve dispatch path
+	Overseer     overseer.Grader            // Phase 4 — gate's Layer-4 grader; nil = Phase-3 fallthrough
+	ToolRegistry *tools.Registry            // Phase 4 — used by auto-approve dispatch path
+	GateScript   gatescript.ScriptEvaluator // Phase 5 — gate's Layer-3 evaluator; nil = no script layer
 }
 
 // New builds the chi router with the gqlgen handler mounted at /graphql,
@@ -48,15 +50,16 @@ func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 
 	q := db.New(pool)
 	resolver := &graph.Resolver{
-		Pool:          pool,
-		Queries:       q,
-		DBOS:          dctx,
-		Dispatcher:    opts.Dispatcher,
-		PushSelector:  opts.PushSelector,
-		PushQueueName: opts.PushQueue,
-		SetupSecret:   opts.SetupSecret,
-		Overseer:      opts.Overseer,
-		ToolRegistry:  opts.ToolRegistry,
+		Pool:            pool,
+		Queries:         q,
+		DBOS:            dctx,
+		Dispatcher:      opts.Dispatcher,
+		PushSelector:    opts.PushSelector,
+		PushQueueName:   opts.PushQueue,
+		SetupSecret:     opts.SetupSecret,
+		Overseer:        opts.Overseer,
+		ToolRegistry:    opts.ToolRegistry,
+		ScriptEvaluator: opts.GateScript,
 	}
 
 	// Mount /graphql with auth.Middleware applied via With() so that both
@@ -66,12 +69,17 @@ func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 	// path where exact "/graphql" bypassed auth — broke session-bearer tests.
 	r.With(auth.Middleware(q)).Handle("/graphql", graphqlHandler(resolver))
 	r.Handle("/playground", playground.Handler("Tendant", "/graphql"))
-	// Phase 4: extend /healthz with the overseer rate counter when wired.
+	// Phase 4/5: extend /healthz with the overseer + gate-script rate counters
+	// when wired.
 	var rate RateProvider
 	if g, ok := opts.Overseer.(RateProvider); ok {
 		rate = g
 	}
-	r.Get("/healthz", healthzWithOverseer(pool, rate))
+	var scriptRate GateScriptRateProvider
+	if s, ok := opts.GateScript.(GateScriptRateProvider); ok {
+		scriptRate = s
+	}
+	r.Get("/healthz", healthzWithOverseer(pool, rate, scriptRate))
 
 	return r
 }

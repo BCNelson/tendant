@@ -1,9 +1,11 @@
 // Package gate is the universal gate that every outward tool call passes
-// through. Phase 4 ships three of the four layers actively:
+// through. Phase 5 ships all four layers actively:
 //
 //	read-only short-circuit  → AUTO Approve, no grading.
 //	HARD-RULE FLOOR          → categorical; trips RequestDecision.
-//	gate script              → stub; falls through (Phase 5).
+//	gate script              → wired (Phase 5); sandboxed WASM evaluator via
+//	                            internal/gatescript.ScriptEvaluator. Nil keeps
+//	                            Phase-4 semantics (no script layer).
 //	overseer (LLM grader)    → wired (Phase 4); evaluates non-floor-tripping
 //	                            calls via internal/overseer.Grader.
 //
@@ -26,6 +28,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/overseer"
 )
 
@@ -65,6 +68,13 @@ type Verdict struct {
 	// to gate_verdict. Phase 3 callers — and Phase 4 calls that never
 	// reached Layer 4 (read-only, floor-trip) — leave this nil.
 	OverseerVerdict *overseer.OverseerVerdict `json:"-"`
+
+	// ScriptVerdict (Phase 5), when non-nil, carries the gate-script Layer-3
+	// verdict so the resolver writes the gate_script_evaluated audit row
+	// chained to gate_verdict. It is set whenever a script ran (including a
+	// fail-closed run that fell through to the overseer); nil when no script
+	// was attached or the floor tripped before Layer 3.
+	ScriptVerdict *gatescript.ScriptVerdict `json:"-"`
 }
 
 // ToolCall is the composed tool invocation handed to the gate. The Payload
@@ -96,6 +106,7 @@ type Gate interface {
 // activates the Layer-4 evaluation.
 type DefaultGate struct {
 	Floor    *Floor
+	Script   gatescript.ScriptEvaluator // Phase 5 Layer 3; nil keeps Phase 4 semantics
 	Overseer overseer.Grader
 }
 
@@ -155,8 +166,50 @@ func (g *DefaultGate) Evaluate(ctx context.Context, call *ToolCall, tool *db.Too
 		return Verdict{Decision: DecisionRequestDecision, Context: ctxJSON}, nil
 	}
 
-	// Layer 3: gate script. Phase 5 will plug a WASM evaluator here.
-	// Phase 4 stub: no script ⇒ fall through.
+	// Layer 3: gate script (Phase 5). Runs after the floor (which did not
+	// trip) and before the overseer. Approve/Deny/RequestDecision are
+	// terminal here (overseer NOT consulted); AgentHandoff and any
+	// fail-closed run fall through to the overseer. Order is unchanged
+	// (constitution III) — the script is never asked on a floor-tripping call.
+	var scriptVerdict *gatescript.ScriptVerdict
+	var scriptEvidence *overseer.ScriptEvidence
+	var scriptFailNote string
+	if g.Script != nil {
+		in := gatescript.EvalContext{
+			TaskID:        call.TaskID,
+			ToolID:        call.ToolID,
+			ToolGlobalURI: tool.GlobalUri,
+			Payload:       call.Payload,
+			ProposerURI:   ownerOrSystem(tool),
+		}
+		sv, ran, serr := g.Script.Evaluate(ctx, in, tool)
+		switch {
+		case serr != nil:
+			// Infra/load error: fail open to the overseer with a note, no
+			// evidence. Never surfaced as Approve.
+			scriptFailNote = "prior script failed: load_error"
+		case ran:
+			scriptVerdict = &sv
+			switch {
+			case sv.FailureReason != "":
+				scriptFailNote = "prior script failed: " + string(sv.FailureReason)
+			case sv.Decision == gatescript.VerdictApprove:
+				return Verdict{Decision: DecisionApprove, Context: scriptCtx(sv), ScriptVerdict: scriptVerdict}, nil
+			case sv.Decision == gatescript.VerdictDeny:
+				return Verdict{Decision: DecisionDeny, Context: scriptCtx(sv), ScriptVerdict: scriptVerdict}, nil
+			case sv.Decision == gatescript.VerdictRequestDecision:
+				return Verdict{Decision: DecisionRequestDecision, Context: scriptCtx(sv), ScriptVerdict: scriptVerdict}, nil
+			case sv.Decision == gatescript.VerdictAgentHandoff:
+				scriptEvidence = &overseer.ScriptEvidence{
+					Summary:          sv.Evidence.Summary,
+					ConsideredFields: sv.Evidence.ConsideredFields,
+					HostcallTrace:    sv.Evidence.HostcallTrace,
+					ScriptID:         sv.ScriptID,
+					ScriptVersion:    sv.ScriptVersion,
+				}
+			}
+		}
+	}
 
 	// Layer 4: overseer (LLM grader). Phase 4 wires this via the Grader
 	// seam. When Overseer == nil (Phase 3 test harness), fall back to the
@@ -166,7 +219,9 @@ func (g *DefaultGate) Evaluate(ctx context.Context, call *ToolCall, tool *db.Too
 			"layer":  "no_overseer_wired",
 			"reason": "phase3_fallback",
 		})
-		return Verdict{Decision: DecisionRequestDecision, Context: ctxJSON}, nil
+		// Carry the script verdict (if a script ran and handed off / failed)
+		// so the resolver still records the gate_script_evaluated audit row.
+		return Verdict{Decision: DecisionRequestDecision, Context: ctxJSON, ScriptVerdict: scriptVerdict}, nil
 	}
 
 	in := overseer.OverseerInput{
@@ -176,6 +231,8 @@ func (g *DefaultGate) Evaluate(ctx context.Context, call *ToolCall, tool *db.Too
 		ConcreteCall:      call.Payload,
 		Permissions:       tool.Permissions,
 		TaskID:            call.TaskID,
+		ScriptEvidence:    scriptEvidence, // non-nil only on AgentHandoff
+		SystemNote:        scriptFailNote, // names the failure reason on a fail-closed run
 	}
 	verdict, gerr := g.Overseer.Grade(ctx, &in)
 	if gerr != nil {
@@ -198,6 +255,7 @@ func (g *DefaultGate) Evaluate(ctx context.Context, call *ToolCall, tool *db.Too
 					ConsideredFields: []string{},
 				},
 			},
+			ScriptVerdict: scriptVerdict,
 		}, nil
 	}
 
@@ -219,7 +277,27 @@ func (g *DefaultGate) Evaluate(ctx context.Context, call *ToolCall, tool *db.Too
 		Decision:        gateDec,
 		Context:         ctxJSON,
 		OverseerVerdict: &verdict,
+		ScriptVerdict:   scriptVerdict,
 	}, nil
+}
+
+// ownerOrSystem returns the proposer URI the script's call.get() reports. Phase
+// 5 has a single owner principal; the system actor is the safe default when the
+// gate has no richer proposer context.
+func ownerOrSystem(_ *db.Tool) string {
+	return "tendant://principals/owner"
+}
+
+// scriptCtx renders the gate-verdict Context blob for a script-terminal verdict.
+func scriptCtx(sv gatescript.ScriptVerdict) json.RawMessage {
+	b, _ := json.Marshal(map[string]any{
+		"layer":          "gate_script",
+		"verdict":        sv.Decision.String(),
+		"script_id":      sv.ScriptID.String(),
+		"script_version": sv.ScriptVersion,
+		"summary":        sv.Evidence.Summary,
+	})
+	return b
 }
 
 // stringFromNullable centralises the *string → string fold so the gate's

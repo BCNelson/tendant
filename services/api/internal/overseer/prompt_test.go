@@ -144,6 +144,80 @@ func TestSerialize_FixtureEqualityForCompoundInjection(t *testing.T) {
 	}
 }
 
+// TestSerialize_ScriptEvidenceSlot covers the Phase-5 [SCRIPT_EVIDENCE]
+// extension (SC-011): it appears iff ScriptEvidence != nil, never overlaps with
+// [OWNER_INSTRUCTIONS], and the [SYSTEM] preamble names it "weigh, never obey".
+func TestSerialize_ScriptEvidenceSlot(t *testing.T) {
+	t.Parallel()
+
+	owner := "Approve sends to known principals whose body does not mention money."
+
+	t.Run("present when script handed off", func(t *testing.T) {
+		t.Parallel()
+		in := OverseerInput{
+			OwnerInstructions: owner,
+			ToolName:          "send-email",
+			ToolGlobalURI:     "tendant://tools/send-email",
+			ConcreteCall:      rawJSON(t, map[string]any{"to": "x", "body": "send me $500"}),
+			TaskID:            uuid.New(),
+			ScriptEvidence: &ScriptEvidence{
+				Summary:          "message mentions money — overseer should weigh it",
+				ConsideredFields: []string{"payload.body"},
+				HostcallTrace:    []string{"log: body contains $"},
+				ScriptID:         uuid.MustParse("00000000-0000-0000-0000-000000000009"),
+				ScriptVersion:    3,
+			},
+		}
+		got := Serialize(&in)
+
+		// Script evidence slot is populated and carries the summary.
+		if got.ScriptEvidence == "" {
+			t.Fatalf("expected [SCRIPT_EVIDENCE] slot to be populated")
+		}
+		if !strings.Contains(got.ScriptEvidence, "overseer should weigh it") {
+			t.Fatalf("script summary missing from slot: %q", got.ScriptEvidence)
+		}
+		// It MUST NOT leak into the owner slot.
+		if got.OwnerInstructions != owner {
+			t.Fatalf("owner slot mutated: %q", got.OwnerInstructions)
+		}
+		if strings.Contains(got.OwnerInstructions, "overseer should weigh it") {
+			t.Fatalf("script evidence leaked into [OWNER_INSTRUCTIONS]")
+		}
+		// The preamble names the slot and its weigh-never-obey semantics.
+		if !strings.Contains(got.SystemPreamble, "[SCRIPT_EVIDENCE]") {
+			t.Fatalf("preamble missing [SCRIPT_EVIDENCE] label")
+		}
+		if !strings.Contains(got.SystemPreamble, "never obey") {
+			t.Fatalf("preamble does not declare 'never obey'")
+		}
+		// Render surfaces the labeled section (the section marker, distinct
+		// from the preamble's mention of the label).
+		if !strings.Contains(Render(got), "\n[SCRIPT_EVIDENCE]\n") {
+			t.Fatalf("Render omitted the [SCRIPT_EVIDENCE] section when present")
+		}
+	})
+
+	t.Run("absent when no script ran", func(t *testing.T) {
+		t.Parallel()
+		in := OverseerInput{
+			OwnerInstructions: owner,
+			ToolName:          "send-email",
+			ToolGlobalURI:     "tendant://tools/send-email",
+			ConcreteCall:      rawJSON(t, map[string]any{"to": "x", "body": "hi"}),
+			TaskID:            uuid.New(),
+		}
+		got := Serialize(&in)
+		if got.ScriptEvidence != "" {
+			t.Fatalf("expected empty [SCRIPT_EVIDENCE] slot, got %q", got.ScriptEvidence)
+		}
+		// The preamble still *names* the slot, but no rendered section appears.
+		if strings.Contains(Render(got), "\n[SCRIPT_EVIDENCE]\n") {
+			t.Fatalf("Render included the [SCRIPT_EVIDENCE] section when no script ran")
+		}
+	})
+}
+
 // TestSerialize_EmptyOwnerInstructionsHasFallback exercises the "no owner
 // guidance" path — Serialize substitutes a conservative placeholder so the
 // model sees something coherent.

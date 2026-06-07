@@ -1,0 +1,38 @@
+# Ferry codegen input — the read-only gate-script detail surface (Phase 5).
+# wasm is deliberately NOT selected (opt-in heavy field; the detail page never
+# renders bytes). source IS selected (Tier 1 only; null for Tier 2).
+
+query ToolActiveGateScript($toolId: ID!) {
+  tool(id: $toolId) {
+    id
+    name
+    activeGateScript {
+      id
+      version
+      tier
+      status
+      attachedByPrincipal
+      attachedAt
+      manifestHash
+      source
+    }
+    gateScripts(limit: 20) {
+      id
+      version
+      tier
+      status
+      attachedAt
+    }
+  }
+}
+
+# The approval card's evaluation block (mutually exclusive with overseerEvaluation).
+fragment GateScriptEvaluationFields on GateScriptEvaluation {
+  verdict
+  summary
+  consideredFields
+  hostcallTrace
+  scriptVersion
+  manifestHash
+  at
+}

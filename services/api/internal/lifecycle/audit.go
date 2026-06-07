@@ -33,6 +33,17 @@ const (
 	KindOverseerEvaluated           = "overseer_evaluated"
 	KindOverseerInstructionsChanged = "overseer_instructions_changed"
 	KindToolPermissionsChanged      = "tool_permissions_changed"
+
+	// Phase 5 (gate scripts + owner rules). Scope annotations refer to the
+	// migration-00005 CHECK (audit_task_required_unless_owner_scope): the four
+	// owner-scope kinds may carry task_id = NULL; the two task-scope kinds MUST
+	// carry a non-NULL task_id like every Phase-0 – Phase-4 kind.
+	KindGateScriptEvaluated = "gate_script_evaluated" // task-scope
+	KindGateScriptSkipped   = "gate_script_skipped"   // task-scope
+	KindGateScriptRejected  = "gate_script_rejected"  // owner-scope (task_id NULL)
+	KindGateScriptAttached  = "gate_script_attached"  // owner-scope (task_id NULL)
+	KindGateScriptDisabled  = "gate_script_disabled"  // owner-scope (task_id NULL)
+	KindOwnerRuleSet        = "owner_rule_set"        // owner-scope (task_id NULL)
 )
 
 // SystemActorURI is the principal globalUri used for system-authored audit
@@ -120,7 +131,84 @@ type ToolDispatchedPayload struct {
 type ToolOutcomeRecordedPayload struct {
 	ToolID    uuid.UUID `json:"tool_id"`
 	OutcomeID uuid.UUID `json:"outcome_id"`
-	Outcome   string    `json:"outcome"` // "clean" | "bad"
+	Outcome   string    `json:"outcome"` // "clean" | "bad" | "denied_by_script"
+}
+
+// --- Phase 5 (gate scripts + owner rules) audit payloads. -------------------
+
+// GateScriptHostError is the optional host-error context attached to a
+// fail_closed_host_error evaluation (FR-035).
+type GateScriptHostError struct {
+	Module   string `json:"module"`
+	Name     string `json:"name"`
+	SQLState string `json:"sqlstate,omitempty"`
+}
+
+// GateScriptEvidence is the evidence block recorded with a completed run.
+type GateScriptEvidence struct {
+	Summary          string               `json:"summary"`
+	ConsideredFields []string             `json:"considered_fields"`
+	Hostcalls        []string             `json:"hostcalls"`
+	HostError        *GateScriptHostError `json:"host_error,omitempty"`
+}
+
+// GateScriptEvaluatedPayload — kind=gate_script_evaluated (task-scope).
+// Written exactly once per *completed* run (FR-035). verdict is one of the
+// four terminal verdicts or a fail_closed_* variant.
+type GateScriptEvaluatedPayload struct {
+	Verdict         string             `json:"verdict"`
+	ScriptID        uuid.UUID          `json:"script_id"`
+	ScriptVersion   int                `json:"script_version"`
+	ManifestHash    string             `json:"manifest_hash"`
+	Evidence        GateScriptEvidence `json:"evidence"`
+	DurationMs      int                `json:"duration_ms"`
+	PeakMemoryPages int                `json:"peak_memory_pages"`
+	RanToCompletion bool               `json:"ran_to_completion"`
+	FailureReason   string             `json:"failure_reason"`
+}
+
+// GateScriptSkippedPayload — kind=gate_script_skipped (task-scope). Written
+// when the script slot fired on a tool whose active_script_version was
+// cleared mid-flight.
+type GateScriptSkippedPayload struct {
+	Reason                string `json:"reason"`
+	PreviousActiveVersion int    `json:"previous_active_version"`
+}
+
+// GateScriptRejectedPayload — kind=gate_script_rejected (owner-scope,
+// task_id NULL). Written when static validation rejects an upload (FR-036).
+type GateScriptRejectedPayload struct {
+	Reason               string          `json:"reason"`
+	ManifestHash         string          `json:"manifest_hash"`
+	ToolID               uuid.UUID       `json:"tool_id"`
+	AttemptedByPrincipal string          `json:"attempted_by_principal"`
+	Detail               json.RawMessage `json:"detail,omitempty"`
+}
+
+// GateScriptAttachedPayload — kind=gate_script_attached (owner-scope,
+// task_id NULL). Written on a successful attach (FR-037).
+type GateScriptAttachedPayload struct {
+	ScriptID              uuid.UUID `json:"script_id"`
+	ToolID                uuid.UUID `json:"tool_id"`
+	Version               int       `json:"version"`
+	Tier                  string    `json:"tier"`
+	ManifestHash          string    `json:"manifest_hash"`
+	SourceHash            *string   `json:"source_hash"`
+	PreviousActiveVersion *int      `json:"previous_active_version"`
+}
+
+// GateScriptDisabledPayload — kind=gate_script_disabled (owner-scope,
+// task_id NULL).
+type GateScriptDisabledPayload struct {
+	ToolID             uuid.UUID `json:"tool_id"`
+	PriorActiveVersion int       `json:"prior_active_version"`
+}
+
+// OwnerRuleSetPayload — kind=owner_rule_set (owner-scope, task_id NULL).
+type OwnerRuleSetPayload struct {
+	Key           string  `json:"key"`
+	PreviousValue *string `json:"previous_value"`
+	NewValue      string  `json:"new_value"`
 }
 
 // WriteAuditMessage inserts one audit_messages row inside the provided tx.
@@ -146,10 +234,16 @@ func WriteAuditMessage(
 	id := uuid.New()
 	params := db.InsertAuditMessageParams{
 		ID:            id,
-		TaskID:        taskID,
 		FromPrincipal: fromPrincipal,
 		Kind:          kind,
 		Payload:       raw,
+	}
+	// task_id is nullable as of migration 00005. uuid.Nil means an
+	// owner-scoped row (gate_script_rejected/attached/disabled, owner_rule_set)
+	// admitted by the audit_task_required_unless_owner_scope CHECK; every other
+	// kind passes a real task id.
+	if taskID != uuid.Nil {
+		params.TaskID = pgtype.UUID{Bytes: taskID, Valid: true}
 	}
 	if inReplyTo != uuid.Nil {
 		params.InReplyTo = pgtype.UUID{Bytes: inReplyTo, Valid: true}

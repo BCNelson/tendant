@@ -13,7 +13,7 @@ import (
 )
 
 const getToolByGlobalURI = `-- name: GetToolByGlobalURI :one
-SELECT id, global_uri, name, rung, permissions, overseer_instructions
+SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
 FROM tools
 WHERE global_uri = $1
 LIMIT 1
@@ -29,12 +29,13 @@ func (q *Queries) GetToolByGlobalURI(ctx context.Context, globalUri string) (Too
 		&i.Rung,
 		&i.Permissions,
 		&i.OverseerInstructions,
+		&i.ActiveScriptVersion,
 	)
 	return i, err
 }
 
 const getToolByID = `-- name: GetToolByID :one
-SELECT id, global_uri, name, rung, permissions, overseer_instructions
+SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
 FROM tools
 WHERE id = $1
 LIMIT 1
@@ -50,12 +51,13 @@ func (q *Queries) GetToolByID(ctx context.Context, id uuid.UUID) (Tool, error) {
 		&i.Rung,
 		&i.Permissions,
 		&i.OverseerInstructions,
+		&i.ActiveScriptVersion,
 	)
 	return i, err
 }
 
 const listTools = `-- name: ListTools :many
-SELECT id, global_uri, name, rung, permissions, overseer_instructions
+SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
 FROM tools
 ORDER BY name ASC
 `
@@ -76,6 +78,7 @@ func (q *Queries) ListTools(ctx context.Context) ([]Tool, error) {
 			&i.Rung,
 			&i.Permissions,
 			&i.OverseerInstructions,
+			&i.ActiveScriptVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -95,7 +98,7 @@ ON CONFLICT (global_uri) DO UPDATE
       rung                  = EXCLUDED.rung,
       permissions           = EXCLUDED.permissions,
       overseer_instructions = EXCLUDED.overseer_instructions
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
 `
 
 type UpsertToolParams struct {
@@ -124,6 +127,7 @@ func (q *Queries) UpsertTool(ctx context.Context, arg UpsertToolParams) (Tool, e
 		&i.Rung,
 		&i.Permissions,
 		&i.OverseerInstructions,
+		&i.ActiveScriptVersion,
 	)
 	return i, err
 }

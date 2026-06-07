@@ -11,6 +11,7 @@ import (
 
 	"github.com/bcnelson/tendant/services/api/internal/auth"
 	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/overseer"
 	"github.com/bcnelson/tendant/services/api/internal/push"
 	"github.com/bcnelson/tendant/services/api/internal/realtime"
@@ -25,13 +26,14 @@ import (
 // Overseer and ToolRegistry are nil-able for Phase 3 tests that don't drive
 // the auto-approve path; production wiring always sets them.
 type Resolver struct {
-	Pool          *pgxpool.Pool
-	Queries       *db.Queries
-	DBOS          dbos.DBOSContext
-	Dispatcher    *realtime.Dispatcher
-	PushSelector  push.Selector
-	PushQueueName string
-	SetupSecret   *auth.SetupSecretState
-	Overseer      overseer.Grader
-	ToolRegistry  *tools.Registry
+	Pool            *pgxpool.Pool
+	Queries         *db.Queries
+	DBOS            dbos.DBOSContext
+	Dispatcher      *realtime.Dispatcher
+	PushSelector    push.Selector
+	PushQueueName   string
+	SetupSecret     *auth.SetupSecretState
+	Overseer        overseer.Grader
+	ToolRegistry    *tools.Registry
+	ScriptEvaluator gatescript.ScriptEvaluator
 }

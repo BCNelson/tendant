@@ -17,6 +17,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/core"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/durable"
+	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/server"
 	"github.com/bcnelson/tendant/services/api/internal/testutil"
 	"github.com/bcnelson/tendant/services/api/internal/tools"
@@ -58,7 +59,18 @@ func newChainEnv(t *testing.T) *chainEnv {
 		durable.Shutdown(dctx, 5*time.Second)
 	})
 
-	handler := server.New(pool, dctx, server.Options{})
+	// Phase 5: wire a real WazeroRunner-backed gate-script evaluator. It is a
+	// no-op for tools without an active script (every existing test), so it does
+	// not change their behaviour; the gate-script e2e attaches a module and gets
+	// real WASM execution.
+	owner, err := q.GetViewer(ctx)
+	require.NoError(t, err)
+	scriptRunner, err := gatescript.NewWazeroRunner(ctx, gatescript.DefaultCeilings())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = scriptRunner.Close(context.Background()) })
+	scriptSvc := gatescript.NewService(scriptRunner, q, gatescript.DefaultCeilings(), owner.GlobalUri)
+
+	handler := server.New(pool, dctx, server.Options{GateScript: scriptSvc})
 	return &chainEnv{pool: pool, dctx: dctx, handler: handler, queries: q}
 }
 

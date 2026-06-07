@@ -1,17 +1,17 @@
 -- name: GetToolByID :one
-SELECT id, global_uri, name, rung, permissions, overseer_instructions
+SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
 FROM tools
 WHERE id = $1
 LIMIT 1;
 
 -- name: GetToolByGlobalURI :one
-SELECT id, global_uri, name, rung, permissions, overseer_instructions
+SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
 FROM tools
 WHERE global_uri = $1
 LIMIT 1;
 
 -- name: ListTools :many
-SELECT id, global_uri, name, rung, permissions, overseer_instructions
+SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
 FROM tools
 ORDER BY name ASC;
 
@@ -25,4 +25,4 @@ ON CONFLICT (global_uri) DO UPDATE
       rung                  = EXCLUDED.rung,
       permissions           = EXCLUDED.permissions,
       overseer_instructions = EXCLUDED.overseer_instructions
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions;
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version;

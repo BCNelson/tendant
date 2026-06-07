@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 )
 
 func errIsNoRows(err error) bool { return errors.Is(err, pgx.ErrNoRows) }
@@ -76,3 +78,58 @@ func SeedSendEmailOverseerInstructions(ctx context.Context, q *db.Queries) error
 }
 
 func stringPtr(s string) *string { return &s }
+
+// SeedExampleGateScript optionally attaches the runnable "approve-everything"
+// example gate script to send-email when TENDANT_SEED_EXAMPLE_GATE_SCRIPT=true
+// (off by default; powers the quickstart demo). Idempotent: it no-ops when the
+// tool already has an active script. The module imports nothing, so it passes
+// static validation with an empty `reads` set.
+func SeedExampleGateScript(ctx context.Context, q *db.Queries) error {
+	if os.Getenv("TENDANT_SEED_EXAMPLE_GATE_SCRIPT") != "true" {
+		return nil
+	}
+	tool, err := q.GetToolByGlobalURI(ctx, SendEmailGlobalURI)
+	if err != nil {
+		if errIsNoRows(err) {
+			return nil
+		}
+		return fmt.Errorf("seed example gate script: load tool: %w", err)
+	}
+	if tool.ActiveScriptVersion != nil {
+		return nil // already attached
+	}
+
+	wasm := gatescript.ExampleApproveModule()
+	manifest := gatescript.ExampleManifest(SendEmailGlobalURI)
+	if verr := gatescript.ValidateModule(wasm, manifest, SendEmailGlobalURI, gatescript.CeilingsFromEnv()); verr != nil {
+		return fmt.Errorf("seed example gate script: validate: %w", verr)
+	}
+	rawManifest, _ := json.Marshal(manifest)
+	hash, _ := gatescript.ManifestHash(manifest)
+
+	ver, err := q.NextGateScriptVersion(ctx, tool.ID)
+	if err != nil {
+		return fmt.Errorf("seed example gate script: next version: %w", err)
+	}
+	if _, err := q.CreateGateScript(ctx, db.CreateGateScriptParams{
+		ToolID:              tool.ID,
+		Version:             ver,
+		Manifest:            rawManifest,
+		ManifestHash:        hash,
+		Wasm:                wasm,
+		Tier:                "byo_wasm",
+		AttachedByPrincipal: lifecycleSystemActor,
+	}); err != nil {
+		return fmt.Errorf("seed example gate script: create: %w", err)
+	}
+	if _, err := q.UpdateActiveScriptVersion(ctx, db.UpdateActiveScriptVersionParams{
+		ID: tool.ID, ActiveScriptVersion: &ver,
+	}); err != nil {
+		return fmt.Errorf("seed example gate script: advance pointer: %w", err)
+	}
+	return nil
+}
+
+// lifecycleSystemActor mirrors lifecycle.SystemActorURI without importing the
+// package (avoids a wider import for a single constant in the seed path).
+const lifecycleSystemActor = "local://principal/system"

@@ -22,6 +22,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/core"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/durable"
+	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/overseer"
 	"github.com/bcnelson/tendant/services/api/internal/push"
 	"github.com/bcnelson/tendant/services/api/internal/realtime"
@@ -95,6 +96,9 @@ func runServe() error {
 	if err := tools.SeedSendEmailOverseerInstructions(ctx, q); err != nil {
 		return fmt.Errorf("seed send-email overseer instructions: %w", err)
 	}
+	if err := tools.SeedExampleGateScript(ctx, q); err != nil {
+		return fmt.Errorf("seed example gate script: %w", err)
+	}
 	ownerURI := ownerGlobalURI(ctx, q)
 
 	// 3b. In-process tool registry. Phase 3 ships one tool (send-email)
@@ -159,6 +163,42 @@ func runServe() error {
 		"max_eval_per_task", maxEvalPerTask,
 	)
 
+	// 6c. Phase 5 gate-script Layer-3 evaluator. The runner is WazeroRunner in
+	// production and LogRunner in CI/tests (TENDANT_GATESCRIPT_RUNNER). The
+	// Service projects the owner's data into the six read-only host functions.
+	ceilings := gatescript.CeilingsFromEnv()
+	var scriptRunner gatescript.Runner
+	switch gatescript.RunnerKind() {
+	case "log":
+		scriptRunner = gatescript.NewLogRunner()
+	default:
+		wr, werr := gatescript.NewWazeroRunner(ctx, ceilings)
+		if werr != nil {
+			return fmt.Errorf("gatescript wazero runner: %w", werr)
+		}
+		defer wr.Close(context.Background())
+		scriptRunner = wr
+	}
+	scriptSvc := gatescript.NewService(scriptRunner, q, ceilings, ownerURI)
+	slog.Info("gatescript.service", "runner", gatescript.RunnerKind(),
+		"max_module_bytes", ceilings.MaxModuleBytes,
+		"max_timeout_ms", ceilings.MaxTimeoutMs,
+		"max_memory_pages", ceilings.MaxMemoryPages,
+	)
+
+	// Tier-1 server-compile backend. Default: COMPILE_FAILED (the sandboxed
+	// asc-on-wazero backend is pending vendored binaries). An operator may
+	// opt into the non-sandboxed subprocess backend (TENDANT_ASC_BACKEND=
+	// subprocess) when `asc` is on PATH — e.g. in the devenv shell.
+	if os.Getenv("TENDANT_ASC_BACKEND") == "subprocess" {
+		if comp, cerr := gatescript.NewSubprocessASCCompiler(); cerr == nil {
+			gatescript.SetASCCompiler(comp.Compile)
+			slog.Warn("gatescript.asc: subprocess backend active (compiler NOT sandboxed) — see internal/gatescript/asc.go")
+		} else {
+			slog.Warn("gatescript.asc: subprocess backend requested but `asc` not found on PATH; Tier-1 server compile stays disabled")
+		}
+	}
+
 	// 7. Operator-edge auth registry assertion.
 	graph.RegisterOperatorEdgeAuth(auth.DefaultRegistry)
 	auth.DefaultRegistry.AssertCovers(graph.OperatorEdgeRequiredFields())
@@ -173,6 +213,7 @@ func runServe() error {
 			SetupSecret:  auth.SetupSecret,
 			Overseer:     gateway,
 			ToolRegistry: toolRegistry,
+			GateScript:   scriptSvc,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

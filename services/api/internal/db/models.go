@@ -323,8 +323,9 @@ func (ns NullTaskState) Value() (driver.Value, error) {
 type ToolOutcomeKind string
 
 const (
-	ToolOutcomeKindClean ToolOutcomeKind = "clean"
-	ToolOutcomeKindBad   ToolOutcomeKind = "bad"
+	ToolOutcomeKindClean          ToolOutcomeKind = "clean"
+	ToolOutcomeKindBad            ToolOutcomeKind = "bad"
+	ToolOutcomeKindDeniedByScript ToolOutcomeKind = "denied_by_script"
 )
 
 func (e *ToolOutcomeKind) Scan(src interface{}) error {
@@ -389,7 +390,7 @@ type AgentConfig struct {
 
 type AuditMessage struct {
 	ID            uuid.UUID       `json:"id"`
-	TaskID        uuid.UUID       `json:"task_id"`
+	TaskID        pgtype.UUID     `json:"task_id"`
 	FromPrincipal string          `json:"from_principal"`
 	ToPrincipal   *string         `json:"to_principal"`
 	InReplyTo     pgtype.UUID     `json:"in_reply_to"`
@@ -425,13 +426,18 @@ type DeviceToken struct {
 }
 
 type GateScript struct {
-	ID        uuid.UUID       `json:"id"`
-	ToolID    uuid.UUID       `json:"tool_id"`
-	Version   int32           `json:"version"`
-	Wasm      []byte          `json:"wasm"`
-	Source    *string         `json:"source"`
-	Manifest  json.RawMessage `json:"manifest"`
-	CreatedAt time.Time       `json:"created_at"`
+	ID                  uuid.UUID       `json:"id"`
+	ToolID              uuid.UUID       `json:"tool_id"`
+	Version             int32           `json:"version"`
+	Wasm                []byte          `json:"wasm"`
+	Source              *string         `json:"source"`
+	Manifest            json.RawMessage `json:"manifest"`
+	CreatedAt           time.Time       `json:"created_at"`
+	ManifestHash        string          `json:"manifest_hash"`
+	Tier                string          `json:"tier"`
+	Status              string          `json:"status"`
+	AttachedByPrincipal string          `json:"attached_by_principal"`
+	AttachedAt          time.Time       `json:"attached_at"`
 }
 
 type IntakeSignal struct {
@@ -446,6 +452,13 @@ type IntakeSignal struct {
 	StakesHint     *float64           `json:"stakes_hint"`
 	CreatedAt      time.Time          `json:"created_at"`
 	ProcessedAt    pgtype.Timestamptz `json:"processed_at"`
+}
+
+type OwnerRule struct {
+	OwnerGlobalUri string    `json:"owner_global_uri"`
+	Key            string    `json:"key"`
+	Value          string    `json:"value"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type PendingDecision struct {
@@ -509,6 +522,7 @@ type Tool struct {
 	Rung                 string          `json:"rung"`
 	Permissions          json.RawMessage `json:"permissions"`
 	OverseerInstructions *string         `json:"overseer_instructions"`
+	ActiveScriptVersion  *int32          `json:"active_script_version"`
 }
 
 type ToolOutcome struct {
