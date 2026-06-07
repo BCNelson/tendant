@@ -6,7 +6,7 @@ One-line description goes here.
 
 | Concern | Choice |
 |---|---|
-| Language | Go 1.25 (toolchain auto-tracks; locally Go 1.26 is fine) |
+| Language | Go 1.26 (devenv pins `go_1_26`; `go.mod` directive `go 1.25` is the floor) |
 | Workspace | `go.work` with two modules: `services/api` + `db` |
 | HTTP | `chi/v5` |
 | GraphQL | `gqlgen` v0.17.90 (schema-first; generated code committed) |

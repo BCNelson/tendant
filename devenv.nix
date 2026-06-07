@@ -8,7 +8,7 @@
     if devenvRoot != "" then devenvRoot else builtins.toString ./.;
 
   languages.go.enable = true;
-  languages.go.package = pkgs.go_1_25;
+  languages.go.package = pkgs.go_1_26;
 
   languages.dart.enable = true;
 
@@ -76,5 +76,12 @@
   git-hooks.hooks = {
     gofmt.enable = true;
     govet.enable = true;
+    # Pin the go-based hooks to the SAME toolchain as languages.go.package so
+    # they can never drift from the shell's go again. git-hooks.nix otherwise
+    # defaults these to pkgs.go independently; if that ever differs from
+    # languages.go, the hook's `go` driver invokes a mismatched compile tool via
+    # the exported GOROOT and fails ("version goX does not match go tool goY").
+    gofmt.package = config.languages.go.package;
+    govet.package = config.languages.go.package;
   };
 }
