@@ -56,6 +56,16 @@ type ComplexityRoot struct {
 		Task            func(childComplexity int) int
 	}
 
+	AgentConfigSummary struct {
+		ID      func(childComplexity int) int
+		IsHuman func(childComplexity int) int
+		Model   func(childComplexity int) int
+		Name    func(childComplexity int) int
+		Origin  func(childComplexity int) int
+		Stage   func(childComplexity int) int
+		Version func(childComplexity int) int
+	}
+
 	AgentQuestion struct {
 		Asker           func(childComplexity int) int
 		CreatedAt       func(childComplexity int) int
@@ -183,12 +193,20 @@ type ComplexityRoot struct {
 
 	Query struct {
 		AgentAssignment func(childComplexity int, id string) int
+		AgentConfigs    func(childComplexity int, stage *model.AgentStage) int
 		Inbox           func(childComplexity int, first *int, after *string) int
 		PendingDecision func(childComplexity int, id string) int
 		Sessions        func(childComplexity int) int
 		Task            func(childComplexity int, id string) int
 		Tasks           func(childComplexity int, first *int, after *string, state *model.TaskState) int
 		Viewer          func(childComplexity int) int
+	}
+
+	RoutingDecision struct {
+		EligibleSet func(childComplexity int) int
+		Picked      func(childComplexity int) int
+		PickedHuman func(childComplexity int) int
+		Stage       func(childComplexity int) int
 	}
 
 	Session struct {
@@ -201,6 +219,12 @@ type ComplexityRoot struct {
 	SessionMintResult struct {
 		Session func(childComplexity int) int
 		Token   func(childComplexity int) int
+	}
+
+	StageSlot struct {
+		IsHuman  func(childComplexity int) int
+		Occupant func(childComplexity int) int
+		Stage    func(childComplexity int) int
 	}
 
 	Subscription struct {
@@ -221,6 +245,7 @@ type ComplexityRoot struct {
 		ID             func(childComplexity int) int
 		OpenAssignment func(childComplexity int) int
 		Provenance     func(childComplexity int) int
+		StageSlots     func(childComplexity int) int
 		State          func(childComplexity int) int
 		Title          func(childComplexity int) int
 		Workflow       func(childComplexity int) int
@@ -312,6 +337,7 @@ type QueryResolver interface {
 	PendingDecision(ctx context.Context, id string) (model.PendingDecision, error)
 	AgentAssignment(ctx context.Context, id string) (*model.AgentAssignment, error)
 	Sessions(ctx context.Context) ([]*model.Session, error)
+	AgentConfigs(ctx context.Context, stage *model.AgentStage) ([]*model.AgentConfigSummary, error)
 }
 type SubscriptionResolver interface {
 	InboxItemArrived(ctx context.Context) (<-chan model.InboxItem, error)
@@ -389,6 +415,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AgentAssignment.Task(childComplexity), true
+
+	case "AgentConfigSummary.id":
+		if e.ComplexityRoot.AgentConfigSummary.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AgentConfigSummary.ID(childComplexity), true
+	case "AgentConfigSummary.isHuman":
+		if e.ComplexityRoot.AgentConfigSummary.IsHuman == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AgentConfigSummary.IsHuman(childComplexity), true
+	case "AgentConfigSummary.model":
+		if e.ComplexityRoot.AgentConfigSummary.Model == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AgentConfigSummary.Model(childComplexity), true
+	case "AgentConfigSummary.name":
+		if e.ComplexityRoot.AgentConfigSummary.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AgentConfigSummary.Name(childComplexity), true
+	case "AgentConfigSummary.origin":
+		if e.ComplexityRoot.AgentConfigSummary.Origin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AgentConfigSummary.Origin(childComplexity), true
+	case "AgentConfigSummary.stage":
+		if e.ComplexityRoot.AgentConfigSummary.Stage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AgentConfigSummary.Stage(childComplexity), true
+	case "AgentConfigSummary.version":
+		if e.ComplexityRoot.AgentConfigSummary.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AgentConfigSummary.Version(childComplexity), true
 
 	case "AgentQuestion.asker":
 		if e.ComplexityRoot.AgentQuestion.Asker == nil {
@@ -1030,6 +1099,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AgentAssignment(childComplexity, args["id"].(string)), true
+	case "Query.agentConfigs":
+		if e.ComplexityRoot.Query.AgentConfigs == nil {
+			break
+		}
+
+		args, err := ec.field_Query_agentConfigs_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.AgentConfigs(childComplexity, args["stage"].(*model.AgentStage)), true
 	case "Query.inbox":
 		if e.ComplexityRoot.Query.Inbox == nil {
 			break
@@ -1088,6 +1168,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.Viewer(childComplexity), true
 
+	case "RoutingDecision.eligibleSet":
+		if e.ComplexityRoot.RoutingDecision.EligibleSet == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RoutingDecision.EligibleSet(childComplexity), true
+	case "RoutingDecision.picked":
+		if e.ComplexityRoot.RoutingDecision.Picked == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RoutingDecision.Picked(childComplexity), true
+	case "RoutingDecision.pickedHuman":
+		if e.ComplexityRoot.RoutingDecision.PickedHuman == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RoutingDecision.PickedHuman(childComplexity), true
+	case "RoutingDecision.stage":
+		if e.ComplexityRoot.RoutingDecision.Stage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RoutingDecision.Stage(childComplexity), true
+
 	case "Session.createdAt":
 		if e.ComplexityRoot.Session.CreatedAt == nil {
 			break
@@ -1125,6 +1230,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SessionMintResult.Token(childComplexity), true
+
+	case "StageSlot.isHuman":
+		if e.ComplexityRoot.StageSlot.IsHuman == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StageSlot.IsHuman(childComplexity), true
+	case "StageSlot.occupant":
+		if e.ComplexityRoot.StageSlot.Occupant == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StageSlot.Occupant(childComplexity), true
+	case "StageSlot.stage":
+		if e.ComplexityRoot.StageSlot.Stage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StageSlot.Stage(childComplexity), true
 
 	case "Subscription.inboxItemArrived":
 		if e.ComplexityRoot.Subscription.InboxItemArrived == nil {
@@ -1216,6 +1340,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Task.Provenance(childComplexity), true
+	case "Task.stageSlots":
+		if e.ComplexityRoot.Task.StageSlots == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Task.StageSlots(childComplexity), true
 	case "Task.state":
 		if e.ComplexityRoot.Task.State == nil {
 			break
@@ -1488,6 +1618,26 @@ func (ec *executionContext) childFields_AgentAssignment(ctx context.Context, fie
 	return nil, fmt.Errorf("no field named %q was found under type AgentAssignment", field.Name)
 }
 
+func (ec *executionContext) childFields_AgentConfigSummary(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_AgentConfigSummary_id(ctx, field)
+	case "name":
+		return ec.fieldContext_AgentConfigSummary_name(ctx, field)
+	case "stage":
+		return ec.fieldContext_AgentConfigSummary_stage(ctx, field)
+	case "isHuman":
+		return ec.fieldContext_AgentConfigSummary_isHuman(ctx, field)
+	case "model":
+		return ec.fieldContext_AgentConfigSummary_model(ctx, field)
+	case "origin":
+		return ec.fieldContext_AgentConfigSummary_origin(ctx, field)
+	case "version":
+		return ec.fieldContext_AgentConfigSummary_version(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AgentConfigSummary", field.Name)
+}
+
 func (ec *executionContext) childFields_ApprovalRequest(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -1642,6 +1792,18 @@ func (ec *executionContext) childFields_SessionMintResult(ctx context.Context, f
 	return nil, fmt.Errorf("no field named %q was found under type SessionMintResult", field.Name)
 }
 
+func (ec *executionContext) childFields_StageSlot(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "stage":
+		return ec.fieldContext_StageSlot_stage(ctx, field)
+	case "occupant":
+		return ec.fieldContext_StageSlot_occupant(ctx, field)
+	case "isHuman":
+		return ec.fieldContext_StageSlot_isHuman(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type StageSlot", field.Name)
+}
+
 func (ec *executionContext) childFields_Task(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -1672,6 +1834,8 @@ func (ec *executionContext) childFields_Task(ctx context.Context, field graphql.
 		return ec.fieldContext_Task_createdAt(ctx, field)
 	case "editedAt":
 		return ec.fieldContext_Task_editedAt(ctx, field)
+	case "stageSlots":
+		return ec.fieldContext_Task_stageSlots(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Task", field.Name)
 }
@@ -2300,6 +2464,20 @@ func (ec *executionContext) field_Query_agentAssignment_args(ctx context.Context
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_agentConfigs_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "stage",
+		func(ctx context.Context, v any) (*model.AgentStage, error) {
+			return ec.unmarshalOAgentStage2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentStage(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["stage"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_inbox_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2680,6 +2858,167 @@ func (ec *executionContext) _AgentAssignment_resolvedAt(ctx context.Context, fie
 }
 func (ec *executionContext) fieldContext_AgentAssignment_resolvedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AgentAssignment", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _AgentConfigSummary_id(ctx context.Context, field graphql.CollectedField, obj *model.AgentConfigSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AgentConfigSummary_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AgentConfigSummary_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AgentConfigSummary", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _AgentConfigSummary_name(ctx context.Context, field graphql.CollectedField, obj *model.AgentConfigSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AgentConfigSummary_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AgentConfigSummary_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AgentConfigSummary", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AgentConfigSummary_stage(ctx context.Context, field graphql.CollectedField, obj *model.AgentConfigSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AgentConfigSummary_stage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Stage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.AgentStage) graphql.Marshaler {
+			return ec.marshalNAgentStage2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentStage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AgentConfigSummary_stage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AgentConfigSummary", field, false, false, errors.New("field of type AgentStage does not have child fields"))
+}
+
+func (ec *executionContext) _AgentConfigSummary_isHuman(ctx context.Context, field graphql.CollectedField, obj *model.AgentConfigSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AgentConfigSummary_isHuman(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsHuman, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AgentConfigSummary_isHuman(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AgentConfigSummary", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AgentConfigSummary_model(ctx context.Context, field graphql.CollectedField, obj *model.AgentConfigSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AgentConfigSummary_model(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Model, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AgentConfigSummary_model(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AgentConfigSummary", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AgentConfigSummary_origin(ctx context.Context, field graphql.CollectedField, obj *model.AgentConfigSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AgentConfigSummary_origin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Origin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AgentConfigSummary_origin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AgentConfigSummary", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AgentConfigSummary_version(ctx context.Context, field graphql.CollectedField, obj *model.AgentConfigSummary) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AgentConfigSummary_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AgentConfigSummary_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AgentConfigSummary", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
 func (ec *executionContext) _AgentQuestion_id(ctx context.Context, field graphql.CollectedField, obj *model.AgentQuestion) (ret graphql.Marshaler) {
@@ -5445,6 +5784,50 @@ func (ec *executionContext) fieldContext_Query_sessions(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_agentConfigs(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_agentConfigs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().AgentConfigs(ctx, fc.Args["stage"].(*model.AgentStage))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AgentConfigSummary) graphql.Marshaler {
+			return ec.marshalNAgentConfigSummary2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentConfigSummaryᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_agentConfigs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AgentConfigSummary(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_agentConfigs_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5519,6 +5902,116 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _RoutingDecision_stage(ctx context.Context, field graphql.CollectedField, obj *model.RoutingDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RoutingDecision_stage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Stage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.AgentStage) graphql.Marshaler {
+			return ec.marshalNAgentStage2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentStage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RoutingDecision_stage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RoutingDecision", field, false, false, errors.New("field of type AgentStage does not have child fields"))
+}
+
+func (ec *executionContext) _RoutingDecision_eligibleSet(ctx context.Context, field graphql.CollectedField, obj *model.RoutingDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RoutingDecision_eligibleSet(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EligibleSet, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AgentConfigSummary) graphql.Marshaler {
+			return ec.marshalNAgentConfigSummary2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentConfigSummaryᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RoutingDecision_eligibleSet(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RoutingDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AgentConfigSummary(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RoutingDecision_picked(ctx context.Context, field graphql.CollectedField, obj *model.RoutingDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RoutingDecision_picked(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Picked, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AgentConfigSummary) graphql.Marshaler {
+			return ec.marshalOAgentConfigSummary2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentConfigSummary(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RoutingDecision_picked(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RoutingDecision",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AgentConfigSummary(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RoutingDecision_pickedHuman(ctx context.Context, field graphql.CollectedField, obj *model.RoutingDecision) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RoutingDecision_pickedHuman(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PickedHuman, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RoutingDecision_pickedHuman(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RoutingDecision", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _Session_id(ctx context.Context, field graphql.CollectedField, obj *model.Session) (ret graphql.Marshaler) {
@@ -5666,6 +6159,84 @@ func (ec *executionContext) _SessionMintResult_token(ctx context.Context, field 
 }
 func (ec *executionContext) fieldContext_SessionMintResult_token(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SessionMintResult", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _StageSlot_stage(ctx context.Context, field graphql.CollectedField, obj *model.StageSlot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StageSlot_stage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Stage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.AgentStage) graphql.Marshaler {
+			return ec.marshalNAgentStage2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentStage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StageSlot_stage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StageSlot", field, false, false, errors.New("field of type AgentStage does not have child fields"))
+}
+
+func (ec *executionContext) _StageSlot_occupant(ctx context.Context, field graphql.CollectedField, obj *model.StageSlot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StageSlot_occupant(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Occupant, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AgentConfigSummary) graphql.Marshaler {
+			return ec.marshalOAgentConfigSummary2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentConfigSummary(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_StageSlot_occupant(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "StageSlot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AgentConfigSummary(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StageSlot_isHuman(ctx context.Context, field graphql.CollectedField, obj *model.StageSlot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StageSlot_isHuman(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsHuman, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StageSlot_isHuman(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StageSlot", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _Subscription_inboxItemArrived(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
@@ -6105,6 +6676,38 @@ func (ec *executionContext) _Task_editedAt(ctx context.Context, field graphql.Co
 }
 func (ec *executionContext) fieldContext_Task_editedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Task", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Task_stageSlots(ctx context.Context, field graphql.CollectedField, obj *model.Task) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Task_stageSlots(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StageSlots, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.StageSlot) graphql.Marshaler {
+			return ec.marshalNStageSlot2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐStageSlotᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Task_stageSlots(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Task",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_StageSlot(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _TaskConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.TaskConnection) (ret graphql.Marshaler) {
@@ -7878,6 +8481,72 @@ func (ec *executionContext) _AgentAssignment(ctx context.Context, sel ast.Select
 	return out
 }
 
+var agentConfigSummaryImplementors = []string{"AgentConfigSummary"}
+
+func (ec *executionContext) _AgentConfigSummary(ctx context.Context, sel ast.SelectionSet, obj *model.AgentConfigSummary) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, agentConfigSummaryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AgentConfigSummary")
+		case "id":
+			out.Values[i] = ec._AgentConfigSummary_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._AgentConfigSummary_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stage":
+			out.Values[i] = ec._AgentConfigSummary_stage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isHuman":
+			out.Values[i] = ec._AgentConfigSummary_isHuman(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "model":
+			out.Values[i] = ec._AgentConfigSummary_model(ctx, field, obj)
+		case "origin":
+			out.Values[i] = ec._AgentConfigSummary_origin(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "version":
+			out.Values[i] = ec._AgentConfigSummary_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var agentQuestionImplementors = []string{"AgentQuestion", "PendingDecision", "InboxItem"}
 
 func (ec *executionContext) _AgentQuestion(ctx context.Context, sel ast.SelectionSet, obj *model.AgentQuestion) graphql.Marshaler {
@@ -9214,6 +9883,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "agentConfigs":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_agentConfigs(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -9222,6 +9913,57 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___schema(ctx, field)
 			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var routingDecisionImplementors = []string{"RoutingDecision"}
+
+func (ec *executionContext) _RoutingDecision(ctx context.Context, sel ast.SelectionSet, obj *model.RoutingDecision) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, routingDecisionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RoutingDecision")
+		case "stage":
+			out.Values[i] = ec._RoutingDecision_stage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "eligibleSet":
+			out.Values[i] = ec._RoutingDecision_eligibleSet(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "picked":
+			out.Values[i] = ec._RoutingDecision_picked(ctx, field, obj)
+		case "pickedHuman":
+			out.Values[i] = ec._RoutingDecision_pickedHuman(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -9317,6 +10059,52 @@ func (ec *executionContext) _SessionMintResult(ctx context.Context, sel ast.Sele
 			}
 		case "token":
 			out.Values[i] = ec._SessionMintResult_token(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var stageSlotImplementors = []string{"StageSlot"}
+
+func (ec *executionContext) _StageSlot(ctx context.Context, sel ast.SelectionSet, obj *model.StageSlot) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, stageSlotImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("StageSlot")
+		case "stage":
+			out.Values[i] = ec._StageSlot_stage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "occupant":
+			out.Values[i] = ec._StageSlot_occupant(ctx, field, obj)
+		case "isHuman":
+			out.Values[i] = ec._StageSlot_isHuman(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -9489,6 +10277,11 @@ func (ec *executionContext) _Task(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "editedAt":
 			out.Values[i] = ec._Task_editedAt(ctx, field, obj)
+		case "stageSlots":
+			out.Values[i] = ec._Task_stageSlots(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -10158,6 +10951,42 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) marshalNAgentConfigSummary2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentConfigSummaryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AgentConfigSummary) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAgentConfigSummary2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentConfigSummary(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAgentConfigSummary2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentConfigSummary(ctx context.Context, sel ast.SelectionSet, v *model.AgentConfigSummary) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AgentConfigSummary(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNAgentStage2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentStage(ctx context.Context, v any) (model.AgentStage, error) {
+	var res model.AgentStage
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAgentStage2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentStage(ctx context.Context, sel ast.SelectionSet, v model.AgentStage) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNApprovalPayload2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐApprovalPayload(ctx context.Context, sel ast.SelectionSet, v model.ApprovalPayload) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -10492,6 +11321,32 @@ func (ec *executionContext) marshalNSessionMintResult2ᚖgithubᚗcomᚋbcnelson
 	return ec._SessionMintResult(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNStageSlot2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐStageSlotᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.StageSlot) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNStageSlot2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐStageSlot(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNStageSlot2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐStageSlot(ctx context.Context, sel ast.SelectionSet, v *model.StageSlot) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._StageSlot(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -10778,6 +11633,29 @@ func (ec *executionContext) marshalOAgentAssignment2ᚖgithubᚗcomᚋbcnelson�
 		return graphql.Null
 	}
 	return ec._AgentAssignment(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOAgentConfigSummary2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentConfigSummary(ctx context.Context, sel ast.SelectionSet, v *model.AgentConfigSummary) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._AgentConfigSummary(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOAgentStage2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentStage(ctx context.Context, v any) (*model.AgentStage, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.AgentStage)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOAgentStage2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐAgentStage(ctx context.Context, sel ast.SelectionSet, v *model.AgentStage) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) unmarshalOBoolean2bool(ctx context.Context, v any) (bool, error) {

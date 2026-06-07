@@ -99,6 +99,9 @@ func runServe() error {
 	if err := tools.SeedExampleGateScript(ctx, q); err != nil {
 		return fmt.Errorf("seed example gate script: %w", err)
 	}
+	if err := core.SeedAgentCatalog(ctx, q); err != nil {
+		return fmt.Errorf("seed agent catalog: %w", err)
+	}
 	ownerURI := ownerGlobalURI(ctx, q)
 
 	// 3b. In-process tool registry. Phase 3 ships one tool (send-email)
@@ -125,7 +128,7 @@ func runServe() error {
 		return fmt.Errorf("dbos init: %w", err)
 	}
 	defer durable.Shutdown(dctx, 5*time.Second)
-	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, ownerURI, pushAdapter)
+	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, nil, ownerURI, pushAdapter)
 	durable.RegisterPushQueue(dctx)
 	durable.RegisterToolCallWorkflow(dctx, pool, q, toolRegistry)
 	if err := durable.Launch(dctx); err != nil {

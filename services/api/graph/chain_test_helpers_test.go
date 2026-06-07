@@ -47,7 +47,7 @@ func newChainEnv(t *testing.T) *chainEnv {
 	executorID := "test-" + uuid.New().String()
 	dctx, err := durable.Init(ctx, pool, executorID)
 	require.NoError(t, err)
-	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, "", nil)
+	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, nil, "", nil)
 	// Phase 3 tool-call workflow + send-email tool row. Idempotent on every
 	// test boot; harmless for Phase 1 tests that don't exercise the path.
 	registry := tools.NewRegistry()

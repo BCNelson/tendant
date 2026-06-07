@@ -212,3 +212,40 @@ type Subscription {
   taskChanged(taskId: ID): Task!
   notificationReceived: Notification!
 }
+
+# =========================================================================
+# Phase 6: Agent Layer & Routing — ADDITIVE (Path 1).
+# =========================================================================
+
+enum AgentStage { TRIAGE EXPANSION EXECUTION }
+
+type AgentConfigSummary {
+  id: ID!
+  name: String!
+  stage: AgentStage!
+  isHuman: Boolean!
+  model: String
+  origin: String!
+  version: Int!
+}
+
+type RoutingDecision {
+  stage: AgentStage!
+  eligibleSet: [AgentConfigSummary!]!
+  picked: AgentConfigSummary
+  pickedHuman: Boolean!
+}
+
+type StageSlot {
+  stage: AgentStage!
+  occupant: AgentConfigSummary
+  isHuman: Boolean!
+}
+
+extend type Task {
+  stageSlots: [StageSlot!]!
+}
+
+extend type Query {
+  agentConfigs(stage: AgentStage): [AgentConfigSummary!]!
+}

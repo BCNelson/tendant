@@ -53,8 +53,8 @@ func Shutdown(ctx dbos.DBOSContext, timeout time.Duration) {
 //
 // ownerGlobalURI populates agent_assignments.to_principal for Phase 2;
 // pushEnqueuer (nil-able) schedules push fan-out on assignment open.
-func RegisterChainWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router chain.Router, ownerGlobalURI string, pushEnqueuer chain.PushEnqueuer) {
-	chain.Register(dctx, pool, q, router, ownerGlobalURI, pushEnqueuer)
+func RegisterChainWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router chain.Router, runner chain.StageRunner, ownerGlobalURI string, pushEnqueuer chain.PushEnqueuer) {
+	chain.Register(dctx, pool, q, router, runner, ownerGlobalURI, pushEnqueuer)
 }
 
 // PushQueueName is the named DBOS workflow queue used for push fan-out.

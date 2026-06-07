@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/approval/approval_detail_page.dart';
 import '../../features/inbox/inbox_page.dart';
 import '../../features/pairing/pairing_page.dart';
+import '../../features/routing/routing_detail_page.dart';
 import '../../features/task/assignment_view.dart';
 import '../auth/session_store.dart';
 
@@ -44,6 +45,12 @@ final routerProvider = Provider.family<GoRouter, String?>((ref, initialSession) 
         path: '/approval/:id',
         builder: (_, state) =>
             ApprovalDetailPage(decisionId: state.pathParameters['id']!),
+      ),
+      // Phase 6 — read-only routing/specialist view per task.
+      GoRoute(
+        path: '/routing/:taskId',
+        builder: (_, state) =>
+            RoutingDetailPage(taskId: state.pathParameters['taskId']!),
       ),
     ],
   );

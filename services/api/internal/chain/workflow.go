@@ -77,6 +77,7 @@ type envDeps struct {
 	pool           *pgxpool.Pool
 	queries        *db.Queries
 	router         Router
+	runner         StageRunner // Phase 6: agent runner for non-human stages
 	ownerGlobalURI string
 	push           PushEnqueuer
 }
@@ -94,12 +95,13 @@ var (
 // ownerGlobalURI populates agent_assignments.to_principal so the push fan-out
 // worker knows whose tokens to push (Phase 2). push is optional; nil opts out
 // of push enqueue (Phase 0/1 tests, CI without APNs/FCM creds).
-func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router Router, ownerGlobalURI string, pushEnqueuer PushEnqueuer) {
+func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router Router, runner StageRunner, ownerGlobalURI string, pushEnqueuer PushEnqueuer) {
 	depsMu.Lock()
 	deps = &envDeps{
 		pool:           pool,
 		queries:        q,
 		router:         router,
+		runner:         runner,
 		ownerGlobalURI: ownerGlobalURI,
 		push:           pushEnqueuer,
 	}
@@ -168,34 +170,45 @@ func ChainWorkflow(ctx dbos.DBOSContext, taskIDStr string) (string, error) {
 		return "", nil
 	}
 
-	// Inform the router about the routing decision per stage. Phase 1 router
-	// always picks the human; the call is made for parity with future phases
-	// and to keep step ordering deterministic.
-	for _, stage := range []lifecycle.ChainStage{lifecycle.StageTriage, lifecycle.StageExpansion, lifecycle.StageExecution} {
-		_ = d.router.Select(ctx, stage, task.Findings)
-	}
-
 	// 1. CREATION → TRIAGE (no occupant on CREATION; first step in the chain).
 	if err := runAdvanceStageStep(ctx, d, taskID, lifecycle.StageCreation, lifecycle.StageTriage, "genesis"); err != nil {
 		return "", err
 	}
 
-	// 2-N. Drive each occupied stage. Each iteration:
-	//   - open assignment (one step)
-	//   - durable wait on the stage topic
-	//   - resolve + advance (one step)
+	// 2-N. Drive each occupied stage. Per-stage pattern (Phase 6):
+	//   - Route-and-occupy step (memoized): router picks human or agent;
+	//     if agent, runs the loop inline and returns StageResult.
+	//   - If human: durable wait on the stage topic (Recv).
+	//   - Resolve + advance step.
+	//
+	// Recovery safety: the route-and-occupy step is memoized. Branching on
+	// its result (IsHuman) is deterministic on replay because DBOS replays
+	// the memoized return value byte-for-byte. If the original execution
+	// called Recv, replay calls Recv (memoized). If it skipped, replay skips.
 	for _, stage := range []lifecycle.ChainStage{lifecycle.StageTriage, lifecycle.StageExpansion, lifecycle.StageExecution} {
-		if err := runOpenAssignmentStep(ctx, d, taskID, stage); err != nil {
-			return "", err
-		}
-		result, err := WaitForResult(ctx, TopicForStage(stage), HumanSlotTimeout)
+		decision, err := runRouteAndOccupyStep(ctx, d, taskID, stage, task.Findings)
 		if err != nil {
 			return "", err
 		}
-		if isCancelSentinel(result) {
-			// Resolver already wrote HALTED + audit + ended_at. Exit cleanly.
-			return "", nil
+
+		var result json.RawMessage
+		if decision.IsHuman {
+			// Human path: open assignment + durable wait (Phase 1/2 mechanism).
+			if err := runOpenAssignmentStep(ctx, d, taskID, stage); err != nil {
+				return "", err
+			}
+			result, err = WaitForResult(ctx, TopicForStage(stage), HumanSlotTimeout)
+			if err != nil {
+				return "", err
+			}
+			if isCancelSentinel(result) {
+				return "", nil
+			}
+		} else {
+			// Agent path: result is already in the memoized decision.
+			result = decision.StageResult
 		}
+
 		next, _ := NextStage(stage)
 		if err := runResolveAndAdvanceStep(ctx, d, taskID, stage, next, result); err != nil {
 			return "", err
@@ -226,6 +239,70 @@ func isCancelSentinel(raw json.RawMessage) bool {
 	}
 	b, _ := v.(bool)
 	return b
+}
+
+// runRouteAndOccupyStep is the memoized DBOS step that routes a stage.
+// It calls the router to decide human vs agent, and if agent, runs the
+// agent inline and returns the StageResult in the decision. The result is
+// memoized by DBOS for recovery determinism.
+func runRouteAndOccupyStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, stage lifecycle.ChainStage, findings json.RawMessage) (SlotDecision, error) {
+	result, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (SlotDecision, error) {
+		decision, rErr := d.router.Select(stepCtx, stage, findings)
+		if rErr != nil {
+			// Router error → fail-close to human.
+			return SlotDecision{IsHuman: true}, nil
+		}
+
+		if decision.IsHuman {
+			return SlotDecision{IsHuman: true}, nil
+		}
+
+		// Agent path: run the agent loop inline.
+		if d.runner == nil {
+			// No runner configured → fall back to human.
+			return SlotDecision{IsHuman: true}, nil
+		}
+
+		configID := ""
+		if decision.ConfigID != nil {
+			configID = decision.ConfigID.String()
+		}
+
+		stageResult, runErr := d.runner.RunStage(stepCtx, taskID.String(), stage, configID)
+		if runErr != nil {
+			// Runner error → fail-close to human.
+			return SlotDecision{IsHuman: true}, nil
+		}
+
+		// Check if the agent failed-close to human (budget exhausted,
+		// max iterations, RequestDecision, gateway error). If so, return
+		// IsHuman: true so the chain enters the human-wait path.
+		if isFailCloseResult(stageResult) {
+			return SlotDecision{IsHuman: true}, nil
+		}
+
+		return SlotDecision{
+			IsHuman:     false,
+			ConfigID:    decision.ConfigID,
+			ConfigName:  decision.ConfigName,
+			StageResult: stageResult,
+		}, nil
+	}, dbos.WithStepName("chain.route_and_occupy."+string(stage)))
+	return result, err
+}
+
+// isFailCloseResult checks if a raw StageResult JSON indicates fail-close-to-human.
+func isFailCloseResult(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var result struct {
+		FailCloseToHuman bool `json:"fail_close_to_human"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return false
+	}
+	return result.FailCloseToHuman
 }
 
 // runAdvanceStageStep advances the chain stage in one DBOS step.

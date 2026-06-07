@@ -62,7 +62,7 @@ func newOverseerEnv(t *testing.T, denyPattern *regexp.Regexp, maxEvalPerTask int
 	executorID := "test-" + uuid.New().String()
 	dctx, err := durable.Init(ctx, pool, executorID)
 	require.NoError(t, err)
-	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, "", nil)
+	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, nil, "", nil)
 	registry := tools.NewRegistry()
 	registry.Register(tools.NewSendEmail(nil))
 	durable.RegisterToolCallWorkflow(dctx, pool, q, registry)

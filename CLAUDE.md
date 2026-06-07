@@ -282,4 +282,9 @@ crash-safety by construction); `calendar.query` returns `[]` (no
 `task_events` table yet); `asc`-dependent tests skip when `asc` is
 absent; devenv now ships Node, Rust+wasm32, `asc`, govulncheck, wabt.
 See `specs/006-gate-script-sandbox/tasks.md` for per-task status.
+
+Phase 6 (The Agent Layer — Specialists as Config & Routing) is **in progress** on branch
+`007-agent-layer-routing`. Design artifacts:
+`specs/007-agent-layer-routing/{spec,plan,research,data-model,quickstart}.md`;
+contract delta: `specs/007-agent-layer-routing/contracts/graphql.v1.graphqls`.
 <!-- SPECKIT END -->

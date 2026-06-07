@@ -1,0 +1,55 @@
+# Phase 6 — Operator-Edge GraphQL Additive Delta (Path 1)
+#
+# All additions below are additive under the versioning policy at
+# specs/003-operator-edge-wake/contracts/versioning-policy.md.
+# No existing field/type is renamed, removed, or made non-nullable.
+
+# --- New enum (additive) ---
+
+enum AgentStage {
+  TRIAGE
+  EXPANSION
+  EXECUTION
+}
+
+# --- New types (additive) ---
+
+type AgentConfigSummary {
+  id: ID!
+  name: String!
+  stage: AgentStage!
+  isHuman: Boolean!
+  model: String
+  origin: String!
+  version: Int!
+}
+
+type RoutingDecision {
+  stage: AgentStage!
+  eligibleSet: [AgentConfigSummary!]!
+  picked: AgentConfigSummary          # null = human (synthesized)
+  pickedHuman: Boolean!
+  decidedAt: Time!
+}
+
+type StageSlot {
+  stage: AgentStage!
+  occupant: AgentConfigSummary        # null = human
+  isHuman: Boolean!
+  routingDecision: RoutingDecision
+}
+
+# --- Additive fields on existing Task type ---
+#
+# Task already has: autonomy, findings, contextRefs, openAssignment
+# Phase 6 adds:
+
+# extend type Task {
+#   stageSlots: [StageSlot!]!         # per-occupied-stage routing + occupant
+# }
+
+# --- New queries (additive) ---
+
+# extend type Query {
+#   agentConfigs(stage: AgentStage): [AgentConfigSummary!]!
+# }

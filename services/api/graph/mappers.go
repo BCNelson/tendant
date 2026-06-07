@@ -30,10 +30,13 @@ func mapUser(p *db.Principal) *model.User {
 	}
 }
 
-// mapTask builds the GraphQL Task from a sqlc Task row. Autonomy is the fixed
-// Phase 0 default (NONE) — the real readout lands in P1. Workflow is nil this
-// phase (no chain workflow attaches).
+// mapTask builds the GraphQL Task from a sqlc Task row.
 func mapTask(t *db.Task) (*model.Task, error) {
+	return mapTaskWithAutonomy(t, model.AutonomyLevelNone)
+}
+
+// mapTaskWithAutonomy builds the GraphQL Task with a pre-computed autonomy level.
+func mapTaskWithAutonomy(t *db.Task, autonomy model.AutonomyLevel) (*model.Task, error) {
 	out := &model.Task{
 		ID:           t.ID.String(),
 		GlobalURI:    t.GlobalUri,
@@ -41,7 +44,7 @@ func mapTask(t *db.Task) (*model.Task, error) {
 		Description:  t.Description,
 		State:        upperTaskState(t.State),
 		CurrentStage: upperChainStage(t.CurrentStage),
-		Autonomy:     model.AutonomyLevelNone,
+		Autonomy:     autonomy,
 		CreatedAt:    t.CreatedAt,
 		Workflow:     nil,
 	}
@@ -66,6 +69,22 @@ func unmarshalJSON(raw []byte, dst *map[string]any) error {
 		return nil
 	}
 	return json.Unmarshal(raw, dst)
+}
+
+// mapAgentConfigSummary builds the GraphQL AgentConfigSummary from a sqlc row.
+func mapAgentConfigSummary(cfg db.AgentConfig) *model.AgentConfigSummary {
+	out := &model.AgentConfigSummary{
+		ID:      cfg.ID.String(),
+		Name:    cfg.Name,
+		Stage:   model.AgentStage(strings.ToUpper(string(cfg.Stage))),
+		IsHuman: cfg.IsHuman,
+		Origin:  string(cfg.Origin),
+		Version: int(cfg.Version),
+	}
+	if cfg.Model != nil {
+		out.Model = cfg.Model
+	}
+	return out
 }
 
 // mapAssignment builds the GraphQL AgentAssignment from a sqlc row. `task`

@@ -44,6 +44,14 @@ const (
 	KindGateScriptAttached  = "gate_script_attached"  // owner-scope (task_id NULL)
 	KindGateScriptDisabled  = "gate_script_disabled"  // owner-scope (task_id NULL)
 	KindOwnerRuleSet        = "owner_rule_set"        // owner-scope (task_id NULL)
+
+	// Phase 6: agent layer audit kinds.
+	KindAgentRunStarted      = "agent_run_started"
+	KindAgentRunFinished     = "agent_run_finished"
+	KindRouterSelected       = "router_selected"
+	KindAgentCallRefused     = "agent_call_refused"
+	KindBudgetExhausted      = "budget_exhausted"
+	KindMaxIterationsReached = "max_iterations_reached"
 )
 
 // SystemActorURI is the principal globalUri used for system-authored audit

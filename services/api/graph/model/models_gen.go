@@ -45,6 +45,16 @@ type AgentAssignment struct {
 
 func (AgentAssignment) IsInboxItem() {}
 
+type AgentConfigSummary struct {
+	ID      string     `json:"id"`
+	Name    string     `json:"name"`
+	Stage   AgentStage `json:"stage"`
+	IsHuman bool       `json:"isHuman"`
+	Model   *string    `json:"model,omitempty"`
+	Origin  string     `json:"origin"`
+	Version int        `json:"version"`
+}
+
 type AgentQuestion struct {
 	ID              string    `json:"id"`
 	Task            *Task     `json:"task"`
@@ -183,6 +193,13 @@ func (PromotionProposal) IsInboxItem() {}
 type Query struct {
 }
 
+type RoutingDecision struct {
+	Stage       AgentStage            `json:"stage"`
+	EligibleSet []*AgentConfigSummary `json:"eligibleSet"`
+	Picked      *AgentConfigSummary   `json:"picked,omitempty"`
+	PickedHuman bool                  `json:"pickedHuman"`
+}
+
 type Session struct {
 	ID          string    `json:"id"`
 	DisplayName string    `json:"displayName"`
@@ -193,6 +210,12 @@ type Session struct {
 type SessionMintResult struct {
 	Session *Session `json:"session"`
 	Token   string   `json:"token"`
+}
+
+type StageSlot struct {
+	Stage    AgentStage          `json:"stage"`
+	Occupant *AgentConfigSummary `json:"occupant,omitempty"`
+	IsHuman  bool                `json:"isHuman"`
 }
 
 type Subscription struct {
@@ -213,6 +236,7 @@ type Task struct {
 	OpenAssignment *AgentAssignment `json:"openAssignment,omitempty"`
 	CreatedAt      time.Time        `json:"createdAt"`
 	EditedAt       *time.Time       `json:"editedAt,omitempty"`
+	StageSlots     []*StageSlot     `json:"stageSlots"`
 }
 
 type TaskConnection struct {
@@ -250,6 +274,63 @@ func (this User) GetDisplayName() string { return this.DisplayName }
 type WorkflowRef struct {
 	ID        string    `json:"id"`
 	StartedAt time.Time `json:"startedAt"`
+}
+
+type AgentStage string
+
+const (
+	AgentStageTriage    AgentStage = "TRIAGE"
+	AgentStageExpansion AgentStage = "EXPANSION"
+	AgentStageExecution AgentStage = "EXECUTION"
+)
+
+var AllAgentStage = []AgentStage{
+	AgentStageTriage,
+	AgentStageExpansion,
+	AgentStageExecution,
+}
+
+func (e AgentStage) IsValid() bool {
+	switch e {
+	case AgentStageTriage, AgentStageExpansion, AgentStageExecution:
+		return true
+	}
+	return false
+}
+
+func (e AgentStage) String() string {
+	return string(e)
+}
+
+func (e *AgentStage) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AgentStage(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AgentStage", str)
+	}
+	return nil
+}
+
+func (e AgentStage) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AgentStage) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AgentStage) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type AutonomyLevel string

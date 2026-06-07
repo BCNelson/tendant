@@ -49,7 +49,7 @@ func TestChainSetsToPrincipalAndEnqueuesPush(t *testing.T) {
 	defer durable.Shutdown(dctx, 2*time.Second)
 
 	enqueuer := &recordingPushEnqueuer{}
-	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, owner.GlobalUri, enqueuer)
+	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, nil, owner.GlobalUri, enqueuer)
 	require.NoError(t, durable.Launch(dctx))
 
 	created, err := core.CreateTask(ctx, pool, dctx, "phase2-test", "")

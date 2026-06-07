@@ -40,7 +40,7 @@ func TestChainRecovery_TriageSurvivesProcessKill(t *testing.T) {
 	// --- Run 1: bring up DBOS, create a task, let it pause at TRIAGE. ---
 	dctx1, err := durable.Init(ctx, pool1, executorID)
 	require.NoError(t, err)
-	durable.RegisterChainWorkflow(dctx1, pool1, db.New(pool1), chain.HumanOnlyRouter{}, "", nil)
+	durable.RegisterChainWorkflow(dctx1, pool1, db.New(pool1), chain.HumanOnlyRouter{}, nil, "", nil)
 	require.NoError(t, durable.Launch(dctx1))
 
 	handler1 := server.New(pool1, dctx1, server.Options{})
@@ -72,7 +72,7 @@ func TestChainRecovery_TriageSurvivesProcessKill(t *testing.T) {
 
 	dctx2, err := durable.Init(ctx, pool2, executorID)
 	require.NoError(t, err)
-	durable.RegisterChainWorkflow(dctx2, pool2, q2, chain.HumanOnlyRouter{}, "", nil)
+	durable.RegisterChainWorkflow(dctx2, pool2, q2, chain.HumanOnlyRouter{}, nil, "", nil)
 	require.NoError(t, durable.Launch(dctx2))
 	defer durable.Shutdown(dctx2, 5*time.Second)
 

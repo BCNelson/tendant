@@ -698,6 +698,28 @@ func (r *queryResolver) Sessions(ctx context.Context) ([]*model.Session, error) 
 	return out, nil
 }
 
+// AgentConfigs is the resolver for the agentConfigs field.
+func (r *queryResolver) AgentConfigs(ctx context.Context, stage *model.AgentStage) ([]*model.AgentConfigSummary, error) {
+	var configs []db.AgentConfig
+	var err error
+
+	if stage != nil {
+		dbStage := db.AgentStage(strings.ToLower(string(*stage)))
+		configs, err = r.Queries.ListAgentConfigsByStage(ctx, dbStage)
+	} else {
+		configs, err = r.Queries.ListAllAgentConfigs(ctx)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]*model.AgentConfigSummary, 0, len(configs))
+	for _, cfg := range configs {
+		out = append(out, mapAgentConfigSummary(cfg))
+	}
+	return out, nil
+}
+
 // InboxItemArrived is the resolver for the inboxItemArrived field.
 func (r *subscriptionResolver) InboxItemArrived(ctx context.Context) (<-chan model.InboxItem, error) {
 	p, ok := auth.FromContext(ctx)
