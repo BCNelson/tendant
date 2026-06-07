@@ -99,7 +99,7 @@ const updateToolOverseerInstructions = `-- name: UpdateToolOverseerInstructions 
 UPDATE tools
 SET overseer_instructions = $2
 WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
 `
 
 type UpdateToolOverseerInstructionsParams struct {
@@ -119,6 +119,7 @@ func (q *Queries) UpdateToolOverseerInstructions(ctx context.Context, arg Update
 		&i.Permissions,
 		&i.OverseerInstructions,
 		&i.ActiveScriptVersion,
+		&i.TrustScore,
 	)
 	return i, err
 }
@@ -128,7 +129,7 @@ UPDATE tools
 SET overseer_instructions = $2
 WHERE global_uri = $1
   AND overseer_instructions IS NULL
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
 `
 
 type UpdateToolOverseerInstructionsIfNullParams struct {
@@ -149,6 +150,7 @@ func (q *Queries) UpdateToolOverseerInstructionsIfNull(ctx context.Context, arg 
 		&i.Permissions,
 		&i.OverseerInstructions,
 		&i.ActiveScriptVersion,
+		&i.TrustScore,
 	)
 	return i, err
 }
@@ -157,7 +159,7 @@ const updateToolPermissions = `-- name: UpdateToolPermissions :one
 UPDATE tools
 SET permissions = $2
 WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
 `
 
 type UpdateToolPermissionsParams struct {
@@ -177,6 +179,7 @@ func (q *Queries) UpdateToolPermissions(ctx context.Context, arg UpdateToolPermi
 		&i.Permissions,
 		&i.OverseerInstructions,
 		&i.ActiveScriptVersion,
+		&i.TrustScore,
 	)
 	return i, err
 }

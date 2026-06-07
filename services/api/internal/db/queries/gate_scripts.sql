@@ -43,7 +43,7 @@ LIMIT $2 OFFSET $3;
 UPDATE tools
 SET active_script_version = $2
 WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version;
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score;
 
 -- name: ClearActiveScriptVersion :one
 -- disableGateScript (FR-024): clear the pointer. Returns the prior value so
@@ -51,7 +51,7 @@ RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active
 UPDATE tools
 SET active_script_version = NULL
 WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version;
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score;
 
 -- name: DisableGateScriptVersion :exec
 -- Mark a specific (tool_id, version) row disabled (the only legal UPDATE per

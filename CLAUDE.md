@@ -339,4 +339,49 @@ chi router. Design artifacts:
 `specs/008-intake-edge-connectors/{spec,plan,research,data-model,quickstart}.md`;
 contracts: `specs/008-intake-edge-connectors/contracts/{signal.v1.md,graphql.v1.graphqls}`.
 See `specs/008-intake-edge-connectors/tasks.md` for per-task status.
+
+Phase 8 (Calibration & the Earned-Autonomy Ratchet) is **complete & green** on
+branch `009-calibration-autonomy-ratchet` (`go build ./...` + `go test ./...`
+pass across all API packages; `gofmt`/`go vet` clean). A single
+`internal/calibration` subsystem
+reads the audit DAG on both edges and drives the **asymmetric per-tool ratchet**:
+inferred-clean recording + a `matured_at` (stamped `at + window` at insert) +
+a per-row **routine fingerprint**; a DBOS-scheduled **sweep** (`calibration:sweep`,
+mirrors the Phase-7 intake scheduler) emits a `PromotionProposal` when a
+`(tool, routine)`'s matured-clean **ratio over the last N** clears a configurable
+threshold; the owner accepts via the new owner-only `respondToPromotion` →
+the per-tool **continuous `tools.trust_score`** (new, `0.0–1.0`; the discrete
+`AutonomyLevel` enum becomes derived bands `NONE`/`EXECUTE_GATED`/`EXECUTE_AUTO`)
+jumps into the auto band **and** a `tool_routine_grants` row is written.
+**Reflexive demotion** (a bad outcome, `cancelTask`, or the new owner-only
+`flagOutcome`) is automatic — proportional score decrement clamped at the
+`EXECUTE_GATED` baseline + revoke the routine's grant — no mutation/approval.
+A **new gate layer** (after the floor, in the overseer's slot, via a pure
+`RoutineGrantLookup` seam) auto-approves only when the tool is `EXECUTE_AUTO`
+**AND** the call's fingerprint has a live grant **AND** the floor cleared —
+floor supremacy (III) + no self-escalation (IV) preserved. The **intake half**
+tunes from dismissals (`tasks.intake_signal_id → intake_signals.connector_id`):
+derived effective-threshold tightening + a labeled `[DISMISSAL_HISTORY]` section
+to the Phase-6 triage seam. GraphQL is **Path 1** (additive `respondToPromotion`,
+`flagOutcome`, both `auth.RequireOwner` FIRST) **+ Path 2** (deprecate the
+Phase-2 `decidePromotion` stub). **One migration** (`00007`: `tools.trust_score`,
+`tool_outcomes.routine_fingerprint`, `tool_routine_grants`; no CHECK-allowlist
+change — four new audit kinds are task-scoped); **zero new deps**. The
+`Engine` (recording + reflexive demotion + `FlagBad` + sweep) is injected into
+the tool-call workflow (clean→`RecordOutcome`, bad→`RecordBad`+demote), the
+cancel path (`DemoteForCancel`), and `flagOutcome`; the gate's pure
+`autonomyApprove` sits after the floor and script terminal verdicts. The owner
+config knobs are env-driven (`TENDANT_CALIBRATION_*`, `buildCalibrationConfig`
+in `cmd/tendant`). The Flutter app gains a `PromotionProposalCard` and an
+autonomy/grant readout on the read-only `ToolDetailPage`. **Landed & tested:**
+pure score/fingerprint unit tests, gate `autonomy_test` + `floor_supremacy_test`
+(ordering invariant — grant lookup never consulted before the floor), DB-backed
+calibrator tests (eligibility/min-sample/ratio/dedupe, maturation veto FR-004,
+demotion clamp + grant revoke, `GetToolForUpdate` serialization), the
+`respondToPromotion` agent-denied authz e2e (US5/NFR-004), and a US1+US4 e2e
+(a promoted+granted floor-clearing routine auto-approves while a stranger
+recipient still gates — SC-004). The only open task is T047 (manual
+quickstart run against a live core). Design
+artifacts: `specs/009-calibration-autonomy-ratchet/{spec,plan,research,data-model,quickstart}.md`;
+contract delta: `specs/009-calibration-autonomy-ratchet/contracts/graphql.v1.graphqls`.
 <!-- SPECKIT END -->

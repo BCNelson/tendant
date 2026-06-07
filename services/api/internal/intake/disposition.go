@@ -104,6 +104,16 @@ func (c *CapCounter) take() bool {
 func (c *CapCounter) count() int { return c.forwarded }
 func (c *CapCounter) cap() int   { return c.limit }
 
+// ThresholdTuner is the Phase-8 calibration seam: it tightens the effective
+// disposition thresholds from a connector's recent dismissals and supplies the
+// [DISMISSAL_HISTORY] evidence for triage. Nil on a Disposer ⇒ base thresholds,
+// no dismissal history. Defined here (not imported) so intake stays free of a
+// calibration import; internal/calibration.IntakeTuner satisfies it.
+type ThresholdTuner interface {
+	EffectiveThresholds(ctx context.Context, connectorID uuid.UUID, baseFloor, baseCeiling float64) (floor, ceiling float64)
+	DismissalHistory(ctx context.Context, connectorID uuid.UUID) []string
+}
+
 // Disposer routes a persisted signal to a task (or holds it PROPOSED) per its
 // disposition — the privacy/cost firewall. It owns no per-poll state; the
 // CapCounter is threaded by the poll loop.
@@ -116,6 +126,8 @@ type Disposer struct {
 	Triage TriageJudge
 	// Metrics is the rolling-window observability counter (nil ⇒ no-op).
 	Metrics *Metrics
+	// Tuner is the Phase-8 calibration seam (nil ⇒ base thresholds).
+	Tuner ThresholdTuner
 }
 
 // Dispose handles one persisted signal. connectorType labels the connector
@@ -200,20 +212,26 @@ func (d *Disposer) forcedTask(ctx context.Context, sig db.IntakeSignal, connecto
 func (d *Disposer) richEvent(ctx context.Context, sig db.IntakeSignal, connectorType string, rules DispositionRules) (DisposeResult, error) {
 	from := connectorPrincipal(sig, connectorType)
 	conf, stakes, ok := validRichAxes(sig)
-	if ok && conf >= rules.ConfidenceFloor && stakes <= rules.StakesCeiling {
+	// Phase 8: the effective thresholds tighten with the connector's recent
+	// dismissals (the base values are the conservative fail-closed defaults).
+	floor, ceiling := rules.ConfidenceFloor, rules.StakesCeiling
+	if d.Tuner != nil && sig.ConnectorID.Valid {
+		floor, ceiling = d.Tuner.EffectiveThresholds(ctx, sig.ConnectorID.Bytes, rules.ConfidenceFloor, rules.StakesCeiling)
+	}
+	if ok && conf >= floor && stakes <= ceiling {
 		// Auto-accept ⇒ enrich-only task (derived posture; D5). accepted + chain.
 		created, err := core.CreateTaskFromSignal(ctx, d.Pool, d.DBOS, sig.ID,
 			deriveTitle(sig.Payload, sig.Provenance), sig.Provenance, lifecycle.StateAccepted)
 		if err != nil {
 			return DisposeResult{}, fmt.Errorf("rich_event auto-accept create: %w", err)
 		}
-		// intake_auto_accepted (task-scope) records the cleared thresholds.
+		// intake_auto_accepted (task-scope) records the cleared (effective) thresholds.
 		if err := d.writeTaskAuditNoMark(ctx, created.ID, from, lifecycle.KindIntakeAutoAccepted,
 			lifecycle.IntakeAutoAcceptedPayload{
 				Confidence:      conf,
 				StakesHint:      stakes,
-				ConfidenceFloor: rules.ConfidenceFloor,
-				StakesCeiling:   rules.StakesCeiling,
+				ConfidenceFloor: floor,
+				StakesCeiling:   ceiling,
 			}); err != nil {
 			return DisposeResult{}, err
 		}
@@ -257,7 +275,11 @@ func (d *Disposer) llmJudge(ctx context.Context, sig db.IntakeSignal, connectorT
 		return d.holdProposed(ctx, sig, connectorType)
 	}
 
-	verdict, err := d.Triage.Judge(ctx, sig.Payload)
+	triageIn := TriageInput{Payload: sig.Payload}
+	if d.Tuner != nil && sig.ConnectorID.Valid {
+		triageIn.DismissalHistory = d.Tuner.DismissalHistory(ctx, sig.ConnectorID.Bytes)
+	}
+	verdict, err := d.Triage.Judge(ctx, triageIn)
 	if err != nil {
 		// Model error ⇒ fail closed to PROPOSED (no surfaced model verdict).
 		return d.holdProposed(ctx, sig, connectorType)

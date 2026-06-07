@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/chain"
 	"github.com/bcnelson/tendant/services/api/internal/core"
 	"github.com/bcnelson/tendant/services/api/internal/db"
@@ -65,7 +66,7 @@ func newOverseerEnv(t *testing.T, denyPattern *regexp.Regexp, maxEvalPerTask int
 	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, nil, "", nil)
 	registry := tools.NewRegistry()
 	registry.Register(tools.NewSendEmail(nil))
-	durable.RegisterToolCallWorkflow(dctx, pool, q, registry)
+	durable.RegisterToolCallWorkflow(dctx, pool, q, registry, calibration.New(pool, calibration.DefaultConfig(), nil))
 	require.NoError(t, tools.SeedSendEmail(ctx, q))
 	require.NoError(t, tools.SeedSendEmailOverseerInstructions(ctx, q))
 	require.NoError(t, durable.Launch(dctx))

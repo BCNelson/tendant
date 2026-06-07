@@ -74,7 +74,7 @@ func TestModelTriageJudge_ParsesVerdict(t *testing.T) {
 	// A model client returning a JSON is-task verdict wrapped in prose.
 	client := &fakeChat{content: `Sure! {"is_task": false, "title": "Newsletter"} — done.`}
 	j := &intake.ModelTriageJudge{Client: client}
-	v, err := j.Judge(context.Background(), json.RawMessage(`{"subject":"x"}`))
+	v, err := j.Judge(context.Background(), intake.TriageInput{Payload: json.RawMessage(`{"subject":"x"}`)})
 	require.NoError(t, err)
 	require.False(t, v.IsTask)
 	require.Equal(t, "Newsletter", v.Title)
@@ -82,7 +82,7 @@ func TestModelTriageJudge_ParsesVerdict(t *testing.T) {
 	// Unparseable reply ⇒ default is-task=true (surface for owner sign-off; the
 	// PROPOSED state already routes to a human, so this never auto-acts).
 	client.content = "I cannot tell."
-	v, err = j.Judge(context.Background(), json.RawMessage(`{}`))
+	v, err = j.Judge(context.Background(), intake.TriageInput{Payload: json.RawMessage(`{}`)})
 	require.NoError(t, err)
 	require.True(t, v.IsTask)
 }

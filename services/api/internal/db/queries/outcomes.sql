@@ -1,9 +1,11 @@
 -- name: InsertToolOutcome :one
 -- Phase 3: written once per dispatch attempt by the ToolCallWorkflow.
--- matured_at stays NULL — Phase 8's calibration ratchet sets it.
-INSERT INTO tool_outcomes (tool_id, task_id, outcome)
-VALUES ($1, $2, $3)
-RETURNING id, tool_id, task_id, outcome, at, matured_at;
+-- Phase 8: matured_at (at + window) and routine_fingerprint are now populated by
+-- the calibration subsystem on the clean/bad paths. denied_by_script passes NULL
+-- for both (it never matures, never counts toward promotion).
+INSERT INTO tool_outcomes (tool_id, task_id, outcome, matured_at, routine_fingerprint)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, tool_id, task_id, outcome, at, matured_at, routine_fingerprint;
 
 -- name: CountToolOutcomesForTask :one
 -- Used in tests to assert exactly-one-write semantics.

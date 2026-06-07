@@ -17,7 +17,7 @@ const clearActiveScriptVersion = `-- name: ClearActiveScriptVersion :one
 UPDATE tools
 SET active_script_version = NULL
 WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
 `
 
 // disableGateScript (FR-024): clear the pointer. Returns the prior value so
@@ -33,6 +33,7 @@ func (q *Queries) ClearActiveScriptVersion(ctx context.Context, id uuid.UUID) (T
 		&i.Permissions,
 		&i.OverseerInstructions,
 		&i.ActiveScriptVersion,
+		&i.TrustScore,
 	)
 	return i, err
 }
@@ -311,7 +312,7 @@ const updateActiveScriptVersion = `-- name: UpdateActiveScriptVersion :one
 UPDATE tools
 SET active_script_version = $2
 WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
 `
 
 type UpdateActiveScriptVersionParams struct {
@@ -331,6 +332,7 @@ func (q *Queries) UpdateActiveScriptVersion(ctx context.Context, arg UpdateActiv
 		&i.Permissions,
 		&i.OverseerInstructions,
 		&i.ActiveScriptVersion,
+		&i.TrustScore,
 	)
 	return i, err
 }

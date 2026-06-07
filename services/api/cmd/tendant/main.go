@@ -18,6 +18,7 @@ import (
 
 	"github.com/bcnelson/tendant/services/api/graph"
 	"github.com/bcnelson/tendant/services/api/internal/auth"
+	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/chain"
 	"github.com/bcnelson/tendant/services/api/internal/core"
 	"github.com/bcnelson/tendant/services/api/internal/db"
@@ -113,6 +114,25 @@ func runServe() error {
 	toolRegistry := tools.NewRegistry()
 	toolRegistry.Register(tools.NewSendEmail(nil))
 
+	// 3c. Phase 8 calibration subsystem: config knobs (env → constants), the
+	// rolling /healthz metrics, the Engine (recording + demotion + flag + sweep),
+	// and the intake threshold tuner. The Engine is injected into the tool-call
+	// workflow (outcome recording), the gate (via the resolver's grant lookup),
+	// the cancel path, and the flagOutcome mutation.
+	calibCfg := buildCalibrationConfig()
+	calibMetrics := calibration.NewMetrics(calibCfg.Maturation)
+	calibrator := calibration.New(pool, calibCfg, calibMetrics)
+	calibTuner := calibration.NewIntakeTuner(pool, q, calibCfg.IntakeTightenK)
+	slog.Info("calibration",
+		"maturation", calibCfg.Maturation,
+		"window_n", calibCfg.WindowN,
+		"ratio", calibCfg.Ratio,
+		"min_sample", calibCfg.MinSample,
+		"demotion_decrement", calibCfg.DemotionDecrement,
+		"sweep_cron", calibCfg.SweepCron,
+		"intake_tighten_k", calibCfg.IntakeTightenK,
+	)
+
 	// 4. Phase 2 setup secret + push selector.
 	if secret := os.Getenv("TENDANT_SETUP_SECRET"); secret != "" {
 		auth.SetupSecret.Arm(secret)
@@ -134,13 +154,20 @@ func runServe() error {
 	defer durable.Shutdown(dctx, 5*time.Second)
 	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, nil, ownerURI, pushAdapter)
 	durable.RegisterPushQueue(dctx)
-	durable.RegisterToolCallWorkflow(dctx, pool, q, toolRegistry)
+	durable.RegisterToolCallWorkflow(dctx, pool, q, toolRegistry, calibrator)
 
 	// 5b. Phase 7 intake edge: connector registry + disposition router +
 	// per-connector poll workflow. Registered before Launch so recovery and
 	// the dynamic-schedule reconciler find the function.
 	intakeWiring := buildIntakeWiring(pool, q, dctx)
+	// Phase 8: the disposer tightens effective thresholds + reads dismissal
+	// history from the calibration tuner.
+	intakeWiring.disposer.Tuner = calibTuner
 	intake.RegisterPoll(dctx, pool, q, intakeWiring.registry, intakeWiring.disposer, intakeWiring.credStore, intakeWiring.refresher)
+
+	// 5b'. Phase 8 calibration sweep workflow (single schedule). Registered
+	// before Launch so recovery + the schedule reconciler find the function.
+	calibration.RegisterSweep(dctx, pool, q, calibrator, calibMetrics, pushAdapter, ownerURI)
 
 	if err := durable.Launch(dctx); err != nil {
 		return fmt.Errorf("dbos launch: %w", err)
@@ -152,6 +179,11 @@ func runServe() error {
 	// DB-backed and recovered, this just ensures each enabled connector has one.
 	if err := intake.RehydrateSchedules(ctx, dctx); err != nil {
 		slog.Error("intake: schedule rehydration failed", "err", err)
+	}
+
+	// 5d. Phase 8 calibration sweep schedule (DB-backed, crash-recovered). Idempotent.
+	if err := calibration.CreateSchedule(dctx, calibCfg.SweepCron); err != nil {
+		slog.Error("calibration: sweep schedule creation failed", "err", err)
 	}
 
 	// 6. LISTEN dispatcher.
@@ -239,6 +271,8 @@ func runServe() error {
 			OAuthCallback:     oauthCallbackHandler(intakeWiring.credStore),
 			ConnectorResolver: intakeWiring.connectorResolverDeps(),
 			IntakeRate:        intakeWiring.metrics,
+			Calibrator:        calibrator,
+			CalibrationRate:   calibMetrics,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
@@ -284,6 +318,47 @@ func (a pushAdapter) EnqueuePush(ctx context.Context, p chain.PushJobPayload) er
 		DeepLinkID:         p.DeepLinkID,
 		Title:              p.Title,
 	})
+}
+
+// buildCalibrationConfig reads the Phase-8 knobs from env (research R12),
+// falling back to the conservative package defaults. Mirrors the overseer-cap
+// env pattern.
+func buildCalibrationConfig() calibration.Config {
+	cfg := calibration.DefaultConfig()
+	if raw := os.Getenv("TENDANT_CALIBRATION_MATURATION"); raw != "" {
+		if d, err := time.ParseDuration(raw); err == nil {
+			cfg.Maturation = d
+		}
+	}
+	if raw := os.Getenv("TENDANT_CALIBRATION_WINDOW_N"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			cfg.WindowN = n
+		}
+	}
+	if raw := os.Getenv("TENDANT_CALIBRATION_RATIO"); raw != "" {
+		if f, err := strconv.ParseFloat(raw, 64); err == nil && f > 0 {
+			cfg.Ratio = f
+		}
+	}
+	if raw := os.Getenv("TENDANT_CALIBRATION_MIN_SAMPLE"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			cfg.MinSample = n
+		}
+	}
+	if raw := os.Getenv("TENDANT_CALIBRATION_DEMOTION_DECREMENT"); raw != "" {
+		if f, err := strconv.ParseFloat(raw, 64); err == nil && f > 0 {
+			cfg.DemotionDecrement = f
+		}
+	}
+	if raw := os.Getenv("TENDANT_CALIBRATION_SWEEP_CRON"); raw != "" {
+		cfg.SweepCron = raw
+	}
+	if raw := os.Getenv("TENDANT_CALIBRATION_INTAKE_TIGHTEN_K"); raw != "" {
+		if f, err := strconv.ParseFloat(raw, 64); err == nil && f >= 0 {
+			cfg.IntakeTightenK = f
+		}
+	}
+	return cfg
 }
 
 // buildOverseerProvider selects the active overseer Provider from
