@@ -18,6 +18,7 @@ import (
 
 	"github.com/bcnelson/tendant/services/api/graph"
 	"github.com/bcnelson/tendant/services/api/internal/auth"
+	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/overseer"
@@ -40,10 +41,12 @@ type Options struct {
 
 	// Phase 7 — the intake edge. Handlers are built in main (so server stays
 	// decoupled from internal/connector). nil ⇒ the route is not mounted.
-	WebhookIngress    http.Handler        // POST /intake/webhook/{connectorID}
-	OAuthCallback     http.Handler        // GET  /oauth/callback/{connectorType}
-	ConnectorResolver graph.ConnectorDeps // owner-mutation wiring for setConnectorConfig/enableConnector
-	IntakeRate        IntakeRateProvider  // /healthz intake counters (nil ⇒ block omitted)
+	WebhookIngress    http.Handler            // POST /intake/webhook/{connectorID}
+	OAuthCallback     http.Handler            // GET  /oauth/callback/{connectorType}
+	ConnectorResolver graph.ConnectorDeps     // owner-mutation wiring for setConnectorConfig/enableConnector
+	IntakeRate        IntakeRateProvider      // /healthz intake counters (nil ⇒ block omitted)
+	CalibrationRate   CalibrationRateProvider // /healthz calibration counters (nil ⇒ block omitted)
+	Calibrator        *calibration.Engine     // Phase 8 — flagOutcome + cancel demotion
 }
 
 // New builds the chi router with the gqlgen handler mounted at /graphql,
@@ -68,6 +71,7 @@ func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 		ToolRegistry:    opts.ToolRegistry,
 		ScriptEvaluator: opts.GateScript,
 		Connectors:      opts.ConnectorResolver,
+		Calibrator:      opts.Calibrator,
 	}
 
 	// Mount /graphql with auth.Middleware applied via With() so that both
@@ -87,7 +91,7 @@ func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 	if s, ok := opts.GateScript.(GateScriptRateProvider); ok {
 		scriptRate = s
 	}
-	r.Get("/healthz", healthzWithOverseer(pool, rate, scriptRate, opts.IntakeRate))
+	r.Get("/healthz", healthzWithOverseer(pool, rate, scriptRate, opts.IntakeRate, opts.CalibrationRate))
 
 	// Phase 7 intake edge routes (mounted only when wired).
 	if opts.WebhookIngress != nil {

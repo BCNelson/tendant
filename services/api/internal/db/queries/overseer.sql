@@ -12,14 +12,14 @@ WHERE task_id = sqlc.arg('task_id')::uuid
 UPDATE tools
 SET permissions = $2
 WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version;
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score;
 
 -- name: UpdateToolOverseerInstructions :one
 -- Owner-only update; resolver enforces RequireOwner first.
 UPDATE tools
 SET overseer_instructions = $2
 WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version;
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score;
 
 -- name: UpdateToolOverseerInstructionsIfNull :one
 -- Idempotent Phase-4 seeder helper for send-email. Writes only if the column
@@ -28,7 +28,7 @@ UPDATE tools
 SET overseer_instructions = $2
 WHERE global_uri = $1
   AND overseer_instructions IS NULL
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version;
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score;
 
 -- name: LatestOverseerInstructionsChangedForTool :one
 -- Returns the most recent overseer_instructions_changed audit row for a tool,

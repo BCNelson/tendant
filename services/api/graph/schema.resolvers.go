@@ -213,6 +213,14 @@ func (r *mutationResolver) CancelTask(ctx context.Context, taskID string) (*mode
 		return nil, fmt.Errorf("cancel cleanup: %w", err)
 	}
 
+	// Phase 8: reflexive demotion of every tool that acted under the cancelled
+	// task (revokes all of each tool's grants). Automatic — no proposal/approval.
+	if r.Calibrator != nil {
+		if derr := r.Calibrator.DemoteForCancel(ctx, tid); derr != nil {
+			return nil, fmt.Errorf("cancel demotion: %w", derr)
+		}
+	}
+
 	// Mark the DBOS workflow Cancelled. Ignore "not found" — the workflow
 	// may have already self-completed in a race with cancellation cleanup.
 	live, err := r.Queries.GetLiveWorkflowForTask(ctx, tid)
@@ -497,14 +505,28 @@ func (r *mutationResolver) SetToolOverseerInstructions(ctx context.Context, tool
 	return r.setToolOverseerInstructionsImpl(ctx, toolID, instructions)
 }
 
+// RespondToPromotion is the resolver for the respondToPromotion field. Phase 8
+// owner-only: the SINGLE path that raises a tool's autonomy. auth.RequireOwner
+// is enforced FIRST (in the impl) before any DB write.
+func (r *mutationResolver) RespondToPromotion(ctx context.Context, proposalID string, accept bool) (*model.Tool, error) {
+	return r.respondToPromotionImpl(ctx, proposalID, accept)
+}
+
+// FlagOutcome is the resolver for the flagOutcome field. Phase 8 owner-only:
+// records a bad outcome + reflexively demotes in one operation.
+func (r *mutationResolver) FlagOutcome(ctx context.Context, taskID string, toolID string, reason *string) (*model.Tool, error) {
+	return r.flagOutcomeImpl(ctx, taskID, toolID, reason)
+}
+
 // Task is the resolver for the task field.
 func (r *promotionProposalResolver) Task(ctx context.Context, obj *model.PromotionProposal) (*model.Task, error) {
 	return r.loadDecisionTask(ctx, obj.ID)
 }
 
-// Tool is the resolver for the tool field.
+// Tool is the resolver for the tool field. Phase 8: resolves the real tool row
+// being promoted via pending_decisions.tool_id.
 func (r *promotionProposalResolver) Tool(ctx context.Context, obj *model.PromotionProposal) (*model.Tool, error) {
-	return phase2PlaceholderTool(), nil
+	return r.loadDecisionTool(ctx, obj.ID)
 }
 
 // Viewer is the resolver for the viewer field. Returns the authenticated

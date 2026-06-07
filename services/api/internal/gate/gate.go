@@ -107,6 +107,7 @@ type Gate interface {
 type DefaultGate struct {
 	Floor    *Floor
 	Script   gatescript.ScriptEvaluator // Phase 5 Layer 3; nil keeps Phase 4 semantics
+	Grants   RoutineGrantLookup         // Phase 8 autonomy layer; nil = never auto-approves
 	Overseer overseer.Grader
 }
 
@@ -209,6 +210,20 @@ func (g *DefaultGate) Evaluate(ctx context.Context, call *ToolCall, tool *db.Too
 				}
 			}
 		}
+	}
+
+	// Phase 8 autonomy layer. Sits AFTER the floor (cleared) and AFTER the
+	// script's terminal verdicts, in the overseer's slot (research R7). It can
+	// only Approve (tool in EXECUTE_AUTO band AND the call's routine has a live
+	// grant) or fall through — never deny. Floor supremacy (III) and
+	// no-self-escalation (IV) hold by construction: the floor already cleared,
+	// and the only score-raising path is the owner mutation.
+	approved, autonomyCtx, aerr := g.autonomyApprove(ctx, call, tool)
+	if aerr != nil {
+		return Verdict{}, fmt.Errorf("gate: autonomy: %w", aerr)
+	}
+	if approved {
+		return Verdict{Decision: DecisionApprove, Context: autonomyCtx, ScriptVerdict: scriptVerdict}, nil
 	}
 
 	// Layer 4: overseer (LLM grader). Phase 4 wires this via the Grader

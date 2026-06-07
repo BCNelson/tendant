@@ -523,13 +523,25 @@ type Tool struct {
 	Permissions          json.RawMessage `json:"permissions"`
 	OverseerInstructions *string         `json:"overseer_instructions"`
 	ActiveScriptVersion  *int32          `json:"active_script_version"`
+	TrustScore           float64         `json:"trust_score"`
 }
 
 type ToolOutcome struct {
-	ID        uuid.UUID          `json:"id"`
-	ToolID    uuid.UUID          `json:"tool_id"`
-	TaskID    uuid.UUID          `json:"task_id"`
-	Outcome   ToolOutcomeKind    `json:"outcome"`
-	At        time.Time          `json:"at"`
-	MaturedAt pgtype.Timestamptz `json:"matured_at"`
+	ID                 uuid.UUID          `json:"id"`
+	ToolID             uuid.UUID          `json:"tool_id"`
+	TaskID             uuid.UUID          `json:"task_id"`
+	Outcome            ToolOutcomeKind    `json:"outcome"`
+	At                 time.Time          `json:"at"`
+	MaturedAt          pgtype.Timestamptz `json:"matured_at"`
+	RoutineFingerprint *string            `json:"routine_fingerprint"`
+}
+
+type ToolRoutineGrant struct {
+	ID                 uuid.UUID          `json:"id"`
+	ToolID             uuid.UUID          `json:"tool_id"`
+	RoutineFingerprint string             `json:"routine_fingerprint"`
+	Evidence           json.RawMessage    `json:"evidence"`
+	GrantedBy          string             `json:"granted_by"`
+	GrantedAt          time.Time          `json:"granted_at"`
+	RevokedAt          pgtype.Timestamptz `json:"revoked_at"`
 }

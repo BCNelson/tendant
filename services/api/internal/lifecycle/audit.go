@@ -63,6 +63,15 @@ const (
 	KindDispositionApplied = "disposition_applied"  // task-scope
 	KindIntakeAutoAccepted = "intake_auto_accepted" // task-scope
 	KindLLMJudgeInvoked    = "llm_judge_invoked"    // task-scope
+
+	// Phase 8 (calibration & the earned-autonomy ratchet). All four are
+	// task-scoped (a non-NULL task_id) — no CHECK-allowlist change. Promotion
+	// kinds carry the representative task; demotion/flag kinds carry the task
+	// the tool acted under.
+	KindOutcomeFlagged     = "outcome_flagged"     // task-scope
+	KindToolDemoted        = "tool_demoted"        // task-scope
+	KindPromotionProposed  = "promotion_proposed"  // task-scope (representative)
+	KindPromotionResponded = "promotion_responded" // task-scope (representative)
 )
 
 // SystemActorURI is the principal globalUri used for system-authored audit
@@ -279,6 +288,58 @@ type IntakeAutoAcceptedPayload struct {
 type LLMJudgeInvokedPayload struct {
 	SignalID string `json:"signal_id"`
 	IsTask   *bool  `json:"is_task,omitempty"`
+}
+
+// --- Phase 8 (calibration) audit payloads. ----------------------------------
+
+// OutcomeFlaggedPayload — kind=outcome_flagged (task-scope). Owner flagOutcome
+// records a bad outcome; reason is owner-supplied.
+type OutcomeFlaggedPayload struct {
+	ToolID    uuid.UUID `json:"tool_id"`
+	OutcomeID uuid.UUID `json:"outcome_id"`
+	Reason    string    `json:"reason,omitempty"`
+}
+
+// ToolDemotedPayload — kind=tool_demoted (task-scope). Reflexive demotion via a
+// bad outcome / cancel / flag. Trigger is one of "bad_outcome" | "cancel_task"
+// | "flag_outcome".
+type ToolDemotedPayload struct {
+	ToolID             uuid.UUID `json:"tool_id"`
+	Trigger            string    `json:"trigger"`
+	OldScore           float64   `json:"old_score"`
+	NewScore           float64   `json:"new_score"`
+	RevokedFingerprint string    `json:"revoked_fingerprint,omitempty"`
+	RevokedAll         bool      `json:"revoked_all,omitempty"`
+}
+
+// PromotionEvidence is the frozen, legible track record carried by a proposal.
+type PromotionEvidence struct {
+	Routine            string  `json:"routine"`
+	RoutineFingerprint string  `json:"routine_fingerprint"`
+	WindowN            int     `json:"window_n"`
+	MaturedClean       int     `json:"matured_clean"`
+	Ratio              float64 `json:"ratio"`
+	MinSample          int     `json:"min_sample"`
+}
+
+// PromotionProposedPayload — kind=promotion_proposed (task-scope). The sweep
+// emits a PromotionProposal; the evidence is frozen here and into the
+// pending_decisions.payload.
+type PromotionProposedPayload struct {
+	ToolID     uuid.UUID         `json:"tool_id"`
+	DecisionID uuid.UUID         `json:"decision_id"`
+	FromLevel  string            `json:"from_level"`
+	ToLevel    string            `json:"to_level"`
+	Evidence   PromotionEvidence `json:"evidence"`
+}
+
+// PromotionRespondedPayload — kind=promotion_responded (task-scope). Owner
+// accept/decline via respondToPromotion.
+type PromotionRespondedPayload struct {
+	ToolID     uuid.UUID `json:"tool_id"`
+	DecisionID uuid.UUID `json:"decision_id"`
+	Accepted   bool      `json:"accepted"`
+	NewScore   float64   `json:"new_score,omitempty"`
 }
 
 // WriteAuditMessage inserts one audit_messages row inside the provided tx.

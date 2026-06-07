@@ -170,7 +170,11 @@ extend type Mutation {
   approveArtifact(decisionId: ID!): PendingDecision!
   rejectApproval(decisionId: ID!, reason: String): PendingDecision!
   answerQuestion(decisionId: ID!, answer: String!): PendingDecision!
+  # DEPRECATED (Phase 8). Superseded by respondToPromotion, which returns the
+  # updated Tool instead of a PendingDecision. The stub continues to return
+  # NOT_YET_AVAILABLE; do not build new clients against it.
   decidePromotion(decisionId: ID!, accept: Boolean!): PendingDecision!
+    @deprecated(reason: "Phase 8: use respondToPromotion (returns the updated Tool).")
 
   # Phase 3 — Universal Gate, Hard-Rule Floor & the First Tool.
   # Compose a tool call against a task. Runs the gate; on RequestDecision
@@ -203,6 +207,26 @@ extend type Mutation {
   # overseer returns RequestDecision conservatively).
   # Errors: PERMISSION_DENIED, TOOL_UNKNOWN.
   setToolOverseerInstructions(toolId: ID!, instructions: String!): Tool!
+
+  # Phase 8 — Calibration & the Earned-Autonomy Ratchet (additive, Path 1).
+  #
+  # respondToPromotion is the SINGLE path that RAISES a tool's autonomy.
+  # OWNER-ONLY — structurally guarded by auth.RequireOwner(ctx) FIRST; an
+  # agent (non-"user") principal is refused before any DB write
+  # (Constitution IV; NFR-004).
+  #   accept:true  → trust score jumps into the proposed band AND a live
+  #                  per-routine grant is created; returns the updated Tool.
+  #   accept:false → no change; the proposal is withdrawn and will not
+  #                  re-propose until NEW matured-clean outcomes accrue.
+  # Errors: PERMISSION_DENIED, DECISION_UNKNOWN, DECISION_ALREADY_RESOLVED.
+  respondToPromotion(proposalId: ID!, accept: Boolean!): Tool!
+
+  # flagOutcome is the owner's retroactive veto: records the outcome BAD and
+  # REFLEXIVELY demotes the tool (proportional score decrement clamped at the
+  # EXECUTE_GATED baseline + revoke the affected routine's grant) in one
+  # operation. OWNER-ONLY. Returns the updated Tool. Demotion needs no
+  # approval. Errors: PERMISSION_DENIED, TASK_UNKNOWN, TOOL_UNKNOWN.
+  flagOutcome(taskId: ID!, toolId: ID!, reason: String): Tool!
 }
 
 # ----- Subscriptions ---------------------------------------------------

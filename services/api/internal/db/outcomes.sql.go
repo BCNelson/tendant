@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countToolOutcomesForTask = `-- name: CountToolOutcomesForTask :one
@@ -26,21 +27,31 @@ func (q *Queries) CountToolOutcomesForTask(ctx context.Context, taskID uuid.UUID
 }
 
 const insertToolOutcome = `-- name: InsertToolOutcome :one
-INSERT INTO tool_outcomes (tool_id, task_id, outcome)
-VALUES ($1, $2, $3)
-RETURNING id, tool_id, task_id, outcome, at, matured_at
+INSERT INTO tool_outcomes (tool_id, task_id, outcome, matured_at, routine_fingerprint)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, tool_id, task_id, outcome, at, matured_at, routine_fingerprint
 `
 
 type InsertToolOutcomeParams struct {
-	ToolID  uuid.UUID       `json:"tool_id"`
-	TaskID  uuid.UUID       `json:"task_id"`
-	Outcome ToolOutcomeKind `json:"outcome"`
+	ToolID             uuid.UUID          `json:"tool_id"`
+	TaskID             uuid.UUID          `json:"task_id"`
+	Outcome            ToolOutcomeKind    `json:"outcome"`
+	MaturedAt          pgtype.Timestamptz `json:"matured_at"`
+	RoutineFingerprint *string            `json:"routine_fingerprint"`
 }
 
 // Phase 3: written once per dispatch attempt by the ToolCallWorkflow.
-// matured_at stays NULL — Phase 8's calibration ratchet sets it.
+// Phase 8: matured_at (at + window) and routine_fingerprint are now populated by
+// the calibration subsystem on the clean/bad paths. denied_by_script passes NULL
+// for both (it never matures, never counts toward promotion).
 func (q *Queries) InsertToolOutcome(ctx context.Context, arg InsertToolOutcomeParams) (ToolOutcome, error) {
-	row := q.db.QueryRow(ctx, insertToolOutcome, arg.ToolID, arg.TaskID, arg.Outcome)
+	row := q.db.QueryRow(ctx, insertToolOutcome,
+		arg.ToolID,
+		arg.TaskID,
+		arg.Outcome,
+		arg.MaturedAt,
+		arg.RoutineFingerprint,
+	)
 	var i ToolOutcome
 	err := row.Scan(
 		&i.ID,
@@ -49,6 +60,7 @@ func (q *Queries) InsertToolOutcome(ctx context.Context, arg InsertToolOutcomePa
 		&i.Outcome,
 		&i.At,
 		&i.MaturedAt,
+		&i.RoutineFingerprint,
 	)
 	return i, err
 }

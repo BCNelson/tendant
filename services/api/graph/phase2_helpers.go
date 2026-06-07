@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/99designs/gqlgen/graphql"
@@ -134,9 +135,45 @@ func mapPendingDecisionRow(row *db.PendingDecision) (model.PendingDecision, erro
 	case db.DecisionKindAgentQuestion:
 		return &model.AgentQuestion{ID: id, CreatedAt: row.CreatedAt, Question: "(Phase 3)"}, nil
 	case db.DecisionKindPromotionProposal:
-		return &model.PromotionProposal{ID: id, CreatedAt: row.CreatedAt, FromLevel: model.AutonomyLevelNone, ToLevel: model.AutonomyLevelNone, Evidence: map[string]any{}}, nil
+		// Phase 8: from/to band + frozen evidence come from the row payload.
+		from, to, evidence := parsePromotionPayload(row.Payload)
+		return &model.PromotionProposal{
+			ID:        id,
+			CreatedAt: row.CreatedAt,
+			FromLevel: from,
+			ToLevel:   to,
+			Evidence:  evidence,
+		}, nil
 	}
 	return nil, fmt.Errorf("unknown decision kind: %s", row.Kind)
+}
+
+// parsePromotionPayload extracts the from/to AutonomyLevel bands and the frozen
+// evidence map from a promotion_proposal pending_decisions.payload. Missing /
+// malformed fields degrade to NONE + empty evidence (the proposal still renders).
+func parsePromotionPayload(payload []byte) (from, to model.AutonomyLevel, evidence map[string]any) {
+	from, to, evidence = model.AutonomyLevelNone, model.AutonomyLevelNone, map[string]any{}
+	if len(payload) == 0 {
+		return from, to, evidence
+	}
+	var p struct {
+		FromLevel string         `json:"from_level"`
+		ToLevel   string         `json:"to_level"`
+		Evidence  map[string]any `json:"evidence"`
+	}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return from, to, evidence
+	}
+	if p.FromLevel != "" {
+		from = mapRung(p.FromLevel)
+	}
+	if p.ToLevel != "" {
+		to = mapRung(p.ToLevel)
+	}
+	if p.Evidence != nil {
+		evidence = p.Evidence
+	}
+	return from, to, evidence
 }
 
 // streamInboxEvents pumps the dispatcher channel into the resolver-returned

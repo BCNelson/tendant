@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/bcnelson/tendant/services/api/internal/auth"
+	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/overseer"
@@ -36,5 +37,6 @@ type Resolver struct {
 	Overseer        overseer.Grader
 	ToolRegistry    *tools.Registry
 	ScriptEvaluator gatescript.ScriptEvaluator
-	Connectors      ConnectorDeps // Phase 7 — owner connector mutations
+	Connectors      ConnectorDeps       // Phase 7 — owner connector mutations
+	Calibrator      *calibration.Engine // Phase 8 — flagOutcome + cancel demotion; nil in pre-Phase-8 tests
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bcnelson/tendant/services/api/graph"
+	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/chain"
 	"github.com/bcnelson/tendant/services/api/internal/connector"
 	"github.com/bcnelson/tendant/services/api/internal/core"
@@ -55,7 +56,7 @@ func newChainEnv(t *testing.T) *chainEnv {
 	// test boot; harmless for Phase 1 tests that don't exercise the path.
 	registry := tools.NewRegistry()
 	registry.Register(tools.NewSendEmail(nil))
-	durable.RegisterToolCallWorkflow(dctx, pool, q, registry)
+	durable.RegisterToolCallWorkflow(dctx, pool, q, registry, calibration.New(pool, calibration.DefaultConfig(), nil))
 	require.NoError(t, tools.SeedSendEmail(ctx, q))
 	// Phase 7: register the intake poll workflow + connector registry so the
 	// connector owner-mutation resolvers (enableConnector → schedule) work.
@@ -86,6 +87,7 @@ func newChainEnv(t *testing.T) *chainEnv {
 			CreateSchedule: intake.CreateSchedule,
 			DeleteSchedule: intake.DeleteSchedule,
 		},
+		Calibrator: calibration.New(pool, calibration.DefaultConfig(), nil),
 	})
 	return &chainEnv{pool: pool, dctx: dctx, handler: handler, queries: q}
 }

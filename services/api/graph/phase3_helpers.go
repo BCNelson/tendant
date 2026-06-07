@@ -17,6 +17,7 @@ import (
 
 	"github.com/bcnelson/tendant/services/api/graph/model"
 	"github.com/bcnelson/tendant/services/api/internal/auth"
+	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/gate"
 	"github.com/bcnelson/tendant/services/api/internal/gatescript"
@@ -50,6 +51,16 @@ func (p *principalLookupFromQueries) IsKnownPrincipal(ctx context.Context, globa
 		return false, err
 	}
 	return true, nil
+}
+
+// grantLookupFromQueries is the gate.RoutineGrantLookup adapter backing the
+// Phase-8 autonomy layer with LiveGrantExists. Read-only, idempotent.
+type grantLookupFromQueries struct {
+	q *db.Queries
+}
+
+func (g *grantLookupFromQueries) HasLiveGrant(ctx context.Context, toolID uuid.UUID, fingerprint string) (bool, error) {
+	return g.q.LiveGrantExists(ctx, db.LiveGrantExistsParams{ToolID: toolID, RoutineFingerprint: fingerprint})
 }
 
 // artifactEnvelope is the JSON shape stored in pending_decisions.payload
@@ -113,6 +124,9 @@ func (r *Resolver) proposeToolCallImpl(ctx context.Context, taskID, toolGlobalUR
 	// layer is wired). Order is fixed: read-only → floor → script → overseer.
 	g := gate.NewDefaultGateWithOverseer(&principalLookupFromQueries{q: r.Queries}, r.Overseer)
 	g.Script = r.ScriptEvaluator
+	// Phase 8: back the autonomy layer's grant lookup with LiveGrantExists. The
+	// gate stays pure (no direct DB) — this is the injected seam.
+	g.Grants = &grantLookupFromQueries{q: r.Queries}
 	verdict, err := g.Evaluate(ctx, call, &toolRow)
 	if err != nil {
 		return nil, fmt.Errorf("gate: %w", err)
@@ -134,21 +148,24 @@ func (r *Resolver) proposeToolCallImpl(ctx context.Context, taskID, toolGlobalUR
 
 	switch verdict.Decision {
 	case gate.DecisionApprove:
-		// Three distinct Approve sources:
+		// Four distinct Approve sources:
 		//   (a) read-only short-circuit (perms.read_only=true): Phase 3
 		//       fall-through; no overseer/script verdict carried.
 		//   (b) overseer-approve: Phase 4 auto-approve path.
 		//   (c) script-approve: Phase 5 — a gate script returned Approve and
-		//       the floor stayed silent. Same auto-dispatch path so the clean
-		//       outcome + audit land via the existing workflow.
-		if verdict.OverseerVerdict != nil || verdict.ScriptVerdict != nil {
-			ar, err := r.writeAutoApprovedAndDispatch(ctx, tid, &toolRow, rawPayload, principal.GlobalURI, decisionID)
-			if err != nil {
-				return nil, err
-			}
-			return ar, nil
+		//       the floor stayed silent.
+		//   (d) autonomy-approve: Phase 8 — the tool is EXECUTE_AUTO and the
+		//       routine has a live grant (the floor cleared).
+		// (b)/(c)/(d) all auto-dispatch so the clean outcome + audit land via
+		// the existing workflow; only the read-only short-circuit is special.
+		if isReadOnlyApprove(verdict) {
+			return r.dispatchReadOnly(ctx, tid, &toolRow, rawPayload, principal.GlobalURI)
 		}
-		return r.dispatchReadOnly(ctx, tid, &toolRow, rawPayload, principal.GlobalURI)
+		ar, err := r.writeAutoApprovedAndDispatch(ctx, tid, &toolRow, rawPayload, principal.GlobalURI, decisionID, autoApproveReason(verdict))
+		if err != nil {
+			return nil, err
+		}
+		return ar, nil
 
 	case gate.DecisionDeny:
 		// Phase 5: a gate script's terminal Deny. Record a denied_by_script
@@ -269,6 +286,40 @@ func hashOwnerInstructions(p *string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// isReadOnlyApprove reports whether an Approve verdict came from the read-only
+// short-circuit (the only Approve that must NOT auto-dispatch a side-effecting
+// call — it has no real effect). Discriminated by the gate's context layer.
+func isReadOnlyApprove(v gate.Verdict) bool {
+	if v.OverseerVerdict != nil || v.ScriptVerdict != nil {
+		return false
+	}
+	var c struct {
+		Layer string `json:"layer"`
+	}
+	_ = json.Unmarshal(v.Context, &c)
+	return c.Layer == "read_only_short_circuit"
+}
+
+// autoApproveReason maps an Approve verdict to the resolution reason recorded in
+// the audit DAG, distinguishing the auto-approve sources.
+func autoApproveReason(v gate.Verdict) string {
+	switch {
+	case v.OverseerVerdict != nil:
+		return "overseer-approved"
+	case v.ScriptVerdict != nil:
+		return "script-approved"
+	default:
+		var c struct {
+			Layer string `json:"layer"`
+		}
+		_ = json.Unmarshal(v.Context, &c)
+		if c.Layer == "autonomy" {
+			return "autonomy-approved"
+		}
+		return "auto-approved"
+	}
+}
+
 // writeApprovalRequestWithID inserts the pending_decisions row with the
 // frozen payload + workflow id + topic at a CALLER-supplied id (Phase 4
 // pre-allocates the id so the overseer_evaluated audit can reference it).
@@ -318,7 +369,7 @@ func (r *Resolver) writeApprovalRequestWithID(ctx context.Context, taskID uuid.U
 // approval to wake it. The existing toolflow.ToolCallWorkflow handles
 // dispatch + outcome audit; resolved_by=system distinguishes auto-approve
 // from human-approve in the audit DAG.
-func (r *Resolver) writeAutoApprovedAndDispatch(ctx context.Context, taskID uuid.UUID, tool *db.Tool, frozen json.RawMessage, composedBy string, decisionID uuid.UUID) (*model.ApprovalRequest, error) {
+func (r *Resolver) writeAutoApprovedAndDispatch(ctx context.Context, taskID uuid.UUID, tool *db.Tool, frozen json.RawMessage, composedBy string, decisionID uuid.UUID, reason string) (*model.ApprovalRequest, error) {
 	envelope, err := encodeApprovalEnvelope(tool, frozen)
 	if err != nil {
 		return nil, fmt.Errorf("encode approval envelope: %w", err)
@@ -329,7 +380,7 @@ func (r *Resolver) writeAutoApprovedAndDispatch(ctx context.Context, taskID uuid
 
 	resolution, err := json.Marshal(map[string]any{
 		"approved":    true,
-		"reason":      "overseer-approved",
+		"reason":      reason,
 		"resolved_by": lifecycle.SystemActorURI,
 	})
 	if err != nil {
@@ -356,7 +407,7 @@ func (r *Resolver) writeAutoApprovedAndDispatch(ctx context.Context, taskID uuid
 	if err := toolflow.StartToolCallWorkflow(r.DBOS, decisionID); err != nil {
 		return nil, fmt.Errorf("start auto-approve workflow: %w", err)
 	}
-	if err := toolflow.ResolveDecision(r.DBOS, decisionID, true, "overseer-approved", lifecycle.SystemActorURI); err != nil {
+	if err := toolflow.ResolveDecision(r.DBOS, decisionID, true, reason, lifecycle.SystemActorURI); err != nil {
 		return nil, fmt.Errorf("send synthetic approval: %w", err)
 	}
 
@@ -423,6 +474,8 @@ func (r *Resolver) writeDeniedByScript(ctx context.Context, taskID uuid.UUID, to
 		if err != nil {
 			return err
 		}
+		// denied_by_script never matures and never counts toward promotion:
+		// matured_at + routine_fingerprint stay NULL.
 		outcome, err := q.InsertToolOutcome(ctx, db.InsertToolOutcomeParams{
 			ToolID:  tool.ID,
 			TaskID:  taskID,
@@ -578,10 +631,12 @@ func mapToolRow(t *db.Tool) *model.Tool {
 		_ = json.Unmarshal(t.Permissions, &perms)
 	}
 	return &model.Tool{
-		ID:                   t.ID.String(),
-		GlobalURI:            t.GlobalUri,
-		Name:                 t.Name,
-		Rung:                 mapRung(t.Rung),
+		ID:        t.ID.String(),
+		GlobalURI: t.GlobalUri,
+		Name:      t.Name,
+		// Phase 8: rung is DERIVED from the continuous trust_score band, not read
+		// from the (now cache-only) rung text column.
+		Rung:                 mapRung(string(calibration.Band(t.TrustScore))),
 		Permissions:          perms,
 		OverseerInstructions: t.OverseerInstructions,
 	}

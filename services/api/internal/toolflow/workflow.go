@@ -34,6 +34,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/chain"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/lifecycle"
@@ -70,9 +71,10 @@ func ApprovalTopic(decisionID uuid.UUID) string {
 // envDeps closes over the workflow's runtime dependencies. Set once by
 // Register at startup; read-only thereafter.
 type envDeps struct {
-	pool     *pgxpool.Pool
-	queries  *db.Queries
-	registry *tools.Registry
+	pool       *pgxpool.Pool
+	queries    *db.Queries
+	registry   *tools.Registry
+	calibrator *calibration.Engine
 }
 
 var (
@@ -82,9 +84,9 @@ var (
 
 // Register stores deps and registers ToolCallWorkflow with DBOS. MUST be
 // called between dbos.NewDBOSContext and dbos.Launch.
-func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry) {
+func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry, calibrator *calibration.Engine) {
 	depsMu.Lock()
-	deps = &envDeps{pool: pool, queries: q, registry: registry}
+	deps = &envDeps{pool: pool, queries: q, registry: registry, calibrator: calibrator}
 	depsMu.Unlock()
 	dbos.RegisterWorkflow(dctx, ToolCallWorkflow, dbos.WithWorkflowName(WorkflowName))
 }
@@ -225,7 +227,6 @@ func dispatchAndRecord(ctx context.Context, d *envDeps, decisionID uuid.UUID, en
 	}
 
 	return pgx.BeginFunc(ctx, d.pool, func(tx pgx.Tx) error {
-		q := db.New(tx)
 		// Audit: decision_resolved → tool_dispatched → tool_outcome_recorded.
 		parent, perr := latestTransitionIDInTx(ctx, tx, taskID)
 		if perr != nil {
@@ -258,13 +259,27 @@ func dispatchAndRecord(ctx context.Context, d *envDeps, decisionID uuid.UUID, en
 			return werr
 		}
 
-		outcome, ierr := q.InsertToolOutcome(ctx, db.InsertToolOutcomeParams{
-			ToolID:  toolID,
-			TaskID:  taskID,
-			Outcome: outcomeKind,
-		})
+		// Phase 8: route outcome recording through the calibrator so each row
+		// carries a matured_at + routine fingerprint. On the bad path the
+		// calibrator also reflexively demotes the tool in this same tx (the
+		// audit chain below still records tool_outcome_recorded). The dispatch
+		// error is propagated AFTER the bad outcome + demotion land.
+		in := calibration.OutcomeInput{
+			ToolID:        toolID,
+			TaskID:        taskID,
+			ToolGlobalURI: tool.GlobalUri,
+			Payload:       payload,
+			At:            time.Now().UTC(),
+		}
+		var outcome db.ToolOutcome
+		var ierr error
+		if execErr != nil {
+			outcome, ierr = d.calibrator.RecordBad(ctx, tx, in)
+		} else {
+			outcome, ierr = d.calibrator.RecordOutcome(ctx, tx, in)
+		}
 		if ierr != nil {
-			return fmt.Errorf("insert tool_outcome: %w", ierr)
+			return fmt.Errorf("record tool_outcome: %w", ierr)
 		}
 
 		if _, werr := lifecycle.WriteAuditMessage(ctx, tx, taskID, lifecycle.SystemActorURI,

@@ -1,0 +1,62 @@
+# =====================================================================
+# Operator-edge GraphQL contract delta — Phase 8 (Calibration & the
+# Earned-Autonomy Ratchet)
+#
+# Versioning policy: specs/003-operator-edge-wake/contracts/versioning-policy.md
+# PR path declaration:
+#   • Path 1 (additive)      — respondToPromotion, flagOutcome
+#   • Path 2 (deprecation)   — decidePromotion marked @deprecated (superseded)
+# No breaking change. No field removed. Existing clients unaffected.
+# =====================================================================
+
+# ----- PromotionProposal: declared in Phase 2, becomes FUNCTIONAL here ----
+# (No schema change to the type — its resolvers stop returning placeholders.)
+#
+# type PromotionProposal implements PendingDecision {
+#   id: ID!  task: Task!  createdAt: Time!
+#   tool: Tool!  fromLevel: AutonomyLevel!  toLevel: AutonomyLevel!  evidence: JSON!
+# }
+#
+# • task      — the REPRESENTATIVE task (most-recent matured-clean outcome's task),
+#               present to satisfy the non-null PendingDecision.task contract.
+# • tool      — the tool being promoted (resolved from pending_decisions.tool_id).
+# • fromLevel/toLevel — the discrete AutonomyLevel band crossing the owner consents to.
+#                       Only NONE / EXECUTE_GATED / EXECUTE_AUTO are valid tool bands.
+# • evidence  — frozen legible track record, e.g.
+#               { "routine": "send-email → known contact",
+#                 "window_n": 50, "matured_clean": 48, "ratio": 0.96, "min_sample": 20 }
+
+# ----- Tool: rung is now DERIVED from the continuous trust score -----------
+# (No schema change — Tool.rung: AutonomyLevel! still; its value is now computed
+#  from the per-tool trust score's band, not a stored text label.)
+
+extend type Mutation {
+  # OWNER-ONLY. The single path that RAISES a tool's autonomy. Structurally
+  # guarded by auth.RequireOwner(ctx) FIRST — an agent (non-"user") principal is
+  # refused before any DB write (Constitution IV; NFR-004).
+  #   accept:true  → trust score jumps into the proposed band AND a live
+  #                  per-routine grant is created; returns the updated Tool.
+  #   accept:false → no change; the proposal is withdrawn and will not re-propose
+  #                  the same band crossing until NEW matured-clean outcomes accrue.
+  # Errors: PERMISSION_DENIED, DECISION_UNKNOWN, DECISION_ALREADY_RESOLVED.
+  respondToPromotion(proposalId: ID!, accept: Boolean!): Tool!
+
+  # OWNER-ONLY. Retroactive veto: records the outcome BAD and REFLEXIVELY demotes
+  # the tool (proportional score decrement clamped at the EXECUTE_GATED baseline +
+  # revoke the affected routine's grant), in one operation. Returns the updated Tool.
+  # Demotion needs no approval; this mutation is the owner's veto entry point.
+  # Errors: PERMISSION_DENIED, TASK_UNKNOWN, TOOL_UNKNOWN.
+  flagOutcome(taskId: ID!, toolId: ID!, reason: String): Tool!
+
+  # DEPRECATED (Phase 8). Superseded by respondToPromotion, which returns the
+  # updated Tool instead of a PendingDecision. The stub continues to return
+  # NOT_YET_AVAILABLE; do not build new clients against it.
+  decidePromotion(decisionId: ID!, accept: Boolean!): PendingDecision!
+    @deprecated(reason: "Phase 8: use respondToPromotion (returns the updated Tool).")
+}
+
+# ----- Notes -----------------------------------------------------------------
+# • Reflexive DEMOTION needs no mutation — it surfaces via Tool state and the
+#   existing taskChanged subscription (FR-018). No new subscription is added.
+# • No new query: PromotionProposals surface through the existing `inbox`
+#   (InboxItem already includes PromotionProposal) and `pendingDecision(id:)`.

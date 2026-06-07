@@ -9,6 +9,7 @@ import (
 	"github.com/dbos-inc/dbos-transact-golang/dbos"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/chain"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/toolflow"
@@ -77,6 +78,6 @@ func RegisterPushQueue(dctx dbos.DBOSContext) {
 // record outcome). MUST be called between Init and Launch, like the chain
 // workflow. The registry carries the tool implementations the workflow
 // dispatches against.
-func RegisterToolCallWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry) {
-	toolflow.Register(dctx, pool, q, registry)
+func RegisterToolCallWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry, calibrator *calibration.Engine) {
+	toolflow.Register(dctx, pool, q, registry, calibrator)
 }
