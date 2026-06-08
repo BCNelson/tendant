@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/bcnelson/tendant/services/api/internal/config"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 )
 
@@ -84,42 +87,135 @@ var baseCatalog = []catalogEntry{
 	},
 }
 
-// SeedAgentCatalog inserts the base agent catalog at boot. Idempotent: skips
-// configs that already exist (matched by name + stage).
+// SeedAgentCatalog inserts the in-code base agent catalog at boot. Idempotent:
+// skips configs that already exist (matched by name + stage). Equivalent to
+// ReconcileAgentCatalog with no file-provided definitions.
 func SeedAgentCatalog(ctx context.Context, q *db.Queries) error {
-	for _, entry := range baseCatalog {
-		_, err := q.GetAgentConfigByNameAndStage(ctx, db.GetAgentConfigByNameAndStageParams{
-			Name:  entry.Name,
-			Stage: entry.Stage,
-		})
-		if err == nil {
-			continue // already exists
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
+	return ReconcileAgentCatalog(ctx, q, nil)
+}
 
+// ReconcileAgentCatalog reconciles the agent catalog from config. When defs is
+// empty it falls back to the in-code baseCatalog (preserving prior boot
+// behavior). When the config file defines agents, those are authoritative: each
+// (name, stage) is upserted — inserted if new, updated if present. The reconcile
+// is non-destructive: DB rows the file omits are left untouched (and logged).
+func ReconcileAgentCatalog(ctx context.Context, q *db.Queries, defs []config.AgentDef) error {
+	entries, err := catalogEntriesFor(defs)
+	if err != nil {
+		return err
+	}
+	fileDriven := len(defs) > 0
+
+	for _, entry := range entries {
 		prompt := entry.SystemPrompt
 		allowlist := entry.ToolAllowlist
 		if allowlist == nil {
 			allowlist = json.RawMessage(`[]`)
 		}
-
-		_, insertErr := q.InsertAgentConfig(ctx, db.InsertAgentConfigParams{
-			Name:          entry.Name,
-			Stage:         entry.Stage,
-			IsHuman:       false,
-			SystemPrompt:  &prompt,
-			Model:         nil, // uses platform default
-			ToolAllowlist: allowlist,
-			Eligibility:   entry.Eligibility,
-			Origin:        db.ConfigOriginCore,
-			Version:       1,
-		})
-		if insertErr != nil {
-			return insertErr
+		eligibility := entry.Eligibility
+		if len(eligibility) == 0 {
+			eligibility = json.RawMessage(`{}`)
 		}
-		slog.InfoContext(ctx, "seeded agent config", "name", entry.Name, "stage", entry.Stage)
+		var modelPtr *string
+		if entry.Model != "" {
+			m := entry.Model
+			modelPtr = &m
+		}
+
+		_, lookupErr := q.GetAgentConfigByNameAndStage(ctx, db.GetAgentConfigByNameAndStageParams{
+			Name:  entry.Name,
+			Stage: entry.Stage,
+		})
+		switch {
+		case lookupErr == nil:
+			if !fileDriven {
+				continue // in-code default already present — idempotent skip
+			}
+			if _, err := q.UpdateAgentConfigByNameAndStage(ctx, db.UpdateAgentConfigByNameAndStageParams{
+				Name:          entry.Name,
+				Stage:         entry.Stage,
+				IsHuman:       false,
+				SystemPrompt:  &prompt,
+				Model:         modelPtr,
+				ToolAllowlist: allowlist,
+				Eligibility:   eligibility,
+			}); err != nil {
+				return fmt.Errorf("reconcile agent %q/%s: update: %w", entry.Name, entry.Stage, err)
+			}
+			slog.InfoContext(ctx, "reconciled agent config (updated)", "name", entry.Name, "stage", entry.Stage)
+		case errors.Is(lookupErr, pgx.ErrNoRows):
+			if _, err := q.InsertAgentConfig(ctx, db.InsertAgentConfigParams{
+				Name:          entry.Name,
+				Stage:         entry.Stage,
+				IsHuman:       false,
+				SystemPrompt:  &prompt,
+				Model:         modelPtr,
+				ToolAllowlist: allowlist,
+				Eligibility:   eligibility,
+				Origin:        db.ConfigOriginCore,
+				Version:       1,
+			}); err != nil {
+				return fmt.Errorf("reconcile agent %q/%s: insert: %w", entry.Name, entry.Stage, err)
+			}
+			slog.InfoContext(ctx, "reconciled agent config (inserted)", "name", entry.Name, "stage", entry.Stage)
+		default:
+			return lookupErr
+		}
 	}
 	return nil
+}
+
+// catalogEntriesFor returns the in-code baseCatalog when defs is empty, else
+// converts the file-provided definitions into catalog entries (validating stage).
+func catalogEntriesFor(defs []config.AgentDef) ([]catalogEntry, error) {
+	if len(defs) == 0 {
+		return baseCatalog, nil
+	}
+	out := make([]catalogEntry, 0, len(defs))
+	for _, d := range defs {
+		if strings.TrimSpace(d.Name) == "" {
+			return nil, fmt.Errorf("agent definition missing name")
+		}
+		stage, err := parseAgentStage(d.Stage)
+		if err != nil {
+			return nil, fmt.Errorf("agent %q: %w", d.Name, err)
+		}
+		var allow json.RawMessage
+		if len(d.ToolAllowlist) > 0 {
+			b, err := json.Marshal(d.ToolAllowlist)
+			if err != nil {
+				return nil, fmt.Errorf("agent %q: marshal tool_allowlist: %w", d.Name, err)
+			}
+			allow = b
+		}
+		var elig json.RawMessage
+		if s := strings.TrimSpace(d.Eligibility); s != "" {
+			if !json.Valid([]byte(s)) {
+				return nil, fmt.Errorf("agent %q: eligibility is not valid JSON", d.Name)
+			}
+			elig = json.RawMessage(s)
+		}
+		out = append(out, catalogEntry{
+			Name:          d.Name,
+			Stage:         stage,
+			SystemPrompt:  d.SystemPrompt,
+			Model:         d.Model,
+			ToolAllowlist: allow,
+			Eligibility:   elig,
+		})
+	}
+	return out, nil
+}
+
+func parseAgentStage(s string) (db.AgentStage, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "triage":
+		return db.AgentStageTriage, nil
+	case "expansion":
+		return db.AgentStageExpansion, nil
+	case "execution":
+		return db.AgentStageExecution, nil
+	default:
+		return "", fmt.Errorf("invalid stage %q (want triage|expansion|execution)", s)
+	}
 }

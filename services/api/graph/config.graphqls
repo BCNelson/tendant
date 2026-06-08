@@ -1,0 +1,39 @@
+# Layered configuration — admin surface. Additive (Path 1).
+#
+# Exposes the typed config Registry merged with the DB overlay (config_entries)
+# so the owner can inspect and edit DB-configurable settings at runtime. Sensitive
+# values are NEVER returned (effectiveValue is null and sensitive=true).
+#
+# All operations are OWNER-PRINCIPAL-ONLY: the resolver MUST reject any viewer
+# with Principal.Kind != "user" with PERMISSION_DENIED *before* any DB read or
+# write (auth.RequireOwner — a structural check, not a feature flag).
+
+type ConfigKey {
+  key: String!
+  type: String!                 # string | int | bool | duration | float64
+  description: String!
+  reload: String!               # hot | restart | bootstrap
+  sensitive: Boolean!
+  dbConfigurable: Boolean!
+  hotReloadable: Boolean!
+  readonlyReason: String
+  defaultValue: String          # stringified default (null if sensitive)
+  effectiveValue: String        # stringified resolved value (null if sensitive)
+  overridden: Boolean!          # true when a config_entries row overrides this key
+}
+
+extend type Query {
+  # Owner-only. The full config registry with each key's effective value and
+  # whether it is overridden in the DB. Sensitive values are redacted.
+  configKeys: [ConfigKey!]!
+}
+
+extend type Mutation {
+  # Owner-only. Set a DB-configurable key's override. `value` is the raw scalar
+  # form (e.g. "0.95", "true", "30m", "info"); it is validated and type-checked
+  # against the registry, stored as jsonb, and propagated via LISTEN/NOTIFY.
+  setConfigEntry(key: String!, value: String!): ConfigKey!
+
+  # Owner-only. Remove a key's override, reverting it to env/file/default.
+  deleteConfigEntry(key: String!): Boolean!
+}

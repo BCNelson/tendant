@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/bcnelson/tendant/services/api/internal/secret"
 )
 
 // AnthropicProvider is the real-LLM Provider for the Anthropic Messages
@@ -69,7 +71,7 @@ func NewAnthropicProvider(cfg AnthropicConfig) (*AnthropicProvider, error) {
 // optional TENDANT_OVERSEER_ANTHROPIC_BASE_URL / TENDANT_OVERSEER_MODEL_ID.
 func NewAnthropicProviderFromEnv() (*AnthropicProvider, error) {
 	return NewAnthropicProvider(AnthropicConfig{
-		APIKey:  os.Getenv("TENDANT_OVERSEER_ANTHROPIC_API_KEY"),
+		APIKey:  secret.Getenv("TENDANT_OVERSEER_ANTHROPIC_API_KEY"),
 		BaseURL: os.Getenv("TENDANT_OVERSEER_ANTHROPIC_BASE_URL"),
 		ModelID: os.Getenv("TENDANT_OVERSEER_MODEL_ID"),
 	})

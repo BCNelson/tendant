@@ -1,0 +1,116 @@
+# Tendant — example configuration.
+#
+# Precedence (highest wins): DB overlay (config_entries) > environment >
+# this file > code defaults. Copy to `tendant.toml` (or one of the search
+# paths) and uncomment what you need. All values shown are the defaults.
+#
+# Search paths: ./tendant.toml, $XDG_CONFIG_HOME/tendant/tendant.toml,
+# /etc/tendant/tendant.toml. Override with `tendant serve --config <path>`.
+#
+# Env mapping: nested keys map to TENDANT_<SECTION>__<KEY> (double underscore =
+# dot), e.g. TENDANT_OVERSEER__PROVIDER=anthropic. The historical flat names
+# (DATABASE_URL, TENDANT_OVERSEER_PROVIDER, ...) also still work.
+#
+# Secrets (🔒) are best supplied via env / ${NAME}_FILE / systemd
+# CREDENTIALS_DIRECTORY rather than this file — see docs/configuration-reference.md.
+
+[server]
+# http_addr = ":8080"
+
+[database]
+# url = "postgres://localhost:5432/tendant?sslmode=disable"   # 🔒 prefer env
+
+[log]
+# level = "info"        # debug | info | warn | error
+# format = "json"
+
+[gate]
+# call_budget = 100     # per-task max gated calls before fail-close to human
+
+[agent]
+# max_iter = 20         # per-stage max agent loop iterations
+
+[overseer]
+# provider = "log"      # anthropic | openai | log   (boot-only)
+# model_id = "log"
+# max_eval_per_task = 50
+# log_deny_pattern = ""
+
+# [overseer.anthropic]
+# api_key = ""          # 🔒 prefer TENDANT_OVERSEER_ANTHROPIC_API_KEY
+# base_url = "https://api.anthropic.com"
+
+# [overseer.openai]
+# api_key = ""          # 🔒 prefer TENDANT_OVERSEER_OPENAI_API_KEY
+# base_url = "https://api.openai.com"
+
+[gatescript]
+# runner = "wazero"     # wazero | log   (boot-only)
+# max_module_bytes = 1048576
+# max_timeout_ms = 1000
+# max_memory_pages = 256
+# calendar_max_window_days = 30
+# compile_cache_mb = 256
+# asc_max_compile_ms = 5000
+# asc_max_memory_pages = 2048
+# asc_backend = ""      # "" | subprocess (non-sandboxed Tier-1 compile)
+# log_deny_pattern = ""
+
+[calibration]
+# maturation = "24h"
+# window_n = 50
+# ratio = 0.9
+# min_sample = 20
+# demotion_decrement = 0.25
+# sweep_cron = "0 * * * *"
+# intake_tighten_k = 0.02
+
+[intake]
+# gmail_client_id = ""
+# gmail_client_secret = ""   # 🔒 prefer TENDANT_GMAIL_CLIENT_SECRET
+# gmail_redirect_url = ""
+
+[credentials]
+# key = ""              # 🔒 base64 AES-256 key — prefer TENDANT_CREDENTIALS_KEY
+
+[setup]
+# secret = ""           # 🔒 one-time device-pairing secret (armed per boot)
+
+[seed]
+# example_gate_script = false
+
+# ---------------------------------------------------------------------------
+# Catalogs (file + DB; not env). When a section is present it is reconciled
+# into the DB on boot (non-destructive: rows the file omits are left alone).
+# Omit a section entirely to keep the in-code default catalog.
+# ---------------------------------------------------------------------------
+
+# [[agents]]
+# name = "general-triager"
+# stage = "triage"                  # triage | expansion | execution
+# system_prompt = "You are a triage agent. ..."
+# model = ""                        # empty = platform default
+# tool_allowlist = []               # tool UUIDs
+# eligibility = "{}"                # JSON expression (internal/router grammar)
+
+# [[tools]]
+# global_uri = "tendant://tools/send-email"
+# name = "send-email"
+# rung = "execute_gated"
+# overseer_instructions = "Approve sends to known principals..."
+# [tools.permissions]
+# read_only = false
+# spend = false
+# irreversible_third_party = "stranger_recipient"
+# secret_classes = []
+
+# [[connectors]]
+# id = "00000000-0000-0000-0000-00000000c001"
+# type = "webhook-in"
+# schedule = "0 * * * * *"          # 6-field cron (seconds-leading)
+# enabled = true
+# filter = {}
+# [connectors.disposition_rules]
+# confidence_floor = 0.85
+# stakes_ceiling = 0.30
+# llm_judge_per_poll = 5

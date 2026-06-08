@@ -31,6 +31,10 @@ type IntakeTuner struct {
 	queries *db.Queries
 	k       float64
 	now     func() time.Time
+
+	// KFn, when set, supplies the tightening coefficient live (DB overlay > boot)
+	// so an owner's change applies without a restart. nil ⇒ the boot k.
+	KFn func() float64
 }
 
 // NewIntakeTuner constructs a tuner. k is the per-dismissal tightening
@@ -39,13 +43,21 @@ func NewIntakeTuner(pool *pgxpool.Pool, q *db.Queries, k float64) *IntakeTuner {
 	return &IntakeTuner{queries: q, k: k, now: time.Now}
 }
 
+// coefficient returns the live tightening coefficient (KFn) or the boot k.
+func (t *IntakeTuner) coefficient() float64 {
+	if t.KFn != nil {
+		return t.KFn()
+	}
+	return t.k
+}
+
 // EffectiveThresholds returns the dismissal-adjusted confidence floor and stakes
 // ceiling for a connector: the floor rises and the ceiling falls with recent
 // dismissal volume (bounded). On any error it returns the base values unchanged
 // (fail-safe: tuning never loosens, and a read failure never blocks intake).
 func (t *IntakeTuner) EffectiveThresholds(ctx context.Context, connectorID uuid.UUID, baseFloor, baseCeiling float64) (floor, ceiling float64) {
 	n := t.dismissalCount(ctx, connectorID)
-	tighten := t.k * float64(n)
+	tighten := t.coefficient() * float64(n)
 	if tighten > maxTighten {
 		tighten = maxTighten
 	}

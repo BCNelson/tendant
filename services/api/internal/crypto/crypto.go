@@ -15,7 +15,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
+
+	"github.com/bcnelson/tendant/services/api/internal/secret"
 )
 
 // KeyEnvVar is the environment variable holding the base64-encoded 32-byte key.
@@ -35,13 +36,26 @@ type Sealer struct {
 // Fail-closed: returns an error if the env var is unset, malformed, or the
 // decoded key is not exactly 32 bytes.
 func NewFromEnv() (*Sealer, error) {
-	encoded := os.Getenv(KeyEnvVar)
+	encoded := secret.Getenv(KeyEnvVar)
 	if encoded == "" {
 		return nil, fmt.Errorf("%s is not set", KeyEnvVar)
 	}
 	key, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
 		return nil, fmt.Errorf("decode %s: %w", KeyEnvVar, err)
+	}
+	return New(key)
+}
+
+// NewFromBase64 constructs a Sealer from a base64-encoded 32-byte key. Used by
+// the config-driven boot path (credentials.key). Fail-closed on empty/malformed.
+func NewFromBase64(encoded string) (*Sealer, error) {
+	if encoded == "" {
+		return nil, fmt.Errorf("credentials key is not set")
+	}
+	key, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("decode credentials key: %w", err)
 	}
 	return New(key)
 }

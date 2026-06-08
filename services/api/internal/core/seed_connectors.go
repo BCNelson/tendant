@@ -3,9 +3,11 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/google/uuid"
 
+	"github.com/bcnelson/tendant/services/api/internal/config"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 )
 
@@ -43,6 +45,62 @@ func SeedExampleConnector(ctx context.Context, q *db.Queries) error {
 		Enabled: true,
 	}); err != nil {
 		return err
+	}
+	return nil
+}
+
+// ReconcileConnectors reconciles connector_configs from config. When defs is
+// empty it falls back to SeedExampleConnector (prior boot behavior). When the
+// file defines connectors, each is upserted by its (stable) id and its enabled
+// flag set. Non-destructive: connectors the file omits are left untouched.
+func ReconcileConnectors(ctx context.Context, q *db.Queries, defs []config.ConnectorDef) error {
+	if len(defs) == 0 {
+		return SeedExampleConnector(ctx, q)
+	}
+	for _, d := range defs {
+		id, err := uuid.Parse(d.ID)
+		if err != nil {
+			return fmt.Errorf("connector %q: invalid id: %w", d.ID, err)
+		}
+		if d.Type == "" {
+			return fmt.Errorf("connector %s: missing type", d.ID)
+		}
+		filter := json.RawMessage(`{}`)
+		if d.Filter != nil {
+			b, err := json.Marshal(d.Filter)
+			if err != nil {
+				return fmt.Errorf("connector %s: marshal filter: %w", d.ID, err)
+			}
+			filter = b
+		}
+		rules := json.RawMessage(`{}`)
+		if d.DispositionRules != nil {
+			b, err := json.Marshal(d.DispositionRules)
+			if err != nil {
+				return fmt.Errorf("connector %s: marshal disposition_rules: %w", d.ID, err)
+			}
+			rules = b
+		}
+		var schedule *string
+		if d.Schedule != "" {
+			s := d.Schedule
+			schedule = &s
+		}
+		if _, err := q.UpsertConnectorConfig(ctx, db.UpsertConnectorConfigParams{
+			ID:               id,
+			ConnectorType:    d.Type,
+			Filter:           filter,
+			Schedule:         schedule,
+			DispositionRules: rules,
+		}); err != nil {
+			return fmt.Errorf("connector %s: upsert: %w", d.ID, err)
+		}
+		if _, err := q.SetConnectorEnabled(ctx, db.SetConnectorEnabledParams{
+			ID:      id,
+			Enabled: d.Enabled,
+		}); err != nil {
+			return fmt.Errorf("connector %s: set enabled: %w", d.ID, err)
+		}
 	}
 	return nil
 }

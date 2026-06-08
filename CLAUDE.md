@@ -64,6 +64,28 @@ make down                # tears down compose volume so next up re-migrates clea
 just seed-task TITLE=hello       # insert a Task via internal/core.CreateTask
 ```
 
+## Configuration
+
+Tendant resolves config through `services/api/internal/config` (koanf + TOML).
+**Precedence (highest wins): DB overlay (`config_entries`) > environment >
+`tendant.toml` > code defaults.** File search paths: `./tendant.toml`,
+`$XDG_CONFIG_HOME/tendant/tendant.toml`, `/etc/tendant/tendant.toml` (override
+with `tendant serve --config <path>`). Env maps nested keys as
+`TENDANT_<SECTION>__<KEY>` (double underscore = dot); historical flat names
+(`DATABASE_URL`, `TENDANT_OVERSEER_PROVIDER`, …) still work via an alias table in
+`config.go`. Secrets resolve through `internal/secret` (literal env,
+`${NAME}_FILE`, systemd `CREDENTIALS_DIRECTORY`) and are redacted everywhere.
+
+- **Keys** are declared once in `internal/config/keys.go` (`Registry`), with
+  `Reload`/`Sensitive`/`DBConfigurable`/`HotReloadable` metadata. Owner-only
+  GraphQL `configKeys` / `setConfigEntry` / `deleteConfigEntry` edit the DB
+  overlay; the `config_changed` trigger drives `LISTEN/NOTIFY` hot-reload.
+- **Catalogs** (agents/tools/connectors) are file + DB (not env): `[[agents]]`,
+  `[[tools]]`, `[[connectors]]` in `tendant.toml` are reconciled into the catalog
+  tables on boot (non-destructive; falls back to the in-code default catalog).
+- See `tendant.example.toml` and the generated `docs/configuration-reference.md`
+  (regenerate with `just gen-config-docs`; CI drift-checks it).
+
 ## Testing
 
 `just test` runs `go test -race` per workspace module. Tests use testcontainers-go, so

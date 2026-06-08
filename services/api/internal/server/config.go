@@ -8,6 +8,8 @@ import (
 	"strconv"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/bcnelson/tendant/services/api/internal/secret"
 )
 
 // Config holds runtime configuration loaded from the environment.
@@ -24,7 +26,7 @@ type Config struct {
 // HTTP_ADDR defaults to :8080.
 func LoadConfig() Config {
 	return Config{
-		DatabaseURL:    os.Getenv("DATABASE_URL"),
+		DatabaseURL:    secret.Getenv("DATABASE_URL"),
 		HTTPAddr:       envOr("HTTP_ADDR", ":8080"),
 		GateCallBudget: envInt("TENDANT_GATE_CALL_BUDGET", 100),
 		AgentMaxIter:   envInt("TENDANT_AGENT_MAX_ITER", 20),

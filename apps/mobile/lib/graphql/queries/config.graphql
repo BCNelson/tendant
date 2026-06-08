@@ -1,0 +1,30 @@
+# Owner-only layered-config management. All operations are rejected for
+# non-owner principals with PERMISSION_DENIED before any DB access.
+
+query ConfigKeys {
+  configKeys {
+    key
+    type
+    description
+    reload
+    sensitive
+    dbConfigurable
+    hotReloadable
+    readonlyReason
+    defaultValue
+    effectiveValue
+    overridden
+  }
+}
+
+mutation SetConfigEntry($key: String!, $value: String!) {
+  setConfigEntry(key: $key, value: $value) {
+    key
+    effectiveValue
+    overridden
+  }
+}
+
+mutation DeleteConfigEntry($key: String!) {
+  deleteConfigEntry(key: $key)
+}

@@ -408,6 +408,12 @@ type ChainWorkflow struct {
 	EndedAt        pgtype.Timestamptz `json:"ended_at"`
 }
 
+type ConfigEntry struct {
+	Key       string          `json:"key"`
+	Value     json.RawMessage `json:"value"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
 type ConnectorConfig struct {
 	ID               uuid.UUID       `json:"id"`
 	ConnectorType    string          `json:"connector_type"`

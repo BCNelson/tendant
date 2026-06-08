@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/auth"
 	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/chain"
+	"github.com/bcnelson/tendant/services/api/internal/config"
 	"github.com/bcnelson/tendant/services/api/internal/core"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/durable"
@@ -39,7 +39,9 @@ var (
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	// A dynamic level so log.level can be changed at runtime (config overlay).
+	var logLevel slog.LevelVar // zero value = Info
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: &logLevel}))
 	slog.SetDefault(logger)
 
 	if len(os.Args) > 1 {
@@ -57,13 +59,27 @@ func main() {
 		}
 	}
 
-	if err := runServe(); err != nil {
+	if err := runServe(&logLevel); err != nil {
 		slog.Error("startup failed", "err", err)
 		os.Exit(1)
 	}
 }
 
-func runServe() error {
+// applyLogLevel sets the dynamic slog level from a config string.
+func applyLogLevel(lv *slog.LevelVar, level string) {
+	switch level {
+	case "debug":
+		lv.Set(slog.LevelDebug)
+	case "warn":
+		lv.Set(slog.LevelWarn)
+	case "error":
+		lv.Set(slog.LevelError)
+	default:
+		lv.Set(slog.LevelInfo)
+	}
+}
+
+func runServe(logLevel *slog.LevelVar) error {
 	slog.Info("tendant starting",
 		"version", version,
 		"commit", commit,
@@ -73,39 +89,73 @@ func runServe() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	cfg := server.LoadConfig()
+	// Resolve the layered config (env > file > defaults; DB overlay loaded below).
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	configPath := fs.String("config", "", "path to tendant.toml (else standard search paths)")
+	serveArgs := os.Args[1:]
+	if len(serveArgs) > 0 && serveArgs[0] == "serve" {
+		serveArgs = serveArgs[1:]
+	}
+	if err := fs.Parse(serveArgs); err != nil {
+		return fmt.Errorf("parse flags: %w", err)
+	}
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
 
 	// 1. Open pgx pool.
-	pool, err := server.OpenPool(ctx, cfg.DatabaseURL)
+	pool, err := server.OpenPool(ctx, cfg.Database.URL)
 	if err != nil {
 		return fmt.Errorf("open pool: %w", err)
 	}
 	defer pool.Close()
 
 	// 2. Migrations.
-	if err := db.Migrate(ctx, cfg.DatabaseURL); err != nil {
+	if err := db.Migrate(ctx, cfg.Database.URL); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
-	// 3. Seed owner Principal + Phase 3 tools.
+	// 2b. Config overlay (config_entries) — the DB-side override layer for
+	// db_configurable keys. Loaded after migrate (the table now exists) and kept
+	// live via LISTEN config_changed so admin edits propagate without restart.
+	overlay := config.NewOverlay(pool, slog.Default())
+	if err := overlay.Load(ctx); err != nil {
+		return fmt.Errorf("config overlay load: %w", err)
+	}
+	if err := overlay.Listen(ctx); err != nil {
+		slog.Warn("config overlay: LISTEN failed; runtime overrides won't hot-reload", "err", err)
+	}
+	defer overlay.Stop()
+
+	// Live resolver: subsystems read tunables through this so an owner's DB
+	// override takes effect without a restart (DB overlay > boot snapshot).
+	live := config.NewLive(cfg, overlay)
+	applyLogLevel(logLevel, live.LogLevel())
+	overlay.OnChange(func(key string) {
+		if key == "log.level" {
+			applyLogLevel(logLevel, live.LogLevel())
+			slog.Info("config: log level changed live", "level", live.LogLevel())
+		}
+	})
+
+	// 3. Seed owner + reconcile catalogs. The reconcilers are file/DB-driven and
+	// fall back to the in-code default catalog when the config omits a section.
 	q := db.New(pool)
 	if err := core.SeedOwner(ctx, q); err != nil {
 		return fmt.Errorf("seed owner: %w", err)
 	}
-	if err := tools.SeedSendEmail(ctx, q); err != nil {
-		return fmt.Errorf("seed send-email: %w", err)
+	if err := tools.ReconcileTools(ctx, q, cfg.Tools); err != nil {
+		return fmt.Errorf("reconcile tools: %w", err)
 	}
-	if err := tools.SeedSendEmailOverseerInstructions(ctx, q); err != nil {
-		return fmt.Errorf("seed send-email overseer instructions: %w", err)
-	}
-	if err := tools.SeedExampleGateScript(ctx, q); err != nil {
+	if err := tools.SeedExampleGateScriptIf(ctx, q, cfg.Seed.ExampleGateScript, ceilingsFromConfig(cfg)); err != nil {
 		return fmt.Errorf("seed example gate script: %w", err)
 	}
-	if err := core.SeedAgentCatalog(ctx, q); err != nil {
-		return fmt.Errorf("seed agent catalog: %w", err)
+	if err := core.ReconcileAgentCatalog(ctx, q, cfg.Agents); err != nil {
+		return fmt.Errorf("reconcile agent catalog: %w", err)
 	}
-	if err := core.SeedExampleConnector(ctx, q); err != nil {
-		return fmt.Errorf("seed example connector: %w", err)
+	if err := core.ReconcileConnectors(ctx, q, cfg.Connectors); err != nil {
+		return fmt.Errorf("reconcile connectors: %w", err)
 	}
 	ownerURI := ownerGlobalURI(ctx, q)
 
@@ -119,10 +169,12 @@ func runServe() error {
 	// and the intake threshold tuner. The Engine is injected into the tool-call
 	// workflow (outcome recording), the gate (via the resolver's grant lookup),
 	// the cancel path, and the flagOutcome mutation.
-	calibCfg := buildCalibrationConfig()
+	calibCfg := calibrationConfigFrom(cfg, overlay)
 	calibMetrics := calibration.NewMetrics(calibCfg.Maturation)
 	calibrator := calibration.New(pool, calibCfg, calibMetrics)
+	calibrator.Knobs = live // live ratio/window/min-sample/maturation/demotion
 	calibTuner := calibration.NewIntakeTuner(pool, q, calibCfg.IntakeTightenK)
+	calibTuner.KFn = live.CalibrationIntakeTightenK // live intake tightening
 	slog.Info("calibration",
 		"maturation", calibCfg.Maturation,
 		"window_n", calibCfg.WindowN,
@@ -134,11 +186,11 @@ func runServe() error {
 	)
 
 	// 4. Phase 2 setup secret + push selector.
-	if secret := os.Getenv("TENDANT_SETUP_SECRET"); secret != "" {
-		auth.SetupSecret.Arm(secret)
-		slog.Info("sessions setup_secret armed", "secret_source", "env(TENDANT_SETUP_SECRET)")
+	if setupSecret := cfg.Setup.Secret; setupSecret != "" {
+		auth.SetupSecret.Arm(setupSecret)
+		slog.Info("sessions setup_secret armed", "secret_source", "config(setup.secret)")
 	} else {
-		slog.Warn("TENDANT_SETUP_SECRET not set — device pairing disabled this boot")
+		slog.Warn("setup.secret not set — device pairing disabled this boot")
 	}
 
 	pushSel := buildPushSelector()
@@ -159,7 +211,7 @@ func runServe() error {
 	// 5b. Phase 7 intake edge: connector registry + disposition router +
 	// per-connector poll workflow. Registered before Launch so recovery and
 	// the dynamic-schedule reconciler find the function.
-	intakeWiring := buildIntakeWiring(pool, q, dctx)
+	intakeWiring := buildIntakeWiring(pool, q, dctx, cfg)
 	// Phase 8: the disposer tightens effective thresholds + reads dismissal
 	// history from the calibration tuner.
 	intakeWiring.disposer.Tuner = calibTuner
@@ -198,18 +250,17 @@ func runServe() error {
 	// (TENDANT_OVERSEER_PROVIDER). LogProvider is the deterministic default
 	// — CI uses it; production opts in to anthropic/openai. Anthropic /
 	// OpenAI provider construction lands in US4.
-	overseerProvider := buildOverseerProvider()
-	overseerModelID := os.Getenv("TENDANT_OVERSEER_MODEL_ID")
+	overseerProvider := buildOverseerProvider(cfg)
+	overseerModelID := cfg.Overseer.ModelID
 	if overseerModelID == "" {
 		overseerModelID = "log"
 	}
-	maxEvalPerTask := overseer.DefaultMaxEvalPerTask
-	if raw := os.Getenv("TENDANT_OVERSEER_MAX_EVAL_PER_TASK"); raw != "" {
-		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
-			maxEvalPerTask = n
-		}
+	maxEvalPerTask := overlay.IntOr("overseer.max_eval_per_task", cfg.Overseer.MaxEvalPerTask)
+	if maxEvalPerTask <= 0 {
+		maxEvalPerTask = overseer.DefaultMaxEvalPerTask
 	}
 	gateway := overseer.NewGateway(overseerProvider, q, maxEvalPerTask, overseerModelID)
+	gateway.MaxEvalFn = live.OverseerMaxEvalPerTask // live per-task eval cap
 	slog.Info("overseer.gateway",
 		"provider", overseerProvider.Name(),
 		"model_id", overseerModelID,
@@ -219,9 +270,9 @@ func runServe() error {
 	// 6c. Phase 5 gate-script Layer-3 evaluator. The runner is WazeroRunner in
 	// production and LogRunner in CI/tests (TENDANT_GATESCRIPT_RUNNER). The
 	// Service projects the owner's data into the six read-only host functions.
-	ceilings := gatescript.CeilingsFromEnv()
+	ceilings := ceilingsFromConfig(cfg)
 	var scriptRunner gatescript.Runner
-	switch gatescript.RunnerKind() {
+	switch cfg.Gatescript.Runner {
 	case "log":
 		scriptRunner = gatescript.NewLogRunner()
 	default:
@@ -233,7 +284,11 @@ func runServe() error {
 		scriptRunner = wr
 	}
 	scriptSvc := gatescript.NewService(scriptRunner, q, ceilings, ownerURI)
-	slog.Info("gatescript.service", "runner", gatescript.RunnerKind(),
+	scriptRunnerKind := cfg.Gatescript.Runner
+	if scriptRunnerKind == "" {
+		scriptRunnerKind = "wazero"
+	}
+	slog.Info("gatescript.service", "runner", scriptRunnerKind,
 		"max_module_bytes", ceilings.MaxModuleBytes,
 		"max_timeout_ms", ceilings.MaxTimeoutMs,
 		"max_memory_pages", ceilings.MaxMemoryPages,
@@ -241,9 +296,9 @@ func runServe() error {
 
 	// Tier-1 server-compile backend. Default: COMPILE_FAILED (the sandboxed
 	// asc-on-wazero backend is pending vendored binaries). An operator may
-	// opt into the non-sandboxed subprocess backend (TENDANT_ASC_BACKEND=
+	// opt into the non-sandboxed subprocess backend (gatescript.asc_backend=
 	// subprocess) when `asc` is on PATH — e.g. in the devenv shell.
-	if os.Getenv("TENDANT_ASC_BACKEND") == "subprocess" {
+	if cfg.Gatescript.ASCBackend == "subprocess" {
 		if comp, cerr := gatescript.NewSubprocessASCCompiler(); cerr == nil {
 			gatescript.SetASCCompiler(comp.Compile)
 			slog.Warn("gatescript.asc: subprocess backend active (compiler NOT sandboxed) — see internal/gatescript/asc.go")
@@ -258,7 +313,7 @@ func runServe() error {
 
 	// 8. HTTP server.
 	httpServer := &http.Server{
-		Addr: cfg.HTTPAddr,
+		Addr: cfg.Server.HTTPAddr,
 		Handler: server.New(pool, dctx, server.Options{
 			Dispatcher:        disp,
 			PushSelector:      pushSel,
@@ -268,18 +323,20 @@ func runServe() error {
 			ToolRegistry:      toolRegistry,
 			GateScript:        scriptSvc,
 			WebhookIngress:    webhookIngressHandler(intakeWiring.inbound),
-			OAuthCallback:     oauthCallbackHandler(intakeWiring.credStore),
+			OAuthCallback:     oauthCallbackHandler(intakeWiring.credStore, cfg),
 			ConnectorResolver: intakeWiring.connectorResolverDeps(),
 			IntakeRate:        intakeWiring.metrics,
 			Calibrator:        calibrator,
 			CalibrationRate:   calibMetrics,
+			ConfigOverlay:     overlay,
+			ConfigSnapshot:    cfg,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	serverErr := make(chan error, 1)
 	go func() {
-		slog.Info("listening", "addr", cfg.HTTPAddr)
+		slog.Info("listening", "addr", cfg.Server.HTTPAddr)
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErr <- err
 			return
@@ -320,63 +377,59 @@ func (a pushAdapter) EnqueuePush(ctx context.Context, p chain.PushJobPayload) er
 	})
 }
 
-// buildCalibrationConfig reads the Phase-8 knobs from env (research R12),
-// falling back to the conservative package defaults. Mirrors the overseer-cap
-// env pattern.
-func buildCalibrationConfig() calibration.Config {
-	cfg := calibration.DefaultConfig()
-	if raw := os.Getenv("TENDANT_CALIBRATION_MATURATION"); raw != "" {
-		if d, err := time.ParseDuration(raw); err == nil {
-			cfg.Maturation = d
-		}
+// ceilingsFromConfig maps the resolved config into the gatescript ceilings.
+func ceilingsFromConfig(cfg *config.Config) gatescript.Ceilings {
+	g := cfg.Gatescript
+	return gatescript.Ceilings{
+		MaxModuleBytes:        g.MaxModuleBytes,
+		MaxTimeoutMs:          g.MaxTimeoutMs,
+		MaxMemoryPages:        g.MaxMemoryPages,
+		CalendarMaxWindowDays: g.CalendarMaxWindowDays,
+		CompileCacheMB:        g.CompileCacheMB,
+		ASCMaxCompileMs:       g.ASCMaxCompileMs,
+		ASCMaxMemoryPages:     g.ASCMaxMemoryPages,
 	}
-	if raw := os.Getenv("TENDANT_CALIBRATION_WINDOW_N"); raw != "" {
-		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
-			cfg.WindowN = n
-		}
-	}
-	if raw := os.Getenv("TENDANT_CALIBRATION_RATIO"); raw != "" {
-		if f, err := strconv.ParseFloat(raw, 64); err == nil && f > 0 {
-			cfg.Ratio = f
-		}
-	}
-	if raw := os.Getenv("TENDANT_CALIBRATION_MIN_SAMPLE"); raw != "" {
-		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
-			cfg.MinSample = n
-		}
-	}
-	if raw := os.Getenv("TENDANT_CALIBRATION_DEMOTION_DECREMENT"); raw != "" {
-		if f, err := strconv.ParseFloat(raw, 64); err == nil && f > 0 {
-			cfg.DemotionDecrement = f
-		}
-	}
-	if raw := os.Getenv("TENDANT_CALIBRATION_SWEEP_CRON"); raw != "" {
-		cfg.SweepCron = raw
-	}
-	if raw := os.Getenv("TENDANT_CALIBRATION_INTAKE_TIGHTEN_K"); raw != "" {
-		if f, err := strconv.ParseFloat(raw, 64); err == nil && f >= 0 {
-			cfg.IntakeTightenK = f
-		}
-	}
-	return cfg
 }
 
-// buildOverseerProvider selects the active overseer Provider from
-// TENDANT_OVERSEER_PROVIDER at boot. The choice is intentionally NOT
-// addressable at runtime — agents cannot reroute inference. Empty /
-// "log" → deterministic LogProvider (CI default + production fallback
-// if real-provider creds are missing).
-func buildOverseerProvider() overseer.Provider {
-	switch os.Getenv("TENDANT_OVERSEER_PROVIDER") {
+// calibrationConfigFrom maps the resolved config into the Phase-8 calibration
+// Config. The DB overlay wins for the db_configurable hot knobs (so an admin
+// override applies from this boot), else the env/file/default snapshot value.
+func calibrationConfigFrom(cfg *config.Config, ov *config.Overlay) calibration.Config {
+	c := cfg.Calibration
+	return calibration.Config{
+		Maturation:        c.Maturation,
+		WindowN:           c.WindowN,
+		Ratio:             ov.Float64Or("calibration.ratio", c.Ratio),
+		MinSample:         ov.IntOr("calibration.min_sample", c.MinSample),
+		DemotionDecrement: ov.Float64Or("calibration.demotion_decrement", c.DemotionDecrement),
+		SweepCron:         c.SweepCron,
+		IntakeTightenK:    ov.Float64Or("calibration.intake_tighten_k", c.IntakeTightenK),
+	}
+}
+
+// buildOverseerProvider selects the active overseer Provider from config at
+// boot. The choice is intentionally NOT addressable at runtime — agents cannot
+// reroute inference. Empty / "log" → deterministic LogProvider (CI default +
+// production fallback if real-provider creds are missing).
+func buildOverseerProvider(cfg *config.Config) overseer.Provider {
+	switch cfg.Overseer.Provider {
 	case "anthropic":
-		p, err := overseer.NewAnthropicProviderFromEnv()
+		p, err := overseer.NewAnthropicProvider(overseer.AnthropicConfig{
+			APIKey:  cfg.Overseer.Anthropic.APIKey,
+			BaseURL: cfg.Overseer.Anthropic.BaseURL,
+			ModelID: cfg.Overseer.ModelID,
+		})
 		if err != nil {
 			slog.Error("overseer: anthropic provider construction failed; falling back to LogProvider", "err", err)
 			return overseer.NewLogProvider()
 		}
 		return p
 	case "openai":
-		p, err := overseer.NewOpenAIProviderFromEnv()
+		p, err := overseer.NewOpenAIProvider(overseer.OpenAIConfig{
+			APIKey:  cfg.Overseer.OpenAI.APIKey,
+			BaseURL: cfg.Overseer.OpenAI.BaseURL,
+			ModelID: cfg.Overseer.ModelID,
+		})
 		if err != nil {
 			slog.Error("overseer: openai provider construction failed; falling back to LogProvider", "err", err)
 			return overseer.NewLogProvider()
@@ -415,19 +468,23 @@ func runSeed(args []string) error {
 	fs := flag.NewFlagSet("seed", flag.ExitOnError)
 	title := fs.String("title", "hello", "task title")
 	description := fs.String("description", "", "task description (optional)")
+	configPath := fs.String("config", "", "path to tendant.toml (else standard search paths)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	cfg := server.LoadConfig()
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
 	ctx := context.Background()
-	pool, err := server.OpenPool(ctx, cfg.DatabaseURL)
+	pool, err := server.OpenPool(ctx, cfg.Database.URL)
 	if err != nil {
 		return fmt.Errorf("open pool: %w", err)
 	}
 	defer pool.Close()
 
-	if err := db.Migrate(ctx, cfg.DatabaseURL); err != nil {
+	if err := db.Migrate(ctx, cfg.Database.URL); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
 	if err := core.SeedOwner(ctx, db.New(pool)); err != nil {

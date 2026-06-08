@@ -11,6 +11,7 @@ import (
 
 	"github.com/bcnelson/tendant/services/api/internal/auth"
 	"github.com/bcnelson/tendant/services/api/internal/calibration"
+	"github.com/bcnelson/tendant/services/api/internal/config"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/overseer"
@@ -39,4 +40,10 @@ type Resolver struct {
 	ScriptEvaluator gatescript.ScriptEvaluator
 	Connectors      ConnectorDeps       // Phase 7 — owner connector mutations
 	Calibrator      *calibration.Engine // Phase 8 — flagOutcome + cancel demotion; nil in pre-Phase-8 tests
+
+	// Layered config — admin configKeys/setConfigEntry. ConfigOverlay is the
+	// DB-side override cache (nil-safe); ConfigSnapshot is the boot env/file/default
+	// resolution used to report effective values. Both nil in pre-config tests.
+	ConfigOverlay  *config.Overlay
+	ConfigSnapshot *config.Config
 }

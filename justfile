@@ -71,7 +71,13 @@ tidy:
 generate:
     cd services/api && sqlc generate
     cd services/api && go run github.com/99designs/gqlgen generate
+    just gen-config-docs
     just sync-flutter-schema
+
+# Regenerate the config reference from internal/config/keys.go (committed; CI
+# checks drift).
+gen-config-docs:
+    cd services/api && go run ./cmd/gen-config-docs ../../docs/configuration-reference.md
 
 # Mirror the live GraphQL schema into the Flutter app for ferry codegen.
 # CI runs the same and asserts no diff (drift gate).
