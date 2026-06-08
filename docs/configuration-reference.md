@@ -101,6 +101,7 @@ systemd `CREDENTIALS_DIRECTORY`).
 |---|---|---|---|---|---|
 | `overseer.anthropic.api_key` 🔒 | string | — | — | bootstrap | Anthropic API key |
 | `overseer.anthropic.base_url` | string | `https://api.anthropic.com` | — | bootstrap | Anthropic base URL |
+| `overseer.connection` | string | `` | — | bootstrap | Name of an [[llm_connections]] entry the overseer uses (empty ⇒ legacy overseer.provider) |
 | `overseer.log_deny_pattern` | string | `` | yes | restart | LogProvider deny regexp (CI/testing) |
 | `overseer.max_eval_per_task` | int | `50` | yes | hot | Per-task overseer evaluation cap (fail-closed beyond) |
 | `overseer.model_id` | string | `log` | — | bootstrap | Overseer model identifier |

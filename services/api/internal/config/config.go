@@ -52,6 +52,13 @@ type Config struct {
 	Agents     []AgentDef     `koanf:"agents"`
 	Tools      []ToolDef      `koanf:"tools"`
 	Connectors []ConnectorDef `koanf:"connectors"`
+
+	// LLMConnections — file-defined named model endpoints (the internal/llm
+	// registry). Many connections of the same provider are allowed (e.g. two
+	// OpenAI-compatible backends). Boot-fixed: inference routing is not
+	// runtime-addressable. Secrets resolve via ${env:...}/${file:...}
+	// interpolation in the connection's credential fields.
+	LLMConnections []ConnectionDef `koanf:"llm_connections"`
 }
 
 // ServerConfig holds HTTP server settings.
@@ -82,6 +89,10 @@ type AgentRunnerConfig struct {
 
 // OverseerConfig holds the Phase-4 overseer (LLM grader) settings.
 type OverseerConfig struct {
+	// Connection, when set, names an [[llm_connections]] entry the overseer
+	// uses — the multi-connection path. When empty, the legacy
+	// Provider/ModelID/Anthropic/OpenAI fields select the provider.
+	Connection     string             `koanf:"connection"`
 	Provider       string             `koanf:"provider"`
 	ModelID        string             `koanf:"model_id"`
 	MaxEvalPerTask int                `koanf:"max_eval_per_task"`
@@ -162,6 +173,25 @@ type ToolDef struct {
 	Permissions          map[string]any `koanf:"permissions"`
 }
 
+// ConnectionDef is a file-definable named model endpoint (the internal/llm
+// registry). Credential fields accept ${env:NAME} / ${file:PATH} interpolation
+// (see interpolate.go), so secrets need never be inlined — e.g.
+// api_key = "${env:OPENAI_API_KEY}" or api_key = "${file:/run/secrets/openai}".
+type ConnectionDef struct {
+	Name     string `koanf:"name"`
+	Provider string `koanf:"provider"` // openai | anthropic | gemini | bedrock | log
+	BaseURL  string `koanf:"base_url"`
+	Model    string `koanf:"model"`
+
+	APIKey string `koanf:"api_key"`
+
+	// Bedrock (AWS SigV4).
+	Region          string `koanf:"region"`
+	AccessKeyID     string `koanf:"access_key_id"`
+	SecretAccessKey string `koanf:"secret_access_key"`
+	SessionToken    string `koanf:"session_token"`
+}
+
 // ConnectorDef is a file/DB-definable connector (reconciled into connector_configs).
 type ConnectorDef struct {
 	ID               string         `koanf:"id"`
@@ -183,13 +213,24 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("config: load defaults: %w", err)
 	}
 
-	// 2. Config file (TOML).
+	// 2. Config file (TOML). File-sourced values get ${env:...}/${file:...}
+	//    interpolation (see interpolate.go); env/defaults pass through raw so a
+	//    value that legitimately contains "${" is never mangled.
 	path := configPath
 	if path == "" {
 		path = findConfigFile()
 	}
 	if path != "" {
-		if err := k.Load(file.Provider(path), toml.Parser()); err != nil {
+		fileK := koanf.New(".")
+		if err := fileK.Load(file.Provider(path), toml.Parser()); err != nil {
+			return nil, fmt.Errorf("config: load file %s: %w", path, err)
+		}
+		resolved, err := interpolate(fileK.Raw(), filepath.Dir(path))
+		if err != nil {
+			return nil, fmt.Errorf("config: interpolate %s: %w", path, err)
+		}
+		rmap, _ := resolved.(map[string]any)
+		if err := k.Load(confmap.Provider(rmap, "."), nil); err != nil {
 			return nil, fmt.Errorf("config: load file %s: %w", path, err)
 		}
 	}
@@ -230,6 +271,7 @@ var legacyAliases = []aliasEntry{
 	{Env: "HTTP_ADDR", Key: "server.http_addr"},
 	{Env: "TENDANT_GATE_CALL_BUDGET", Key: "gate.call_budget"},
 	{Env: "TENDANT_AGENT_MAX_ITER", Key: "agent.max_iter"},
+	{Env: "TENDANT_OVERSEER_CONNECTION", Key: "overseer.connection"},
 	{Env: "TENDANT_OVERSEER_PROVIDER", Key: "overseer.provider"},
 	{Env: "TENDANT_OVERSEER_MODEL_ID", Key: "overseer.model_id"},
 	{Env: "TENDANT_OVERSEER_MAX_EVAL_PER_TASK", Key: "overseer.max_eval_per_task"},

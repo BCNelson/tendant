@@ -25,6 +25,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/durable"
 	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/intake"
+	"github.com/bcnelson/tendant/services/api/internal/llm"
 	"github.com/bcnelson/tendant/services/api/internal/overseer"
 	"github.com/bcnelson/tendant/services/api/internal/push"
 	"github.com/bcnelson/tendant/services/api/internal/realtime"
@@ -250,8 +251,8 @@ func runServe(logLevel *slog.LevelVar) error {
 	// (TENDANT_OVERSEER_PROVIDER). LogProvider is the deterministic default
 	// — CI uses it; production opts in to anthropic/openai. Anthropic /
 	// OpenAI provider construction lands in US4.
-	overseerProvider := buildOverseerProvider(cfg)
-	overseerModelID := cfg.Overseer.ModelID
+	llmRegistry := buildLLMRegistry(cfg)
+	overseerProvider, overseerModelID := buildOverseerProvider(cfg, llmRegistry)
 	if overseerModelID == "" {
 		overseerModelID = "log"
 	}
@@ -408,10 +409,23 @@ func calibrationConfigFrom(cfg *config.Config, ov *config.Overlay) calibration.C
 }
 
 // buildOverseerProvider selects the active overseer Provider from config at
-// boot. The choice is intentionally NOT addressable at runtime — agents cannot
-// reroute inference. Empty / "log" → deterministic LogProvider (CI default +
-// production fallback if real-provider creds are missing).
-func buildOverseerProvider(cfg *config.Config) overseer.Provider {
+// boot, returning the provider and its model id (for audit + cost lookups). The
+// choice is intentionally NOT addressable at runtime — agents cannot reroute
+// inference. Precedence: a named [[llm_connections]] entry (overseer.connection)
+// wins; otherwise the legacy overseer.provider switch applies. Empty / "log" /
+// any failure → deterministic LogProvider (CI default + production fallback if
+// real-provider creds are missing).
+func buildOverseerProvider(cfg *config.Config, reg *llm.Registry) (overseer.Provider, string) {
+	if name := cfg.Overseer.Connection; name != "" {
+		client, ok := reg.Get(name)
+		if !ok {
+			slog.Error("overseer: connection not found in llm_connections; falling back to LogProvider", "connection", name)
+			return overseer.NewLogProvider(), "log"
+		}
+		slog.Info("overseer: using llm connection", "connection", name, "provider", client.Provider(), "model", client.Model())
+		return overseer.NewLLMProvider(client.Provider(), client), client.Model()
+	}
+
 	switch cfg.Overseer.Provider {
 	case "anthropic":
 		p, err := overseer.NewAnthropicProvider(overseer.AnthropicConfig{
@@ -421,9 +435,9 @@ func buildOverseerProvider(cfg *config.Config) overseer.Provider {
 		})
 		if err != nil {
 			slog.Error("overseer: anthropic provider construction failed; falling back to LogProvider", "err", err)
-			return overseer.NewLogProvider()
+			return overseer.NewLogProvider(), "log"
 		}
-		return p
+		return p, cfg.Overseer.ModelID
 	case "openai":
 		p, err := overseer.NewOpenAIProvider(overseer.OpenAIConfig{
 			APIKey:  cfg.Overseer.OpenAI.APIKey,
@@ -432,11 +446,11 @@ func buildOverseerProvider(cfg *config.Config) overseer.Provider {
 		})
 		if err != nil {
 			slog.Error("overseer: openai provider construction failed; falling back to LogProvider", "err", err)
-			return overseer.NewLogProvider()
+			return overseer.NewLogProvider(), "log"
 		}
-		return p
+		return p, cfg.Overseer.ModelID
 	default:
-		return overseer.NewLogProvider()
+		return overseer.NewLogProvider(), "log"
 	}
 }
 

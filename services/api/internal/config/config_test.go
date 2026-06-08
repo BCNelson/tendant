@@ -65,6 +65,99 @@ eligibility = "{}"
 	}
 }
 
+func TestLoad_LLMConnectionsAndOverseerConnection(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "tendant.toml")
+	content := `
+[overseer]
+connection = "claude"
+
+[[llm_connections]]
+name = "claude"
+provider = "anthropic"
+model = "claude-sonnet-4-6"
+api_key = "literal-key"
+
+[[llm_connections]]
+name = "local-ollama"
+provider = "openai"
+base_url = "http://localhost:11434"
+model = "llama3.1"
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Overseer.Connection != "claude" {
+		t.Errorf("Overseer.Connection = %q, want claude", cfg.Overseer.Connection)
+	}
+	if len(cfg.LLMConnections) != 2 {
+		t.Fatalf("LLMConnections = %d, want 2", len(cfg.LLMConnections))
+	}
+	if cfg.LLMConnections[0].Name != "claude" || cfg.LLMConnections[0].APIKey != "literal-key" {
+		t.Errorf("conn[0] = %+v", cfg.LLMConnections[0])
+	}
+	// Two connections of the same protocol must coexist (multi-OpenAI-compatible).
+	if cfg.LLMConnections[1].Provider != "openai" || cfg.LLMConnections[1].BaseURL != "http://localhost:11434" {
+		t.Errorf("conn[1] = %+v", cfg.LLMConnections[1])
+	}
+}
+
+func TestLoad_Interpolation_EnvAndFile(t *testing.T) {
+	dir := t.TempDir()
+
+	// A secret delivered as a file (sops-nix / agenix / k8s style).
+	keyFile := filepath.Join(dir, "anthropic.key")
+	if err := os.WriteFile(keyFile, []byte("file-secret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MY_OPENAI_KEY", "env-secret")
+
+	path := filepath.Join(dir, "tendant.toml")
+	content := `
+[[llm_connections]]
+name = "claude"
+provider = "anthropic"
+api_key = "${file:` + keyFile + `}"
+
+[[llm_connections]]
+name = "gpt"
+provider = "openai"
+api_key = "${env:MY_OPENAI_KEY}"
+model = "${env:MY_MODEL:-gpt-4.1-mini}"
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.LLMConnections[0].APIKey != "file-secret" {
+		t.Errorf("file interpolation = %q, want file-secret", cfg.LLMConnections[0].APIKey)
+	}
+	if cfg.LLMConnections[1].APIKey != "env-secret" {
+		t.Errorf("env interpolation = %q, want env-secret", cfg.LLMConnections[1].APIKey)
+	}
+	if cfg.LLMConnections[1].Model != "gpt-4.1-mini" {
+		t.Errorf("env default = %q, want gpt-4.1-mini", cfg.LLMConnections[1].Model)
+	}
+}
+
+func TestLoad_Interpolation_UnsetEnvIsError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "tendant.toml")
+	if err := os.WriteFile(path, []byte("[server]\nhttp_addr = \"${env:TENDANT_UNSET_XYZ}\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("expected error for unset env interpolation")
+	}
+}
+
 func TestLoad_EnvOverridesFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "tendant.toml")

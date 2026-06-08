@@ -23,6 +23,12 @@ var pricing = map[string]map[string]ModelPricing{
 	"openai": {
 		"gpt-4.1-mini": {CentsPerMillionInput: 40, CentsPerMillionOutput: 160},
 	},
+	"gemini": {
+		"gemini-2.0-flash": {CentsPerMillionInput: 10, CentsPerMillionOutput: 40},
+	},
+	"bedrock": {
+		"anthropic.claude-3-5-sonnet-20241022-v2:0": {CentsPerMillionInput: 300, CentsPerMillionOutput: 1500},
+	},
 }
 
 // EstimateCostUSD returns the estimated cost in USD for one evaluation.

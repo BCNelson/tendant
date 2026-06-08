@@ -11,8 +11,16 @@
 # dot), e.g. TENDANT_OVERSEER__PROVIDER=anthropic. The historical flat names
 # (DATABASE_URL, TENDANT_OVERSEER_PROVIDER, ...) also still work.
 #
-# Secrets (🔒) are best supplied via env / ${NAME}_FILE / systemd
-# CREDENTIALS_DIRECTORY rather than this file — see docs/configuration-reference.md.
+# Secrets (🔒) are best supplied via interpolation rather than inlined here.
+# Any value in this file may reference:
+#   ${env:NAME}            value of env var NAME (also honors NAME_FILE and the
+#                          systemd CREDENTIALS_DIRECTORY drop)
+#   ${env:NAME:-default}   NAME, or `default` if unset
+#   ${file:/path/to/secret}    contents of a file (sops-nix / agenix / k8s),
+#                              relative paths resolve from this file's directory
+#   ${file:${env:NAME_FILE}}   nested: the path itself comes from an env var
+# Use $$ for a literal $. Interpolation applies only to values from this file
+# (env-delivered values pass through untouched). See docs/configuration-reference.md.
 
 [server]
 # http_addr = ":8080"
@@ -31,18 +39,62 @@
 # max_iter = 20         # per-stage max agent loop iterations
 
 [overseer]
+# Two ways to choose the overseer's model:
+#  (1) connection = "<name>"  — reference a named [[llm_connections]] entry below
+#      (the multi-connection path; supports anthropic | openai | gemini | bedrock).
+#  (2) the legacy provider/model_id + [overseer.anthropic|openai] blocks.
+# When `connection` is set it wins. Inference routing is boot-only either way.
+# connection = ""
 # provider = "log"      # anthropic | openai | log   (boot-only)
 # model_id = "log"
 # max_eval_per_task = 50
 # log_deny_pattern = ""
 
 # [overseer.anthropic]
-# api_key = ""          # 🔒 prefer TENDANT_OVERSEER_ANTHROPIC_API_KEY
+# api_key = "${env:TENDANT_OVERSEER_ANTHROPIC_API_KEY}"   # 🔒
 # base_url = "https://api.anthropic.com"
 
 # [overseer.openai]
-# api_key = ""          # 🔒 prefer TENDANT_OVERSEER_OPENAI_API_KEY
+# api_key = "${env:TENDANT_OVERSEER_OPENAI_API_KEY}"      # 🔒
 # base_url = "https://api.openai.com"
+
+# Named model endpoints (the internal/llm registry). Define as many as you like,
+# including several of the same provider (e.g. two OpenAI-compatible backends).
+# Reference one from overseer.connection above. Put secrets in via ${env:...} or
+# ${file:...} — never inline a real key.
+#
+# [[llm_connections]]
+# name = "claude"
+# provider = "anthropic"                 # openai | anthropic | gemini | bedrock | log
+# model = "claude-sonnet-4-6"
+# api_key = "${env:TENDANT_OVERSEER_ANTHROPIC_API_KEY}"   # 🔒
+#
+# [[llm_connections]]
+# name = "gpt"
+# provider = "openai"
+# model = "gpt-4.1-mini"
+# api_key = "${file:/run/secrets/openai-key}"             # 🔒 file-based secret
+#
+# [[llm_connections]]
+# name = "local-ollama"                  # any OpenAI-compatible endpoint
+# provider = "openai"
+# base_url = "http://localhost:11434"
+# model = "llama3.1"
+#
+# [[llm_connections]]
+# name = "gemini"
+# provider = "gemini"
+# model = "gemini-2.0-flash"
+# api_key = "${env:GEMINI_API_KEY}"      # 🔒
+#
+# [[llm_connections]]
+# name = "bedrock-claude"                # Anthropic-family models on AWS Bedrock
+# provider = "bedrock"
+# region = "us-east-1"
+# model = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+# access_key_id = "${env:AWS_ACCESS_KEY_ID}"          # 🔒
+# secret_access_key = "${file:/run/secrets/aws-secret}"  # 🔒
+# session_token = "${env:AWS_SESSION_TOKEN:-}"        # 🔒 optional (STS)
 
 [gatescript]
 # runner = "wazero"     # wazero | log   (boot-only)

@@ -46,6 +46,7 @@ var Registry = []KeyDef{
 	{Key: "agent.max_iter", Type: "int", Default: 20, Description: "Per-stage max agent loop iterations", Reload: ReloadHot, DBConfigurable: true, HotReloadable: false},
 
 	// Overseer — provider selection is boot-only (agents cannot reroute inference).
+	{Key: "overseer.connection", Type: "string", Default: "", Description: "Name of an [[llm_connections]] entry the overseer uses (empty ⇒ legacy overseer.provider)", Reload: ReloadBootstrap, DBConfigurable: false, ReadonlyReason: "Inference routing is fixed at boot (no self-escalation)"},
 	{Key: "overseer.provider", Type: "string", Default: "log", Description: "Overseer provider: anthropic, openai, log", Reload: ReloadBootstrap, DBConfigurable: false, ReadonlyReason: "Inference routing is fixed at boot (no self-escalation)"},
 	{Key: "overseer.model_id", Type: "string", Default: "log", Description: "Overseer model identifier", Reload: ReloadBootstrap, DBConfigurable: false, ReadonlyReason: "Inference routing is fixed at boot"},
 	{Key: "overseer.max_eval_per_task", Type: "int", Default: 50, Description: "Per-task overseer evaluation cap (fail-closed beyond)", Reload: ReloadHot, DBConfigurable: true, HotReloadable: true},

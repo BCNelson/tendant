@@ -1,6 +1,11 @@
 package agent
 
-import "context"
+import (
+	"context"
+	"fmt"
+
+	"github.com/bcnelson/tendant/services/api/internal/llm"
+)
 
 // AgentModelClient is the multi-turn tool-use interface for the agent runner.
 // Implementations wrap the same Provider HTTP infrastructure (Anthropic, OpenAI)
@@ -47,15 +52,34 @@ type ToolCall struct {
 	Payload string // JSON payload for the tool
 }
 
-// NewAgentModelClient creates the appropriate client based on provider name.
-// Supported: "log" (deterministic), "anthropic", "openai".
+// NewAgentModelClient creates a client for a simple (provider, apiKey, model)
+// triple. Real providers ("anthropic", "openai", "gemini") delegate transport
+// to internal/llm; anything else (including "log" and the empty string) returns
+// the deterministic LogAgentClient. Providers that need more than an API key
+// (e.g. bedrock) are only reachable via NewAgentClientFromConnection.
 func NewAgentModelClient(provider, apiKey, modelID string) AgentModelClient {
 	switch provider {
-	case "anthropic":
-		return &AnthropicClient{APIKey: apiKey, DefaultModel: modelID}
-	case "openai":
-		return &OpenAIClient{APIKey: apiKey, DefaultModel: modelID}
+	case "anthropic", "openai", "gemini":
+		client, err := llm.NewClient(llm.Connection{Provider: provider, APIKey: apiKey, Model: modelID})
+		if err != nil {
+			return &LogAgentClient{}
+		}
+		return NewLLMAgentClient(client)
 	default:
 		return &LogAgentClient{}
 	}
+}
+
+// NewAgentClientFromConnection builds an AgentModelClient from a fully-specified
+// llm.Connection (the registry path), supporting every provider including
+// bedrock. An unknown provider falls back to the deterministic LogAgentClient.
+func NewAgentClientFromConnection(conn llm.Connection) (AgentModelClient, error) {
+	if conn.Provider == "log" || conn.Provider == "" {
+		return &LogAgentClient{}, nil
+	}
+	client, err := llm.NewClient(conn)
+	if err != nil {
+		return nil, fmt.Errorf("agent: build model client for %q: %w", conn.Name, err)
+	}
+	return NewLLMAgentClient(client), nil
 }
