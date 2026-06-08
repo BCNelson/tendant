@@ -32,6 +32,17 @@ type Proposal struct {
 	Evidence    lifecycle.PromotionEvidence
 }
 
+// Knobs supplies the calibration tunables at read time, so an owner's DB
+// override takes effect without a restart. *config.Live satisfies it
+// structurally. When an Engine's Knobs is nil it falls back to the boot Config.
+type Knobs interface {
+	CalibrationMaturation() time.Duration
+	CalibrationWindowN() int
+	CalibrationRatio() float64
+	CalibrationMinSample() int
+	CalibrationDemotionDecrement() float64
+}
+
 // Engine is the concrete Calibrator. It owns the pool + config + metrics; the
 // recording methods ride the caller's tx, the proposal/flag methods open their
 // own.
@@ -40,6 +51,9 @@ type Engine struct {
 	cfg     Config
 	metrics *Metrics
 	now     func() time.Time
+
+	// Knobs, when set, supplies the tunables live (DB overlay > boot). nil ⇒ cfg.
+	Knobs Knobs
 }
 
 var _ Calibrator = (*Engine)(nil)
@@ -50,8 +64,48 @@ func New(pool *pgxpool.Pool, cfg Config, metrics *Metrics) *Engine {
 }
 
 // Config exposes the engine's knobs (read-only) for callers that need the
-// maturation window etc. (e.g. /healthz).
-func (e *Engine) Config() Config { return e.cfg }
+// maturation window etc. (e.g. /healthz). Reflects live overrides when Knobs is set.
+func (e *Engine) Config() Config {
+	c := e.cfg
+	c.Maturation = e.maturation()
+	c.WindowN = e.windowN()
+	c.Ratio = e.ratio()
+	c.MinSample = e.minSample()
+	c.DemotionDecrement = e.demotionDecrement()
+	return c
+}
+
+// Live knob accessors — read through Knobs when present, else the boot cfg.
+func (e *Engine) maturation() time.Duration {
+	if e.Knobs != nil {
+		return e.Knobs.CalibrationMaturation()
+	}
+	return e.cfg.Maturation
+}
+func (e *Engine) windowN() int {
+	if e.Knobs != nil {
+		return e.Knobs.CalibrationWindowN()
+	}
+	return e.cfg.WindowN
+}
+func (e *Engine) ratio() float64 {
+	if e.Knobs != nil {
+		return e.Knobs.CalibrationRatio()
+	}
+	return e.cfg.Ratio
+}
+func (e *Engine) minSample() int {
+	if e.Knobs != nil {
+		return e.Knobs.CalibrationMinSample()
+	}
+	return e.cfg.MinSample
+}
+func (e *Engine) demotionDecrement() float64 {
+	if e.Knobs != nil {
+		return e.Knobs.CalibrationDemotionDecrement()
+	}
+	return e.cfg.DemotionDecrement
+}
 
 func (e *Engine) clock() time.Time {
 	if e.now != nil {
@@ -88,7 +142,7 @@ func (e *Engine) insertOutcome(ctx context.Context, tx pgx.Tx, in OutcomeInput, 
 		at = e.clock()
 	}
 	fp := Fingerprint(in.ToolGlobalURI, in.Payload)
-	matured := pgtype.Timestamptz{Time: at.Add(e.cfg.Maturation), Valid: true}
+	matured := pgtype.Timestamptz{Time: at.Add(e.maturation()), Valid: true}
 	q := db.New(tx)
 	out, err := q.InsertToolOutcome(ctx, db.InsertToolOutcomeParams{
 		ToolID:             in.ToolID,
@@ -114,7 +168,7 @@ func (e *Engine) demote(ctx context.Context, tx pgx.Tx, toolID, taskID uuid.UUID
 		return 0, fmt.Errorf("lock tool %s: %w", toolID, err)
 	}
 	oldScore := tool.TrustScore
-	newScore := Demote(oldScore, e.cfg.DemotionDecrement)
+	newScore := Demote(oldScore, e.demotionDecrement())
 
 	if _, err := q.SetTrustScore(ctx, db.SetTrustScoreParams{
 		ID:         toolID,
@@ -201,7 +255,7 @@ func (e *Engine) FlagBad(ctx context.Context, taskID, toolID uuid.UUID, reason s
 		}
 
 		at := e.clock()
-		matured := pgtype.Timestamptz{Time: at.Add(e.cfg.Maturation), Valid: true}
+		matured := pgtype.Timestamptz{Time: at.Add(e.maturation()), Valid: true}
 		var fpInsert *string
 		if fp != "" {
 			fpInsert = &fp
@@ -291,17 +345,17 @@ func (e *Engine) MaybeProposePromotion(ctx context.Context, toolID uuid.UUID, fi
 	ratioRow, err := q.MaturedCleanRatioByRoutine(ctx, db.MaturedCleanRatioByRoutineParams{
 		ToolID:             toolID,
 		RoutineFingerprint: &fingerprint,
-		WindowN:            int32(e.cfg.WindowN),
+		WindowN:            int32(e.windowN()),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("matured-clean ratio: %w", err)
 	}
 	total := int(ratioRow.Total)
 	clean := int(ratioRow.Clean)
-	if total < e.cfg.MinSample {
+	if total < e.minSample() {
 		return nil, nil
 	}
-	if float64(clean)/float64(total) < e.cfg.Ratio {
+	if float64(clean)/float64(total) < e.ratio() {
 		return nil, nil
 	}
 
@@ -343,10 +397,10 @@ func (e *Engine) MaybeProposePromotion(ctx context.Context, toolID uuid.UUID, fi
 		Evidence: lifecycle.PromotionEvidence{
 			Routine:            routineLabel(tool.GlobalUri, fingerprint),
 			RoutineFingerprint: fingerprint,
-			WindowN:            e.cfg.WindowN,
+			WindowN:            e.windowN(),
 			MaturedClean:       clean,
 			Ratio:              float64(clean) / float64(total),
-			MinSample:          e.cfg.MinSample,
+			MinSample:          e.minSample(),
 		},
 	}, nil
 }

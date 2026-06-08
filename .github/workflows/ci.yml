@@ -42,6 +42,14 @@ jobs:
             echo "::error::Generated code is out of date. Run 'just generate' locally and commit."
             exit 1
           fi
+      - name: Regenerate config reference, fail on drift
+        working-directory: services/api
+        run: |
+          go run ./cmd/gen-config-docs ../../docs/configuration-reference.md
+          if ! git diff --exit-code -- ../../docs/configuration-reference.md; then
+            echo "::error::docs/configuration-reference.md is out of date. Run 'just gen-config-docs' and commit."
+            exit 1
+          fi
 
   flutter-schema-mirror:
     runs-on: ubuntu-latest

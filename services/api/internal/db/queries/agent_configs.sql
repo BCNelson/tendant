@@ -23,3 +23,16 @@ WHERE name = @name AND stage = @stage;
 INSERT INTO agent_configs (name, stage, is_human, system_prompt, model, tool_allowlist, eligibility, origin, version)
 VALUES (@name, @stage, @is_human, @system_prompt, @model, @tool_allowlist, @eligibility, @origin, @version)
 RETURNING id, name, stage, is_human, system_prompt, model, tool_allowlist, eligibility, origin, version;
+
+-- name: UpdateAgentConfigByNameAndStage :one
+-- Used by the file-driven catalog reconciler to apply an override to an existing
+-- (name, stage) row. Bumps version so the change is observable.
+UPDATE agent_configs
+SET is_human       = @is_human,
+    system_prompt  = @system_prompt,
+    model          = @model,
+    tool_allowlist = @tool_allowlist,
+    eligibility    = @eligibility,
+    version        = version + 1
+WHERE name = @name AND stage = @stage
+RETURNING id, name, stage, is_human, system_prompt, model, tool_allowlist, eligibility, origin, version;

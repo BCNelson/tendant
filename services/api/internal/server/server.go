@@ -19,6 +19,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/graph"
 	"github.com/bcnelson/tendant/services/api/internal/auth"
 	"github.com/bcnelson/tendant/services/api/internal/calibration"
+	"github.com/bcnelson/tendant/services/api/internal/config"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/overseer"
@@ -47,6 +48,8 @@ type Options struct {
 	IntakeRate        IntakeRateProvider      // /healthz intake counters (nil ⇒ block omitted)
 	CalibrationRate   CalibrationRateProvider // /healthz calibration counters (nil ⇒ block omitted)
 	Calibrator        *calibration.Engine     // Phase 8 — flagOutcome + cancel demotion
+	ConfigOverlay     *config.Overlay         // Layered config — DB override cache
+	ConfigSnapshot    *config.Config          // Layered config — boot env/file/default snapshot
 }
 
 // New builds the chi router with the gqlgen handler mounted at /graphql,
@@ -72,6 +75,8 @@ func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 		ScriptEvaluator: opts.GateScript,
 		Connectors:      opts.ConnectorResolver,
 		Calibrator:      opts.Calibrator,
+		ConfigOverlay:   opts.ConfigOverlay,
+		ConfigSnapshot:  opts.ConfigSnapshot,
 	}
 
 	// Mount /graphql with auth.Middleware applied via With() so that both

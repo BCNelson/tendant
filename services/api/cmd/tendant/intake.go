@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/bcnelson/tendant/services/api/graph"
+	"github.com/bcnelson/tendant/services/api/internal/config"
 	"github.com/bcnelson/tendant/services/api/internal/connector"
 	"github.com/bcnelson/tendant/services/api/internal/crypto"
 	"github.com/bcnelson/tendant/services/api/internal/db"
@@ -39,7 +39,7 @@ type intakeWiring struct {
 // disposition router, and the credential store. The credential store is nil
 // when TENDANT_CREDENTIALS_KEY is unset — credentialed connectors then surface
 // the gap rather than crashing boot (zero-credential connectors still work).
-func buildIntakeWiring(pool *pgxpool.Pool, q *db.Queries, dctx dbos.DBOSContext) intakeWiring {
+func buildIntakeWiring(pool *pgxpool.Pool, q *db.Queries, dctx dbos.DBOSContext, cfg *config.Config) intakeWiring {
 	inbound := &connector.MemoryInboundQueue{}
 	registry := connector.NewRegistry()
 	connector.RegisterBaseSet(registry, inbound)
@@ -56,17 +56,17 @@ func buildIntakeWiring(pool *pgxpool.Pool, q *db.Queries, dctx dbos.DBOSContext)
 	}
 
 	var credStore *intake.SealedCredentialStore
-	if sealer, err := crypto.NewFromEnv(); err == nil {
+	if sealer, err := crypto.NewFromBase64(cfg.Credentials.Key); err == nil {
 		credStore = intake.NewSealedCredentialStore(q, sealer)
 	} else {
-		slog.Warn("intake: TENDANT_CREDENTIALS_KEY not set — credentialed connectors (gmail) cannot poll", "err", err)
+		slog.Warn("intake: credentials.key not set — credentialed connectors (gmail) cannot poll", "err", err)
 	}
 
 	return intakeWiring{
 		registry:  registry,
 		disposer:  disposer,
 		credStore: credStore,
-		refresher: gmailRefresherFactory(),
+		refresher: gmailRefresherFactory(cfg),
 		inbound:   inbound,
 		metrics:   metrics,
 	}
@@ -83,9 +83,9 @@ func buildIntakeTriage() intake.TriageJudge {
 
 // gmailRefresherFactory returns a RefresherFactory that builds a Gmail token
 // refresher for connector_type "gmail" using TENDANT_GMAIL_CLIENT_ID/SECRET.
-func gmailRefresherFactory() intake.RefresherFactory {
-	clientID := os.Getenv("TENDANT_GMAIL_CLIENT_ID")
-	clientSecret := os.Getenv("TENDANT_GMAIL_CLIENT_SECRET")
+func gmailRefresherFactory(cfg *config.Config) intake.RefresherFactory {
+	clientID := cfg.Intake.GmailClientID
+	clientSecret := cfg.Intake.GmailClientSecret
 	return func(connectorType string, _ uuid.UUID) intake.TokenRefresher {
 		if connectorType != "gmail" {
 			return nil
@@ -140,7 +140,7 @@ func webhookIngressHandler(inbound *connector.MemoryInboundQueue) http.Handler {
 // oauthCallbackHandler completes the OAuth code exchange for a connector and
 // seals the token bundle into source_credentials (research R7). The provider
 // redirects here with ?code=...&state=<connectorID>. Gmail only this phase.
-func oauthCallbackHandler(credStore *intake.SealedCredentialStore) http.Handler {
+func oauthCallbackHandler(credStore *intake.SealedCredentialStore, cfg *config.Config) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		connectorType := strings.Trim(chi.URLParam(req, "*"), "/")
 		if connectorType != "gmail" {
@@ -162,7 +162,7 @@ func oauthCallbackHandler(credStore *intake.SealedCredentialStore) http.Handler 
 			http.Error(rw, "missing code", http.StatusBadRequest)
 			return
 		}
-		bundle, err := exchangeGmailCode(req.Context(), code)
+		bundle, err := exchangeGmailCode(req.Context(), code, cfg)
 		if err != nil {
 			slog.Error("intake.oauth.exchange_failed", "connector_id", connectorID, "err", err)
 			http.Error(rw, "code exchange failed", http.StatusBadGateway)
@@ -179,13 +179,13 @@ func oauthCallbackHandler(credStore *intake.SealedCredentialStore) http.Handler 
 
 // exchangeGmailCode exchanges an authorization code for a token bundle at the
 // Google token endpoint over stdlib net/http (no oauth2 dependency).
-func exchangeGmailCode(ctx context.Context, code string) (intake.TokenBundle, error) {
+func exchangeGmailCode(ctx context.Context, code string, cfg *config.Config) (intake.TokenBundle, error) {
 	form := url.Values{
-		"client_id":     {os.Getenv("TENDANT_GMAIL_CLIENT_ID")},
-		"client_secret": {os.Getenv("TENDANT_GMAIL_CLIENT_SECRET")},
+		"client_id":     {cfg.Intake.GmailClientID},
+		"client_secret": {cfg.Intake.GmailClientSecret},
 		"code":          {code},
 		"grant_type":    {"authorization_code"},
-		"redirect_uri":  {os.Getenv("TENDANT_GMAIL_REDIRECT_URL")},
+		"redirect_uri":  {cfg.Intake.GmailRedirectURL},
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://oauth2.googleapis.com/token", strings.NewReader(form.Encode()))
 	if err != nil {

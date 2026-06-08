@@ -107,6 +107,20 @@ func (this Bot) GetID() string          { return this.ID }
 func (this Bot) GetGlobalURI() string   { return this.GlobalURI }
 func (this Bot) GetDisplayName() string { return this.DisplayName }
 
+type ConfigKey struct {
+	Key            string  `json:"key"`
+	Type           string  `json:"type"`
+	Description    string  `json:"description"`
+	Reload         string  `json:"reload"`
+	Sensitive      bool    `json:"sensitive"`
+	DbConfigurable bool    `json:"dbConfigurable"`
+	HotReloadable  bool    `json:"hotReloadable"`
+	ReadonlyReason *string `json:"readonlyReason,omitempty"`
+	DefaultValue   *string `json:"defaultValue,omitempty"`
+	EffectiveValue *string `json:"effectiveValue,omitempty"`
+	Overridden     bool    `json:"overridden"`
+}
+
 type Connector struct {
 	ID            string         `json:"id"`
 	ConnectorType string         `json:"connectorType"`

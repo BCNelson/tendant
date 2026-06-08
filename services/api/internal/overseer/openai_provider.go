@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/bcnelson/tendant/services/api/internal/secret"
 )
 
 // OpenAIProvider is the real-LLM Provider for the OpenAI Chat Completions
@@ -66,7 +68,7 @@ func NewOpenAIProvider(cfg OpenAIConfig) (*OpenAIProvider, error) {
 // optional TENDANT_OVERSEER_OPENAI_BASE_URL / TENDANT_OVERSEER_MODEL_ID.
 func NewOpenAIProviderFromEnv() (*OpenAIProvider, error) {
 	return NewOpenAIProvider(OpenAIConfig{
-		APIKey:  os.Getenv("TENDANT_OVERSEER_OPENAI_API_KEY"),
+		APIKey:  secret.Getenv("TENDANT_OVERSEER_OPENAI_API_KEY"),
 		BaseURL: os.Getenv("TENDANT_OVERSEER_OPENAI_BASE_URL"),
 		ModelID: os.Getenv("TENDANT_OVERSEER_MODEL_ID"),
 	})

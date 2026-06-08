@@ -185,3 +185,53 @@ func (q *Queries) ListAllAgentConfigs(ctx context.Context) ([]AgentConfig, error
 	}
 	return items, nil
 }
+
+const updateAgentConfigByNameAndStage = `-- name: UpdateAgentConfigByNameAndStage :one
+UPDATE agent_configs
+SET is_human       = $1,
+    system_prompt  = $2,
+    model          = $3,
+    tool_allowlist = $4,
+    eligibility    = $5,
+    version        = version + 1
+WHERE name = $6 AND stage = $7
+RETURNING id, name, stage, is_human, system_prompt, model, tool_allowlist, eligibility, origin, version
+`
+
+type UpdateAgentConfigByNameAndStageParams struct {
+	IsHuman       bool            `json:"is_human"`
+	SystemPrompt  *string         `json:"system_prompt"`
+	Model         *string         `json:"model"`
+	ToolAllowlist json.RawMessage `json:"tool_allowlist"`
+	Eligibility   json.RawMessage `json:"eligibility"`
+	Name          string          `json:"name"`
+	Stage         AgentStage      `json:"stage"`
+}
+
+// Used by the file-driven catalog reconciler to apply an override to an existing
+// (name, stage) row. Bumps version so the change is observable.
+func (q *Queries) UpdateAgentConfigByNameAndStage(ctx context.Context, arg UpdateAgentConfigByNameAndStageParams) (AgentConfig, error) {
+	row := q.db.QueryRow(ctx, updateAgentConfigByNameAndStage,
+		arg.IsHuman,
+		arg.SystemPrompt,
+		arg.Model,
+		arg.ToolAllowlist,
+		arg.Eligibility,
+		arg.Name,
+		arg.Stage,
+	)
+	var i AgentConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Stage,
+		&i.IsHuman,
+		&i.SystemPrompt,
+		&i.Model,
+		&i.ToolAllowlist,
+		&i.Eligibility,
+		&i.Origin,
+		&i.Version,
+	)
+	return i, err
+}

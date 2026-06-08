@@ -28,8 +28,23 @@ type Gateway struct {
 	maxEvalPerTask int
 	modelID        string
 
+	// MaxEvalFn, when set and returning > 0, supplies the per-task cap live (DB
+	// overlay > boot) so an owner's change applies without a restart. nil ⇒ the
+	// boot maxEvalPerTask.
+	MaxEvalFn func() int
+
 	rateMu     sync.Mutex
 	rateWindow []time.Time
+}
+
+// capPerTask returns the live per-task evaluation cap.
+func (g *Gateway) capPerTask() int {
+	if g.MaxEvalFn != nil {
+		if v := g.MaxEvalFn(); v > 0 {
+			return v
+		}
+	}
+	return g.maxEvalPerTask
 }
 
 // NewGateway constructs the Gateway. queries is required (for the cap
@@ -123,16 +138,17 @@ func (g *Gateway) Grade(ctx context.Context, in *OverseerInput) (OverseerVerdict
 			},
 		}, nil
 	}
-	if int(count) >= g.maxEvalPerTask {
+	taskCap := g.capPerTask()
+	if int(count) >= taskCap {
 		slog.Info("overseer.gateway.cap_exceeded",
-			"task_id", in.TaskID, "current_count", count, "cap", g.maxEvalPerTask)
+			"task_id", in.TaskID, "current_count", count, "cap", taskCap)
 		return OverseerVerdict{
 			Decision: DecisionRequestDecision,
 			Reason:   "per_task_eval_cap_exceeded",
 			Provider: provider.Name(),
 			ModelID:  g.modelID,
 			Evidence: Evidence{
-				Summary:          fmt.Sprintf("per-task overseer evaluation cap exceeded (count=%d cap=%d)", count, g.maxEvalPerTask),
+				Summary:          fmt.Sprintf("per-task overseer evaluation cap exceeded (count=%d cap=%d)", count, taskCap),
 				ConsideredFields: []string{},
 			},
 		}, nil
