@@ -325,11 +325,11 @@ func (r *mutationResolver) DismissProposedTask(ctx context.Context, taskID strin
 	return mapTask(&t2)
 }
 
-// PairDevice is the resolver for the pairDevice field. Validates the
-// in-process setup secret (Q4), mints a session for the seeded owner, writes
-// the session_issued audit row, returns the session row + raw token.
-func (r *mutationResolver) PairDevice(ctx context.Context, setupSecret string, displayName string) (*model.SessionMintResult, error) {
-	if r.SetupSecret == nil {
+// PairDevice is the resolver for the pairDevice field. Validates the presented
+// value against the static auth password (reusable), mints a session for the
+// seeded owner, and returns the session row + raw token.
+func (r *mutationResolver) PairDevice(ctx context.Context, password string, displayName string) (*model.SessionMintResult, error) {
+	if r.Password == nil {
 		return nil, gqlerror.Errorf("pairing not configured")
 	}
 	if len(strings.TrimSpace(displayName)) == 0 {
@@ -338,11 +338,11 @@ func (r *mutationResolver) PairDevice(ctx context.Context, setupSecret string, d
 	if len(displayName) > 200 {
 		return nil, gqlerror.Errorf("displayName must be <= 200 chars")
 	}
-	if err := r.SetupSecret.Consume(setupSecret); err != nil {
+	if err := r.Password.Verify(password); err != nil {
 		return nil, &gqlerror.Error{
 			Message:    err.Error(),
 			Path:       graphql.GetPath(ctx),
-			Extensions: map[string]any{"code": "BAD_SETUP_SECRET"},
+			Extensions: map[string]any{"code": "BAD_PASSWORD"},
 		}
 	}
 

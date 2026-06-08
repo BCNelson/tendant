@@ -84,7 +84,7 @@ var Registry = []KeyDef{
 
 	// Secrets / boot toggles.
 	{Key: "credentials.key", Type: "string", Default: "", Description: "Base64 AES-256 key sealing source credentials", Reload: ReloadBootstrap, Sensitive: true, DBConfigurable: false, ReadonlyReason: "Sealing key is read at boot"},
-	{Key: "setup.secret", Type: "string", Default: "", Description: "One-time device-pairing setup secret (armed per boot)", Reload: ReloadBootstrap, Sensitive: true, DBConfigurable: false, ReadonlyReason: "Setup secret is armed at boot"},
+	{Key: "auth.password", Type: "string", Default: "", Description: "Static device-pairing password (reusable; presented to pairDevice)", Reload: ReloadBootstrap, Sensitive: true, DBConfigurable: false, ReadonlyReason: "Auth password is read at boot"},
 	{Key: "seed.example_gate_script", Type: "bool", Default: false, Description: "Seed the example gate script for send-email at boot", Reload: ReloadBootstrap, DBConfigurable: false, ReadonlyReason: "Seeding runs at boot"},
 }
 

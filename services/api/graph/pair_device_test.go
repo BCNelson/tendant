@@ -48,9 +48,9 @@ func setupGQL(t *testing.T) (http.Handler, *db.Queries) {
 	require.NoError(t, db.Migrate(ctx, dsn))
 	q := db.New(pool)
 	require.NoError(t, core.SeedOwner(ctx, q))
-	state := &auth.SetupSecretState{}
-	state.Arm("dev-setup-secret")
-	h := server.New(pool, nil, server.Options{SetupSecret: state})
+	state := &auth.PasswordState{}
+	state.Set("dev-setup-secret")
+	h := server.New(pool, nil, server.Options{Password: state})
 	return h, q
 }
 
@@ -58,7 +58,7 @@ func TestPairDeviceMintsSession(t *testing.T) {
 	t.Parallel()
 	h, q := setupGQL(t)
 
-	body := `{"query":"mutation { pairDevice(setupSecret:\"dev-setup-secret\", displayName:\"Test Device\") { session { id displayName } token } }"}`
+	body := `{"query":"mutation { pairDevice(password:\"dev-setup-secret\", displayName:\"Test Device\") { session { id displayName } token } }"}`
 	resp := postGQL(t, h, body, "")
 	require.Empty(t, resp.Errors, "expected no errors; got %+v", resp.Errors)
 
@@ -84,35 +84,34 @@ func TestPairDeviceMintsSession(t *testing.T) {
 	require.Len(t, sessions, 1)
 }
 
-func TestPairDeviceConsumesSecret(t *testing.T) {
+func TestPairDevicePasswordReusable(t *testing.T) {
 	t.Parallel()
 	h, _ := setupGQL(t)
 
-	body := `{"query":"mutation { pairDevice(setupSecret:\"dev-setup-secret\", displayName:\"first\") { token } }"}`
+	body := `{"query":"mutation { pairDevice(password:\"dev-setup-secret\", displayName:\"first\") { token } }"}`
 	resp := postGQL(t, h, body, "")
 	require.Empty(t, resp.Errors)
 
-	// Second call must fail with BAD_SETUP_SECRET (consumed).
+	// The static password is reusable: a second device may pair with it.
 	resp2 := postGQL(t, h, body, "")
-	require.NotEmpty(t, resp2.Errors)
-	require.Equal(t, "BAD_SETUP_SECRET", resp2.Errors[0].Extensions["code"])
+	require.Empty(t, resp2.Errors, "expected no errors; got %+v", resp2.Errors)
 }
 
 func TestPairDeviceRejectsBadSecret(t *testing.T) {
 	t.Parallel()
 	h, _ := setupGQL(t)
 
-	body := `{"query":"mutation { pairDevice(setupSecret:\"wrong\", displayName:\"first\") { token } }"}`
+	body := `{"query":"mutation { pairDevice(password:\"wrong\", displayName:\"first\") { token } }"}`
 	resp := postGQL(t, h, body, "")
 	require.NotEmpty(t, resp.Errors)
-	require.Equal(t, "BAD_SETUP_SECRET", resp.Errors[0].Extensions["code"])
+	require.Equal(t, "BAD_PASSWORD", resp.Errors[0].Extensions["code"])
 }
 
 func TestPairDeviceRejectsEmptyDisplayName(t *testing.T) {
 	t.Parallel()
 	h, _ := setupGQL(t)
 
-	body := `{"query":"mutation { pairDevice(setupSecret:\"dev-setup-secret\", displayName:\"\") { token } }"}`
+	body := `{"query":"mutation { pairDevice(password:\"dev-setup-secret\", displayName:\"\") { token } }"}`
 	resp := postGQL(t, h, body, "")
 	require.NotEmpty(t, resp.Errors)
 }

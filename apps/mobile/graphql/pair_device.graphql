@@ -1,5 +1,5 @@
-mutation PairDevice($setupSecret: String!, $displayName: String!) {
-  pairDevice(setupSecret: $setupSecret, displayName: $displayName) {
+mutation PairDevice($password: String!, $displayName: String!) {
+  pairDevice(password: $password, displayName: $displayName) {
     session {
       id
       displayName

@@ -35,6 +35,12 @@ systemd `CREDENTIALS_DIRECTORY`).
 |---|---|---|---|---|---|
 | `agent.max_iter` | int | `20` | yes | restart | Per-stage max agent loop iterations |
 
+## auth
+
+| Key | Type | Default | DB-configurable | Takes effect | Description |
+|---|---|---|---|---|---|
+| `auth.password` 🔒 | string | — | — | bootstrap | Static device-pairing password (reusable; presented to pairDevice) |
+
 ## calibration
 
 | Key | Type | Default | DB-configurable | Takes effect | Description |
@@ -120,10 +126,4 @@ systemd `CREDENTIALS_DIRECTORY`).
 | Key | Type | Default | DB-configurable | Takes effect | Description |
 |---|---|---|---|---|---|
 | `server.http_addr` | string | `:8080` | — | bootstrap | HTTP listen address |
-
-## setup
-
-| Key | Type | Default | DB-configurable | Takes effect | Description |
-|---|---|---|---|---|---|
-| `setup.secret` 🔒 | string | — | — | bootstrap | One-time device-pairing setup secret (armed per boot) |
 

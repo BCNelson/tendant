@@ -161,7 +161,7 @@ extend type Query {
 # ----- Mutation additions ----------------------------------------------
 
 extend type Mutation {
-  pairDevice(setupSecret: String!, displayName: String!): SessionMintResult!
+  pairDevice(password: String!, displayName: String!): SessionMintResult!
   revokeSession(sessionId: ID!): Session!
 
   registerDeviceToken(token: String!, platform: DevicePlatform!): Boolean!

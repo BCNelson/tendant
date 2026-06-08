@@ -12,7 +12,7 @@ func TestRegisterDeviceTokenUpsert(t *testing.T) {
 	t.Parallel()
 	h, q := setupGQL(t)
 	// Pair to obtain a bearer.
-	pairBody := `{"query":"mutation { pairDevice(setupSecret:\"dev-setup-secret\", displayName:\"D\") { token } }"}`
+	pairBody := `{"query":"mutation { pairDevice(password:\"dev-setup-secret\", displayName:\"D\") { token } }"}`
 	pair := postGQL(t, h, pairBody, "")
 	require.Empty(t, pair.Errors)
 	var pd struct {

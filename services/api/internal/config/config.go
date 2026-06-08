@@ -43,7 +43,7 @@ type Config struct {
 	Gatescript  GatescriptConfig  `koanf:"gatescript"`
 	Calibration CalibrationConfig `koanf:"calibration"`
 	Intake      IntakeConfig      `koanf:"intake"`
-	Setup       SetupConfig       `koanf:"setup"`
+	Auth        AuthConfig        `koanf:"auth"`
 	Credentials CredentialsConfig `koanf:"credentials"`
 	Seed        SeedConfig        `koanf:"seed"`
 
@@ -139,9 +139,9 @@ type IntakeConfig struct {
 	GmailRedirectURL  string `koanf:"gmail_redirect_url"`
 }
 
-// SetupConfig holds the device-pairing one-time secret.
-type SetupConfig struct {
-	Secret string `koanf:"secret"`
+// AuthConfig holds the static device-pairing password.
+type AuthConfig struct {
+	Password string `koanf:"password"`
 }
 
 // CredentialsConfig holds the AES key for sealing source credentials.
@@ -301,7 +301,7 @@ var legacyAliases = []aliasEntry{
 	{Env: "TENDANT_GMAIL_CLIENT_SECRET", Key: "intake.gmail_client_secret", Sensitive: true},
 	{Env: "TENDANT_GMAIL_REDIRECT_URL", Key: "intake.gmail_redirect_url"},
 	{Env: "TENDANT_CREDENTIALS_KEY", Key: "credentials.key", Sensitive: true},
-	{Env: "TENDANT_SETUP_SECRET", Key: "setup.secret", Sensitive: true},
+	{Env: "TENDANT_PASSWORD", Key: "auth.password", Sensitive: true},
 	{Env: "TENDANT_SEED_EXAMPLE_GATE_SCRIPT", Key: "seed.example_gate_script"},
 }
 

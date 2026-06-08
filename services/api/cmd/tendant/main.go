@@ -186,12 +186,12 @@ func runServe(logLevel *slog.LevelVar) error {
 		"intake_tighten_k", calibCfg.IntakeTightenK,
 	)
 
-	// 4. Phase 2 setup secret + push selector.
-	if setupSecret := cfg.Setup.Secret; setupSecret != "" {
-		auth.SetupSecret.Arm(setupSecret)
-		slog.Info("sessions setup_secret armed", "secret_source", "config(setup.secret)")
+	// 4. Static auth password + push selector.
+	if password := cfg.Auth.Password; password != "" {
+		auth.Password.Set(password)
+		slog.Info("auth password configured", "password_source", "config(auth.password)")
 	} else {
-		slog.Warn("setup.secret not set — device pairing disabled this boot")
+		slog.Warn("auth.password not set — device pairing disabled this boot")
 	}
 
 	pushSel := buildPushSelector()
@@ -319,7 +319,7 @@ func runServe(logLevel *slog.LevelVar) error {
 			Dispatcher:        disp,
 			PushSelector:      pushSel,
 			PushQueue:         durable.PushQueueName,
-			SetupSecret:       auth.SetupSecret,
+			Password:          auth.Password,
 			Overseer:          gateway,
 			ToolRegistry:      toolRegistry,
 			GateScript:        scriptSvc,

@@ -164,7 +164,7 @@ type ComplexityRoot struct {
 		DismissProposedTask         func(childComplexity int, taskID string, reason *string) int
 		EnableConnector             func(childComplexity int, connectorID string, enabled bool) int
 		FlagOutcome                 func(childComplexity int, taskID string, toolID string, reason *string) int
-		PairDevice                  func(childComplexity int, setupSecret string, displayName string) int
+		PairDevice                  func(childComplexity int, password string, displayName string) int
 		ProposeToolCall             func(childComplexity int, taskID string, toolGlobalURI string, payload map[string]any) int
 		RegisterDeviceToken         func(childComplexity int, token string, platform model.DevicePlatform) int
 		RejectApproval              func(childComplexity int, decisionID string, reason *string) int
@@ -345,7 +345,7 @@ type MutationResolver interface {
 	CompileAndAttachGateScript(ctx context.Context, toolID string, source string, manifest map[string]any) (*model.GateScript, error)
 	DisableGateScript(ctx context.Context, toolID string) (*model.Tool, error)
 	SetOwnerRule(ctx context.Context, key string, value string) (*model.OwnerRule, error)
-	PairDevice(ctx context.Context, setupSecret string, displayName string) (*model.SessionMintResult, error)
+	PairDevice(ctx context.Context, password string, displayName string) (*model.SessionMintResult, error)
 	RevokeSession(ctx context.Context, sessionID string) (*model.Session, error)
 	RegisterDeviceToken(ctx context.Context, token string, platform model.DevicePlatform) (bool, error)
 	UnregisterDeviceToken(ctx context.Context, token string) (bool, error)
@@ -1005,7 +1005,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.PairDevice(childComplexity, args["setupSecret"].(string), args["displayName"].(string)), true
+		return e.ComplexityRoot.Mutation.PairDevice(childComplexity, args["password"].(string), args["displayName"].(string)), true
 	case "Mutation.proposeToolCall":
 		if e.ComplexityRoot.Mutation.ProposeToolCall == nil {
 			break
@@ -2566,14 +2566,14 @@ func (ec *executionContext) field_Mutation_flagOutcome_args(ctx context.Context,
 func (ec *executionContext) field_Mutation_pairDevice_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "setupSecret",
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "password",
 		func(ctx context.Context, v any) (string, error) {
 			return ec.unmarshalNString2string(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["setupSecret"] = arg0
+	args["password"] = arg0
 	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "displayName",
 		func(ctx context.Context, v any) (string, error) {
 			return ec.unmarshalNString2string(ctx, v)
@@ -5337,7 +5337,7 @@ func (ec *executionContext) _Mutation_pairDevice(ctx context.Context, field grap
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().PairDevice(ctx, fc.Args["setupSecret"].(string), fc.Args["displayName"].(string))
+			return ec.Resolvers.Mutation().PairDevice(ctx, fc.Args["password"].(string), fc.Args["displayName"].(string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.SessionMintResult) graphql.Marshaler {

@@ -88,21 +88,21 @@ func TestResolveEmpty(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrUnauthorized)
 }
 
-func TestSetupSecretConsume(t *testing.T) {
+func TestPasswordVerify(t *testing.T) {
 	t.Parallel()
-	s := &auth.SetupSecretState{}
+	s := &auth.PasswordState{}
 
-	// Un-armed.
-	require.ErrorIs(t, s.Consume("anything"), auth.ErrNotArmed)
+	// Unconfigured.
+	require.ErrorIs(t, s.Verify("anything"), auth.ErrNoPassword)
 
-	s.Arm("supersecret")
-	require.True(t, s.IsArmed())
+	s.Set("supersecret")
+	require.True(t, s.IsConfigured())
 	// Bad value.
-	require.ErrorIs(t, s.Consume("bad"), auth.ErrBadSetupSecret)
-	// Good value succeeds; one-time.
-	require.NoError(t, s.Consume("supersecret"))
-	require.ErrorIs(t, s.Consume("supersecret"), auth.ErrAlreadyConsumed)
-	require.False(t, s.IsArmed())
+	require.ErrorIs(t, s.Verify("bad"), auth.ErrBadPassword)
+	// Good value succeeds and is reusable (not consumed).
+	require.NoError(t, s.Verify("supersecret"))
+	require.NoError(t, s.Verify("supersecret"))
+	require.True(t, s.IsConfigured())
 }
 
 func TestCanOwnerPositive(t *testing.T) {

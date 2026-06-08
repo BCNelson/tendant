@@ -33,23 +33,26 @@ A `go.work` workspace with two Go modules:
 See [CLAUDE.md](./CLAUDE.md) for the full tech stack, conventions, and common tasks.
 The active feature plan lives at `specs/001-foundations-scaffolding/plan.md`.
 
-## Setup secret rotation (Phase 2)
+## Auth password
 
-The Phase 2 device-pairing flow needs a one-time setup secret armed at server
-boot via the `TENDANT_SETUP_SECRET` environment variable. `compose.yaml` ships
-a fixed dev value (`dev-setup-2026-05-28`) so `make up` produces a reproducible
-pairing experience locally. For production deployments:
+The device-pairing flow authenticates with a static password set at server
+boot via `TENDANT_PASSWORD` (or `[auth] password` in `tendant.toml`).
+`compose.yaml` ships a fixed dev value so `make up` produces a reproducible
+pairing experience locally. The password is **reusable** — present it to the
+`pairDevice` mutation to mint a per-device, revocable session token; pair as
+many devices as you like. For production deployments:
 
 1. Generate a fresh random value: `openssl rand -base64 32`.
-2. Set `TENDANT_SETUP_SECRET` on the running container's environment (e.g., via
-   the orchestrator's secrets surface — `docker compose --env-file`, k8s
-   `Secret`, systemd `EnvironmentFile`, etc.). Do not commit the production
-   value to git.
-3. Restart the API container so the new value is armed.
-4. The secret is single-use *per boot*: after the first successful
-   `pairDevice` mutation it is "consumed" in-process. To pair another device,
-   either restart the container (re-arms the same secret) or rotate to a new
-   value first.
+2. Provide it through any of the supported sources (all redacted in logs):
+   - `TENDANT_PASSWORD=<value>` directly, or
+   - `TENDANT_PASSWORD_FILE=/path` (contents read at boot), or
+   - systemd `LoadCredential` (`$CREDENTIALS_DIRECTORY/TENDANT_PASSWORD`), or
+   - `password = "${file:/run/secrets/tendant-password}"` in `tendant.toml`.
+
+   Do not commit the production value to git.
+3. Restart the API container so the new value is read.
+4. To rotate, change the value and restart; previously minted device session
+   tokens remain valid until explicitly revoked via `revokeSession`.
 
 ## Adding an intake connector (Phase 7)
 

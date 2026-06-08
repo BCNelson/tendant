@@ -16,15 +16,15 @@ services:
       timeout: 3s
       retries: 30
 
-  # Phase 2 pairing flow needs a setup secret armed at boot. The literal here
+  # The pairing flow needs a static auth password at boot. The literal here
   # is a reproducible dev value; production deployments MUST rotate it (see
-  # README § Setup secret rotation).
+  # README § Auth password).
   api:
     image: ghcr.io/bcnelson/tendant:latest
     profiles: ["full"]
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/tendant?sslmode=disable
-      TENDANT_SETUP_SECRET: "dev-setup-2026-05-28"
+      TENDANT_PASSWORD: "dev-setup-2026-05-28"
       HTTP_ADDR: ":8080"
     ports:
       - "8080:8080"

@@ -125,8 +125,13 @@
 [credentials]
 # key = ""              # 🔒 base64 AES-256 key — prefer TENDANT_CREDENTIALS_KEY
 
-[setup]
-# secret = ""           # 🔒 one-time device-pairing secret (armed per boot)
+[auth]
+# Static device-pairing password (reusable). Presented to the pairDevice
+# mutation; each device is then issued its own revocable session token.
+# password = ""                              # 🔒 prefer TENDANT_PASSWORD / a file
+# password = "${file:/run/secrets/tendant-password}"   # 🔒 read from a file
+#   Also works: TENDANT_PASSWORD=..., TENDANT_PASSWORD_FILE=/path, or systemd
+#   LoadCredential ($CREDENTIALS_DIRECTORY/TENDANT_PASSWORD).
 
 [seed]
 # example_gate_script = false

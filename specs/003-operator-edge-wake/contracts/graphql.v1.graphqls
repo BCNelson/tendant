@@ -156,11 +156,11 @@ extend type Query {
 # ----- Mutation additions ----------------------------------------------
 
 extend type Mutation {
-  # First-launch pairing. The setupSecret is the one-time deployment-config
-  # secret armed at server boot; consumed on success. The returned token is
-  # the bearer presented on every subsequent HTTP request and every
-  # subscription connection_init payload.
-  pairDevice(setupSecret: String!, displayName: String!): SessionMintResult!
+  # First-launch pairing. The password is the static deployment-config auth
+  # password (TENDANT_PASSWORD / [auth] password); reusable, so multiple
+  # devices may pair. The returned token is the bearer presented on every
+  # subsequent HTTP request and every subscription connection_init payload.
+  pairDevice(password: String!, displayName: String!): SessionMintResult!
 
   # Revoke a session. Subsequent requests on the revoked bearer fail closed;
   # subscriptions on the revoked bearer stop receiving events without a

@@ -34,7 +34,7 @@ type Resolver struct {
 	Dispatcher      *realtime.Dispatcher
 	PushSelector    push.Selector
 	PushQueueName   string
-	SetupSecret     *auth.SetupSecretState
+	Password        *auth.PasswordState
 	Overseer        overseer.Grader
 	ToolRegistry    *tools.Registry
 	ScriptEvaluator gatescript.ScriptEvaluator

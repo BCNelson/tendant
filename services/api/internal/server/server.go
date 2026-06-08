@@ -35,7 +35,7 @@ type Options struct {
 	Dispatcher   *realtime.Dispatcher
 	PushSelector push.Selector
 	PushQueue    string
-	SetupSecret  *auth.SetupSecretState
+	Password     *auth.PasswordState
 	Overseer     overseer.Grader            // Phase 4 — gate's Layer-4 grader; nil = Phase-3 fallthrough
 	ToolRegistry *tools.Registry            // Phase 4 — used by auto-approve dispatch path
 	GateScript   gatescript.ScriptEvaluator // Phase 5 — gate's Layer-3 evaluator; nil = no script layer
@@ -69,7 +69,7 @@ func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 		Dispatcher:      opts.Dispatcher,
 		PushSelector:    opts.PushSelector,
 		PushQueueName:   opts.PushQueue,
-		SetupSecret:     opts.SetupSecret,
+		Password:        opts.Password,
 		Overseer:        opts.Overseer,
 		ToolRegistry:    opts.ToolRegistry,
 		ScriptEvaluator: opts.GateScript,
