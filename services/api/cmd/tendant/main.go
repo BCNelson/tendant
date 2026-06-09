@@ -157,6 +157,9 @@ func runServe(logLevel *slog.LevelVar) error {
 	if err := core.ReconcileAgentCatalog(ctx, q, cfg.Agents); err != nil {
 		return fmt.Errorf("reconcile agent catalog: %w", err)
 	}
+	if err := core.ReconcileCategoryCatalog(ctx, q, cfg.Categories); err != nil {
+		return fmt.Errorf("reconcile category catalog: %w", err)
+	}
 	if err := core.ReconcileConnectors(ctx, q, cfg.Connectors); err != nil {
 		return fmt.Errorf("reconcile connectors: %w", err)
 	}

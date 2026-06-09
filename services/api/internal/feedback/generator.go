@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/bcnelson/tendant/services/api/internal/llm"
 )
@@ -148,18 +149,49 @@ func (g *LLMConverser) turn(ctx context.Context, s TaskSummary, history []Turn) 
 	if err != nil {
 		return "", "", fmt.Errorf("feedback turn inference: %w", err)
 	}
+	reply, draft := parseTurn(resp)
+	return reply, draft, nil
+}
+
+// parseTurn extracts the agent's next message + guidance draft from a model
+// response. It prefers the forced feedback_turn tool call, but degrades
+// gracefully for endpoints that ignore tool_choice on multi-turn requests —
+// notably Ollama and other small/local OpenAI-compatible models, which often
+// return a plain-text answer on the follow-up turn instead of a tool call. In
+// that case it salvages a JSON object emitted as text, and finally falls back
+// to the raw text as the reply, so a flaky model still carries the conversation
+// rather than dead-ending on the resolver's canned fallback with an empty draft.
+func parseTurn(resp llm.Response) (reply, draft string) {
 	for _, tc := range resp.ToolCalls {
 		if tc.Name != "feedback_turn" {
 			continue
 		}
-		var parsed struct {
-			Reply         string `json:"reply"`
-			DraftGuidance string `json:"draft_guidance"`
+		if r, d, ok := decodeTurnJSON(tc.Arguments); ok {
+			return r, d
 		}
-		if uerr := json.Unmarshal([]byte(tc.Arguments), &parsed); uerr != nil {
-			return "", "", fmt.Errorf("decode feedback turn args: %w", uerr)
-		}
-		return parsed.Reply, parsed.DraftGuidance, nil
 	}
-	return "", "", nil
+	// No usable tool call: the model may have emitted the JSON (or just prose)
+	// as plain text content.
+	text := strings.TrimSpace(resp.Content)
+	if r, d, ok := decodeTurnJSON(text); ok {
+		return r, d
+	}
+	return text, ""
+}
+
+// decodeTurnJSON unmarshals the {reply, draft_guidance} structured output.
+// ok is false when s is not the expected JSON or carries neither field, so the
+// caller can fall back to treating the content as a plain-text reply.
+func decodeTurnJSON(s string) (reply, draft string, ok bool) {
+	var parsed struct {
+		Reply         string `json:"reply"`
+		DraftGuidance string `json:"draft_guidance"`
+	}
+	if json.Unmarshal([]byte(s), &parsed) != nil {
+		return "", "", false
+	}
+	if strings.TrimSpace(parsed.Reply) == "" && strings.TrimSpace(parsed.DraftGuidance) == "" {
+		return "", "", false
+	}
+	return parsed.Reply, parsed.DraftGuidance, true
 }

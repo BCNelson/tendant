@@ -91,6 +91,23 @@ const InboxItemArrived = _i1.OperationDefinitionNode(
             )
           ]),
         ),
+        _i1.InlineFragmentNode(
+          typeCondition: _i1.TypeConditionNode(
+              on: _i1.NamedTypeNode(
+            name: _i1.NameNode(value: 'FeedbackRequest'),
+            isNonNull: false,
+          )),
+          directives: [],
+          selectionSet: _i1.SelectionSetNode(selections: [
+            _i1.FieldNode(
+              name: _i1.NameNode(value: 'id'),
+              alias: null,
+              arguments: [],
+              directives: [],
+              selectionSet: null,
+            )
+          ]),
+        ),
       ]),
     )
   ]),

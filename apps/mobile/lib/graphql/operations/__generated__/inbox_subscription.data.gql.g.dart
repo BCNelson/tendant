@@ -23,6 +23,9 @@ Serializer<GInboxItemArrivedData_inboxItemArrived__asAgentQuestion>
 Serializer<GInboxItemArrivedData_inboxItemArrived__asPromotionProposal>
     _$gInboxItemArrivedDataInboxItemArrivedAsPromotionProposalSerializer =
     _$GInboxItemArrivedData_inboxItemArrived__asPromotionProposalSerializer();
+Serializer<GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest>
+    _$gInboxItemArrivedDataInboxItemArrivedAsFeedbackRequestSerializer =
+    _$GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestSerializer();
 
 class _$GInboxItemArrivedDataSerializer
     implements StructuredSerializer<GInboxItemArrivedData> {
@@ -329,6 +332,62 @@ class _$GInboxItemArrivedData_inboxItemArrived__asPromotionProposalSerializer
       {FullType specifiedType = FullType.unspecified}) {
     final result =
         GInboxItemArrivedData_inboxItemArrived__asPromotionProposalBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'id':
+          result.id = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestSerializer
+    implements
+        StructuredSerializer<
+            GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest> {
+  @override
+  final Iterable<Type> types = const [
+    GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest,
+    _$GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest
+  ];
+  @override
+  final String wireName =
+      'GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest';
+
+  @override
+  Iterable<Object?> serialize(Serializers serializers,
+      GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+      'id',
+      serializers.serialize(object.id, specifiedType: const FullType(String)),
+    ];
+
+    return result;
+  }
+
+  @override
+  GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result =
+        GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestBuilder();
 
     final iterator = serialized.iterator;
     while (iterator.moveNext()) {
@@ -1027,6 +1086,127 @@ class GInboxItemArrivedData_inboxItemArrived__asPromotionProposalBuilder
           id: BuiltValueNullFieldError.checkNotNull(
               id,
               r'GInboxItemArrivedData_inboxItemArrived__asPromotionProposal',
+              'id'),
+        );
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest
+    extends GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest {
+  @override
+  final String G__typename;
+  @override
+  final String id;
+
+  factory _$GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest(
+          [void Function(
+                  GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestBuilder)?
+              updates]) =>
+      (GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestBuilder()
+            ..update(updates))
+          ._build();
+
+  _$GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest._(
+      {required this.G__typename, required this.id})
+      : super._();
+  @override
+  GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest rebuild(
+          void Function(
+                  GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestBuilder)
+              updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestBuilder
+      toBuilder() =>
+          GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestBuilder()
+            ..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest &&
+        G__typename == other.G__typename &&
+        id == other.id;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(
+            r'GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest')
+          ..add('G__typename', G__typename)
+          ..add('id', id))
+        .toString();
+  }
+}
+
+class GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestBuilder
+    implements
+        Builder<GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest,
+            GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestBuilder> {
+  _$GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  String? _id;
+  String? get id => _$this._id;
+  set id(String? id) => _$this._id = id;
+
+  GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestBuilder() {
+    GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest
+        ._initializeBuilder(this);
+  }
+
+  GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _id = $v.id;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(
+      GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest other) {
+    _$v = other as _$GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest;
+  }
+
+  @override
+  void update(
+      void Function(
+              GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestBuilder)?
+          updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest build() => _build();
+
+  _$GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest _build() {
+    final _$result = _$v ??
+        _$GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(
+              G__typename,
+              r'GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest',
+              'G__typename'),
+          id: BuiltValueNullFieldError.checkNotNull(
+              id,
+              r'GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest',
               'id'),
         );
     replace(_$result);

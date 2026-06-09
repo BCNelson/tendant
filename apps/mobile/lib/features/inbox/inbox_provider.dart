@@ -1,9 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// inboxStreamProvider is the live inbox feed. The bootstrap layer overrides
-/// it with the Ferry inbox query + InboxItemArrived subscription (T077).
-/// Until codegen lands the override is a no-op (single empty-list emission)
-/// so the UI is still testable.
-final inboxStreamProvider = StreamProvider<List<dynamic>>((ref) async* {
-  yield const [];
+/// inboxArrivedProvider emits whenever a new inbox item arrives (the
+/// `inboxItemArrived` subscription). The Inbox view listens to it and refetches
+/// the list live, mirroring how the Tasks view uses `allTasksChangedProvider`.
+/// Stubbed here; the bootstrap layer overrides it against the Ferry
+/// subscription.
+final inboxArrivedProvider = StreamProvider<void>((ref) async* {
+  // No emissions until overridden in the bootstrap layer.
 });

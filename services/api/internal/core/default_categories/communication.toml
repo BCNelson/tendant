@@ -1,0 +1,9 @@
+# communication — root category for outreach/messaging tasks. Built-in (core).
+# Children (e.g. communication/email) inherit these stage bindings unless they
+# override them.
+key = "communication"
+label = "Communication"
+description = "Outreach and messaging: email, chat, notifications."
+
+[stage_bindings.expansion]
+agents = ["general-expander"]

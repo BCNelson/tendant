@@ -1,0 +1,28 @@
+# Owner-only task-category management. setTaskCategory / deleteTaskCategory are
+# rejected for non-owner principals with PERMISSION_DENIED before any DB access.
+# The taxonomy is a tree; `parent { key }` lets the client rebuild the hierarchy.
+
+query Categories {
+  categories {
+    key
+    label
+    description
+    parent {
+      key
+    }
+    stageBindings
+  }
+}
+
+mutation SetTaskCategory($input: SetTaskCategoryInput!) {
+  setTaskCategory(input: $input) {
+    key
+    label
+    description
+    stageBindings
+  }
+}
+
+mutation DeleteTaskCategory($key: String!) {
+  deleteTaskCategory(key: $key)
+}

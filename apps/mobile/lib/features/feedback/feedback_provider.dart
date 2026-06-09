@@ -26,8 +26,14 @@ abstract class FeedbackMutator {
 
 /// feedbackConversationProvider is the per-decision conversation loader,
 /// overridden by the bootstrap layer with a Ferry query.
+///
+/// autoDispose: the conversation is fully persisted server-side (the message
+/// thread + the agent's draft guidance), so the page must re-fetch each time it
+/// is opened. Without autoDispose the family caches the first snapshot — the
+/// opening message with an empty draft — and leaving + returning would replay
+/// that stale state, losing the chat history and draft built up in between.
 final feedbackConversationProvider =
-    FutureProvider.family<FeedbackConversationView?, String>(
+    FutureProvider.autoDispose.family<FeedbackConversationView?, String>(
         (ref, _) async => null);
 
 /// feedbackMutatorProvider is overridden by the bootstrap layer with a Ferry

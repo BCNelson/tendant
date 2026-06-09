@@ -272,6 +272,14 @@ type SessionMintResult struct {
 	Token   string   `json:"token"`
 }
 
+type SetTaskCategoryInput struct {
+	Key           string         `json:"key"`
+	Label         *string        `json:"label,omitempty"`
+	Description   *string        `json:"description,omitempty"`
+	Parent        *string        `json:"parent,omitempty"`
+	StageBindings map[string]any `json:"stageBindings,omitempty"`
+}
+
 type StageSlot struct {
 	Stage    AgentStage          `json:"stage"`
 	Occupant *AgentConfigSummary `json:"occupant,omitempty"`
@@ -296,8 +304,18 @@ type Task struct {
 	OpenAssignment *AgentAssignment `json:"openAssignment,omitempty"`
 	CreatedAt      time.Time        `json:"createdAt"`
 	EditedAt       *time.Time       `json:"editedAt,omitempty"`
+	Category       *TaskCategory    `json:"category,omitempty"`
 	StageSlots     []*StageSlot     `json:"stageSlots"`
 	Activity       []*ActivityEvent `json:"activity"`
+}
+
+type TaskCategory struct {
+	Key           string          `json:"key"`
+	Label         string          `json:"label"`
+	Description   *string         `json:"description,omitempty"`
+	Parent        *TaskCategory   `json:"parent,omitempty"`
+	Children      []*TaskCategory `json:"children"`
+	StageBindings map[string]any  `json:"stageBindings"`
 }
 
 type TaskConnection struct {

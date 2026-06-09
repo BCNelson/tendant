@@ -1,0 +1,50 @@
+# Hierarchical task categories. Additive (Path 1) — operator-edge GraphQL contract.
+#
+# A tree of categories (parent/children) where each node binds, per lifecycle
+# stage, an agent shortlist and/or an eligibility expression. Triage classifies a
+# task into one category; expansion + execution route to that category's bound
+# agents (inherited from ancestors).
+#
+# Mutations are OWNER-PRINCIPAL-ONLY: the resolver MUST reject any viewer with
+# Principal.Kind != "user" with PERMISSION_DENIED *before* any DB read or write
+# (auth.RequireOwner — a structural check, not a feature flag).
+
+type TaskCategory {
+  key: String!
+  label: String!
+  description: String
+  # parent in the category tree; null for a root category.
+  parent: TaskCategory
+  # direct children in the category tree.
+  children: [TaskCategory!]!
+  # per-stage bindings: {"execution":{"agents":[...],"eligibility":{...}}}.
+  stageBindings: JSON!
+}
+
+extend type Query {
+  # The full category taxonomy, ordered by key.
+  categories: [TaskCategory!]!
+}
+
+extend type Task {
+  # The category triage assigned this task (from findings.structured.category);
+  # null when uncategorized or the key no longer resolves.
+  category: TaskCategory
+}
+
+input SetTaskCategoryInput {
+  key: String!
+  label: String
+  description: String
+  # parent key; omit to derive from the key path prefix (e.g.
+  # "communication/email" → "communication"); "" forces a root category.
+  parent: String
+  stageBindings: JSON
+}
+
+extend type Mutation {
+  # Owner-only. Upsert a category (insert or override by key).
+  setTaskCategory(input: SetTaskCategoryInput!): TaskCategory!
+  # Owner-only. Delete a category by key.
+  deleteTaskCategory(key: String!): Boolean!
+}

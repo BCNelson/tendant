@@ -10,12 +10,17 @@ type Findings struct {
 }
 
 // StructuredFindings is the v1 normative schema. Eligibility may only bind to
-// these four fields; extra keys are ignored.
+// these fields; extra keys are ignored.
 type StructuredFindings struct {
 	CategoryHints        []string `json:"category_hints"`
 	StakesScore          float64  `json:"stakes_score"`
 	Entities             []Entity `json:"entities"`
 	RequiredCapabilities []string `json:"required_capabilities"`
+	// Category is the canonical task-category key the triage stage assigns
+	// (e.g. "communication/email"). Empty for uncategorized/legacy tasks. The
+	// downstream-stage router resolves it against the task_categories tree to
+	// pick that category's bound agents; empty falls back to eligibility routing.
+	Category string `json:"category,omitempty"`
 }
 
 // Entity is an identified entity within a task's context.

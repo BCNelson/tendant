@@ -32,6 +32,11 @@ Serializers _$serializers = (Serializers().toBuilder()
       ..add(GApproveArtifactVars.serializer)
       ..add(GAutonomyLevel.serializer)
       ..add(GBytes.serializer)
+      ..add(GCategoriesData.serializer)
+      ..add(GCategoriesData_categories.serializer)
+      ..add(GCategoriesData_categories_parent.serializer)
+      ..add(GCategoriesReq.serializer)
+      ..add(GCategoriesVars.serializer)
       ..add(GChainStage.serializer)
       ..add(GCompleteTaskData.serializer)
       ..add(GCompleteTaskData_completeTask.serializer)
@@ -52,6 +57,9 @@ Serializers _$serializers = (Serializers().toBuilder()
       ..add(GDeleteConfigEntryData.serializer)
       ..add(GDeleteConfigEntryReq.serializer)
       ..add(GDeleteConfigEntryVars.serializer)
+      ..add(GDeleteTaskCategoryData.serializer)
+      ..add(GDeleteTaskCategoryReq.serializer)
+      ..add(GDeleteTaskCategoryVars.serializer)
       ..add(GDevicePlatform.serializer)
       ..add(GDismissFeedbackData.serializer)
       ..add(GDismissFeedbackData_dismissFeedback.serializer)
@@ -88,6 +96,8 @@ Serializers _$serializers = (Serializers().toBuilder()
       ..add(GInboxItemArrivedData_inboxItemArrived__asAgentQuestion.serializer)
       ..add(
           GInboxItemArrivedData_inboxItemArrived__asApprovalRequest.serializer)
+      ..add(
+          GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest.serializer)
       ..add(GInboxItemArrivedData_inboxItemArrived__asPromotionProposal
           .serializer)
       ..add(GInboxItemArrivedData_inboxItemArrived__base.serializer)
@@ -145,6 +155,11 @@ Serializers _$serializers = (Serializers().toBuilder()
       ..add(GSetConnectorConfigData_setConnectorConfig.serializer)
       ..add(GSetConnectorConfigReq.serializer)
       ..add(GSetConnectorConfigVars.serializer)
+      ..add(GSetTaskCategoryData.serializer)
+      ..add(GSetTaskCategoryData_setTaskCategory.serializer)
+      ..add(GSetTaskCategoryInput.serializer)
+      ..add(GSetTaskCategoryReq.serializer)
+      ..add(GSetTaskCategoryVars.serializer)
       ..add(GTaskChangedData.serializer)
       ..add(GTaskChangedData_taskChanged.serializer)
       ..add(GTaskChangedReq.serializer)
@@ -181,6 +196,10 @@ Serializers _$serializers = (Serializers().toBuilder()
           const FullType(BuiltList,
               const [const FullType(GAgentConfigsData_agentConfigs)]),
           () => ListBuilder<GAgentConfigsData_agentConfigs>())
+      ..addBuilderFactory(
+          const FullType(
+              BuiltList, const [const FullType(GCategoriesData_categories)]),
+          () => ListBuilder<GCategoriesData_categories>())
       ..addBuilderFactory(
           const FullType(
               BuiltList, const [const FullType(GConfigKeysData_configKeys)]),

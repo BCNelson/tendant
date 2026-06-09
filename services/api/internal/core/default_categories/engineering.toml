@@ -1,0 +1,8 @@
+# engineering — software/code tasks. Built-in (core). Binds execution to the
+# code executor via a static shortlist.
+key = "engineering"
+label = "Engineering"
+description = "Software, code, and technical execution tasks."
+
+[stage_bindings.execution]
+agents = ["code-executor"]

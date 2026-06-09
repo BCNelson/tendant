@@ -55,6 +55,8 @@ abstract class GInboxItemArrivedData_inboxItemArrived {
               GInboxItemArrivedData_inboxItemArrived__asAgentQuestion,
           'PromotionProposal':
               GInboxItemArrivedData_inboxItemArrived__asPromotionProposal,
+          'FeedbackRequest':
+              GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest,
         },
       );
 
@@ -258,6 +260,45 @@ abstract class GInboxItemArrivedData_inboxItemArrived__asPromotionProposal
           Map<String, dynamic> json) =>
       _i1.serializers.deserializeWith(
         GInboxItemArrivedData_inboxItemArrived__asPromotionProposal.serializer,
+        json,
+      );
+}
+
+abstract class GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest
+    implements
+        Built<GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest,
+            GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestBuilder>,
+        GInboxItemArrivedData_inboxItemArrived {
+  GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest._();
+
+  factory GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest(
+      [void Function(
+              GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestBuilder
+                  b)
+          updates]) = _$GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest;
+
+  static void _initializeBuilder(
+          GInboxItemArrivedData_inboxItemArrived__asFeedbackRequestBuilder b) =>
+      b..G__typename = 'FeedbackRequest';
+
+  @override
+  @BuiltValueField(wireName: '__typename')
+  String get G__typename;
+  String get id;
+  static Serializer<GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest>
+      get serializer =>
+          _$gInboxItemArrivedDataInboxItemArrivedAsFeedbackRequestSerializer;
+
+  @override
+  Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
+        GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest.serializer,
+        this,
+      ) as Map<String, dynamic>);
+
+  static GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest? fromJson(
+          Map<String, dynamic> json) =>
+      _i1.serializers.deserializeWith(
+        GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest.serializer,
         json,
       );
 }

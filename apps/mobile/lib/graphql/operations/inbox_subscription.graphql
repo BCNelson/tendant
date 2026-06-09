@@ -13,5 +13,8 @@ subscription InboxItemArrived {
     ... on PromotionProposal {
       id
     }
+    ... on FeedbackRequest {
+      id
+    }
   }
 }
