@@ -36,7 +36,7 @@ func newPollEnv(t *testing.T) *pollEnv {
 	dctx, err := durable.Init(ctx, pool, "intaketest-"+uuid.NewString())
 	require.NoError(t, err)
 	// The chain workflow must be registered so forced_task's chain attach works.
-	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, nil, "", nil)
+	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, nil, "", nil, nil)
 
 	inbound := &connector.MemoryInboundQueue{}
 	registry := connector.NewRegistry()

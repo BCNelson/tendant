@@ -9,7 +9,7 @@ wired for the operator edge.
 ## Setup
 
 ```sh
-# First time — enters the devenv shell (Go 1.25, Postgres 16 + pgvector, sqlc, goose, just).
+# First time — enters the devenv shell (Go 1.26, Postgres 16 + pgvector, sqlc, goose, just).
 direnv allow
 
 # Bring up Postgres + the core: migrates, seeds owner, serves /graphql + /healthz.
@@ -19,6 +19,45 @@ curl -fsS localhost:8080/healthz   # → 200 OK
 # Tests (Docker required for testcontainers).
 just test
 ```
+
+`just up` (and `just dev` below) start the **devenv Postgres** (process-compose)
+if it isn't already running. For the full foreground process view, run
+`devenv up` in its own terminal; stop it with `devenv processes stop postgres`
+(or Ctrl-C). The devenv Postgres listens on `127.0.0.1:5432` with a superuser
+role named after your OS user, which is why `DATABASE_URL` carries no user.
+
+## Full local stack (LLM via Ollama)
+
+`devenv up` runs the whole app locally: the **devenv Postgres** plus the Go core
+under [`air`](https://github.com/air-verse/air) live-reload (rebuilds + restarts
+on `.go` changes). The core uses the committed [`tendant.dev.toml`](./tendant.dev.toml)
+— a **local [Ollama](https://ollama.com)** connection for the overseer's LLM
+grader plus a fixed dev pairing password (no real secrets).
+
+```sh
+ollama serve &           # the daemon (skip if already running)
+just ollama-models       # pull llama3.2:3b + qwen2.5:3b (fast, tool-calling)
+devenv up                # Postgres + the live-reloading core (air), → :8080
+
+# In a second terminal — the Flutter client against :8080.
+just app-codegen         # once on a fresh checkout (ferry + drift codegen)
+just app                 # flutter run (pick a device)
+```
+
+`devenv up` runs the processes in the foreground (Ctrl-C stops them; `devenv up
+-D` detaches). The `tendant` process waits for Postgres's readiness probe before
+migrating. `just dev` is the lighter alternative — the same core in the
+foreground **without** reload (`go run`), still wired to Ollama.
+
+The overseer forces structured tool-call output, so pick a tool-capable model
+(`llama3.2:3b`, `qwen2.5:3b` — avoid sub-1B models for grading). If Ollama is
+down the overseer fails closed to the deterministic LogProvider and the app
+still runs. Cloud providers (Anthropic, OpenAI, Gemini, Bedrock) activate by
+switching `overseer.connection` and supplying an API key — see
+[`tendant.example.toml`](./tendant.example.toml) for the annotated reference.
+
+To point the app elsewhere, every key in `tendant.dev.toml` can be overridden
+by an env var (env > file), e.g. `TENDANT_OVERSEER__CONNECTION=claude`.
 
 ## Layout
 

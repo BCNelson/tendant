@@ -1,0 +1,89 @@
+# Tendant — local development configuration.
+#
+# Turnkey config for running the full app locally against a LOCAL OLLAMA.
+# It is committed on purpose: it holds NO real secrets, only a fixed dev
+# password and a localhost Ollama endpoint. Do NOT use it in production.
+#
+# Run it with:   just dev          (loads this file via `serve --config`)
+# Everything here can still be overridden by an env var (env > file).
+#
+# See tendant.example.toml for the full annotated reference (cloud providers,
+# secrets interpolation, catalogs, etc.).
+
+[log]
+level = "debug"          # chatty by default for local development
+
+[database]
+# The devenv Postgres (services.postgres) listens here with trust auth, so no
+# password is needed. The devenv shell also exports DATABASE_URL to this same
+# value, which (env > file) overrides this line — they are intentionally equal.
+url = "postgres://127.0.0.1:5432/tendant?sslmode=disable"
+
+[auth]
+# Static device-pairing password. Reused from compose.yaml so the local pairing
+# experience is reproducible. Present this to the `pairDevice` mutation.
+password = "dev"
+
+[seed]
+# Seed the example gate script so the running app has something to inspect.
+example_gate_script = true
+
+[calibration]
+# DBOS crons are 6-field (seconds-leading); the code default "0 * * * *" is
+# 5-field and logs a harmless boot error. Pin a valid hourly cron for dev.
+sweep_cron = "0 0 * * * *"
+
+# --- Overseer (Layer-4 LLM grader) -----------------------------------------
+# Point the overseer at the local Ollama connection defined below. The provider
+# choice is boot-only (agents cannot reroute inference). If Ollama is down the
+# gateway fails closed to the deterministic LogProvider — the app still runs.
+[overseer]
+connection = "local-ollama"
+
+# --- Agent layer (Phase 6) -------------------------------------------------
+# Opt in to live agent routing + the plan→act→observe runner against the local
+# Ollama. Empty ⇒ human-only routing (the CI/production default). The default
+# 9-agent catalog (3 per stage, all with an EMPTY tool_allowlist) is seeded
+# automatically by ReconcileAgentCatalog at boot, so no [[agents]] block is
+# required and the runner only produces findings — it never dispatches a tool,
+# which is the safe dev posture. To use an EXTERNAL Ollama, point the
+# local-ollama [[llm_connections]] base_url below at the remote host (or add a
+# second [[llm_connections]] and set this to its name).
+[agent]
+connection = "local-ollama"
+
+# --- LLM connections (the internal/llm registry) ---------------------------
+# Ollama speaks the OpenAI Chat Completions protocol, so use provider "openai"
+# and point base_url at the Ollama host (the client appends /v1/chat/completions).
+# No api_key is needed for a local Ollama.
+#
+# Pull the models first:  just ollama-models
+# The overseer FORCES structured tool-call output, so pick a model with reliable
+# function-calling. llama3.2:3b and qwen2.5:3b are fast and tool-capable; avoid
+# sub-1B models (e.g. qwen2.5:0.5b) for the overseer — their tool calls are flaky.
+
+[[llm_connections]]
+name = "local-ollama"
+provider = "openai"
+base_url = "http://localhost:11434"
+model = "llama3.2:3b"
+
+# Alternate local models — flip overseer.connection above to one of these.
+# [[llm_connections]]
+# name = "local-qwen"
+# provider = "openai"
+# base_url = "http://localhost:11434"
+# model = "qwen2.5:3b"
+
+# Cloud examples (activate by setting overseer.connection + the api key env var):
+# [[llm_connections]]
+# name = "claude"
+# provider = "anthropic"
+# model = "claude-sonnet-4-6"
+# api_key = "${env:TENDANT_OVERSEER_ANTHROPIC_API_KEY}"   # 🔒
+#
+# [[llm_connections]]
+# name = "gpt"
+# provider = "openai"
+# model = "gpt-4.1-mini"
+# api_key = "${env:TENDANT_OVERSEER_OPENAI_API_KEY}"       # 🔒

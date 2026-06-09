@@ -31,7 +31,11 @@ func (p *LLMPicker) Pick(ctx context.Context, eligible []db.AgentConfig, freeTex
 	}
 
 	// Build the prompt.
-	system := "You are a routing assistant. Select the single best specialist for this task stage. Respond with ONLY a JSON object: {\"config_id\": \"<uuid>\"}. Pick the specialist whose capabilities best match the task description."
+	system := "You are a routing assistant. From the eligible specialists below, select the single best fit for " +
+		"this task stage based on how well each specialist's described capabilities match what the task needs. " +
+		"Prefer a specialist whose focus clearly covers the task; when none is a clear fit, choose the most " +
+		"general-purpose option rather than forcing a narrow specialist. Respond with ONLY a JSON object and " +
+		"nothing else: {\"config_id\": \"<uuid>\"}, where the uuid is one of the listed specialist ids."
 
 	candidates := make([]map[string]string, 0, len(eligible))
 	for _, cfg := range eligible {

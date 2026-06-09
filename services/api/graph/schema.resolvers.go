@@ -122,6 +122,18 @@ func (r *approvalRequestResolver) OverseerEvaluation(ctx context.Context, obj *m
 	return r.loadOverseerEvaluation(ctx, obj.ID)
 }
 
+// Task is the resolver for the task field. Loads the task via the
+// decision's task_id (same lazy join the other decision types use).
+func (r *feedbackRequestResolver) Task(ctx context.Context, obj *model.FeedbackRequest) (*model.Task, error) {
+	return r.loadDecisionTask(ctx, obj.ID)
+}
+
+// Messages is the resolver for the messages field. Loads the conversation
+// thread for this FeedbackRequest, oldest-first.
+func (r *feedbackRequestResolver) Messages(ctx context.Context, obj *model.FeedbackRequest) ([]*model.FeedbackMessage, error) {
+	return r.loadFeedbackMessages(ctx, obj.ID)
+}
+
 // CreateTask is the resolver for the createTask field.
 func (r *mutationResolver) CreateTask(ctx context.Context, title string, description *string) (*model.Task, error) {
 	if r.DBOS == nil {
@@ -518,6 +530,31 @@ func (r *mutationResolver) FlagOutcome(ctx context.Context, taskID string, toolI
 	return r.flagOutcomeImpl(ctx, taskID, toolID, reason)
 }
 
+// SendFeedbackMessage is the resolver for the sendFeedbackMessage field.
+// Appends the owner's message, generates the agent's reply + refreshed draft,
+// and returns the updated FeedbackRequest.
+func (r *mutationResolver) SendFeedbackMessage(ctx context.Context, decisionID string, text string) (*model.FeedbackRequest, error) {
+	return r.sendFeedbackMessageImpl(ctx, decisionID, text)
+}
+
+// AcceptFeedbackGuidance is the resolver for the acceptFeedbackGuidance field.
+// Owner-only: stores the guidance verbatim, optionally rates, resolves + wakes.
+func (r *mutationResolver) AcceptFeedbackGuidance(ctx context.Context, decisionID string, guidance string, scope model.GuidanceScope, agentConfigID *string, rating *int) (*model.AgentGuidance, error) {
+	return r.acceptFeedbackGuidanceImpl(ctx, decisionID, guidance, scope, agentConfigID, rating)
+}
+
+// DismissFeedback is the resolver for the dismissFeedback field. Owner-only:
+// closes the conversation with no guidance (optional rating).
+func (r *mutationResolver) DismissFeedback(ctx context.Context, decisionID string, rating *int) (model.PendingDecision, error) {
+	return r.dismissFeedbackImpl(ctx, decisionID, rating)
+}
+
+// DeactivateAgentGuidance is the resolver for the deactivateAgentGuidance field.
+// Owner-only: retires an active guidance note.
+func (r *mutationResolver) DeactivateAgentGuidance(ctx context.Context, guidanceID string) (*model.AgentGuidance, error) {
+	return r.deactivateAgentGuidanceImpl(ctx, guidanceID)
+}
+
 // Task is the resolver for the task field.
 func (r *promotionProposalResolver) Task(ctx context.Context, obj *model.PromotionProposal) (*model.Task, error) {
 	return r.loadDecisionTask(ctx, obj.ID)
@@ -550,6 +587,9 @@ func (r *queryResolver) Viewer(ctx context.Context) (*model.User, error) {
 
 // Task is the resolver for the task field.
 func (r *queryResolver) Task(ctx context.Context, id string) (*model.Task, error) {
+	if _, ok := auth.FromContext(ctx); !ok {
+		return nil, unauthorizedError(ctx)
+	}
 	tid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, fmt.Errorf("invalid id: %w", err)
@@ -567,6 +607,9 @@ func (r *queryResolver) Task(ctx context.Context, id string) (*model.Task, error
 // Tasks is the resolver for the tasks field. Keyset pagination over
 // (created_at DESC, id DESC); fetches first+1 to determine hasNextPage.
 func (r *queryResolver) Tasks(ctx context.Context, first *int, after *string, state *model.TaskState) (*model.TaskConnection, error) {
+	if _, ok := auth.FromContext(ctx); !ok {
+		return nil, unauthorizedError(ctx)
+	}
 	limit := defaultPageSize
 	if first != nil {
 		if *first <= 0 {
@@ -619,6 +662,12 @@ func (r *queryResolver) Tasks(ctx context.Context, first *int, after *string, st
 		conn.PageInfo.EndCursor = &c
 	}
 	return conn, nil
+}
+
+// AgentGuidance is the resolver for the agentGuidance field. Owner-only: lists
+// standing guidance notes by status (default "active").
+func (r *queryResolver) AgentGuidance(ctx context.Context, status *string) ([]*model.AgentGuidance, error) {
+	return r.agentGuidanceImpl(ctx, status)
 }
 
 // Inbox is the resolver for the inbox field. Viewer-scoped (FR-031) — the
@@ -834,6 +883,24 @@ func (r *taskResolver) OpenAssignment(ctx context.Context, obj *model.Task) (*mo
 	return mapAssignment(&row)
 }
 
+// StageSlots is the resolver for the stageSlots field.
+func (r *taskResolver) StageSlots(ctx context.Context, obj *model.Task) ([]*model.StageSlot, error) {
+	taskID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	return buildStageSlots(ctx, r.Queries, taskID)
+}
+
+// Activity is the resolver for the activity field.
+func (r *taskResolver) Activity(ctx context.Context, obj *model.Task) ([]*model.ActivityEvent, error) {
+	taskID, err := uuid.Parse(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	return buildActivity(ctx, r.Queries, taskID)
+}
+
 // AgentAssignment returns AgentAssignmentResolver implementation.
 func (r *Resolver) AgentAssignment() AgentAssignmentResolver { return &agentAssignmentResolver{r} }
 
@@ -842,6 +909,9 @@ func (r *Resolver) AgentQuestion() AgentQuestionResolver { return &agentQuestion
 
 // ApprovalRequest returns ApprovalRequestResolver implementation.
 func (r *Resolver) ApprovalRequest() ApprovalRequestResolver { return &approvalRequestResolver{r} }
+
+// FeedbackRequest returns FeedbackRequestResolver implementation.
+func (r *Resolver) FeedbackRequest() FeedbackRequestResolver { return &feedbackRequestResolver{r} }
 
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
@@ -866,6 +936,7 @@ func (r *Resolver) Tool() ToolResolver { return &toolResolver{r} }
 type agentAssignmentResolver struct{ *Resolver }
 type agentQuestionResolver struct{ *Resolver }
 type approvalRequestResolver struct{ *Resolver }
+type feedbackRequestResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
 type promotionProposalResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }

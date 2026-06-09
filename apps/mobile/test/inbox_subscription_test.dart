@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateController;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tendant/features/inbox/inbox_page.dart';
@@ -20,6 +21,8 @@ void main() {
         child: const MaterialApp(home: InboxPage()),
       ),
     );
+    // The provider resolves on a microtask; settle past the loading frame.
+    await tester.pumpAndSettle();
     expect(find.text('No items.'), findsOneWidget);
 
     // Emulate the subscription delivering a new item.

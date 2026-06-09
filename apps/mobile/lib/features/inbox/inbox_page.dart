@@ -13,7 +13,26 @@ class InboxPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final items = ref.watch(inboxItemsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Inbox')),
+      appBar: AppBar(
+        title: const Text('Inbox'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: () => ref.invalidate(inboxItemsProvider),
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: () => context.push('/settings'),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'New task',
+        onPressed: () => context.push('/create-task'),
+        child: const Icon(Icons.add),
+      ),
       body: items.when(
         data: (list) {
           if (list.isEmpty) {
@@ -52,6 +71,7 @@ class InboxItemRef {
 
   bool get isAssignment => typename == 'AgentAssignment';
   bool get isApprovalRequest => typename == 'ApprovalRequest';
+  bool get isFeedbackRequest => typename == 'FeedbackRequest';
 }
 
 class InboxTile extends StatelessWidget {
@@ -69,6 +89,15 @@ class InboxTile extends StatelessWidget {
         title: Text(item.title.isEmpty ? 'Approval' : item.title),
         subtitle: Text(item.subtitle),
         onTap: () => context.push('/approval/${item.id}'),
+      );
+    }
+    if (item.isFeedbackRequest) {
+      // Post-completion feedback — opens the conversation page.
+      return ListTile(
+        leading: const Icon(Icons.rate_review_outlined),
+        title: Text(item.title.isEmpty ? 'Feedback' : item.title),
+        subtitle: Text(item.subtitle),
+        onTap: () => context.push('/feedback/${item.id}'),
       );
     }
     if (!item.isAssignment) {

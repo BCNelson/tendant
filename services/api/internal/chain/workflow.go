@@ -60,6 +60,16 @@ type PushEnqueuer interface {
 	EnqueuePush(ctx context.Context, payload PushJobPayload) error
 }
 
+// FeedbackEnqueuer is the seam the chain workflow uses to start the
+// post-completion feedback workflow as a durable child, without importing
+// internal/feedback (that would close an import cycle: feedback → chain). The
+// adapter (feedback.Enqueuer) calls feedback.StartFeedbackWorkflow with the
+// chain workflow's own DBOS context. nil is allowed (no-feedback mode, used in
+// Phase 0–7 tests and CI before a generator is wired).
+type FeedbackEnqueuer interface {
+	EnqueueFeedback(ctx dbos.DBOSContext, taskID uuid.UUID) error
+}
+
 // PushJobPayload mirrors push.JobPayload so the chain package doesn't take a
 // direct dependency on internal/push (that would close a circular import via
 // internal/push → internal/db; we keep chain at the lower layer).
@@ -80,6 +90,7 @@ type envDeps struct {
 	runner         StageRunner // Phase 6: agent runner for non-human stages
 	ownerGlobalURI string
 	push           PushEnqueuer
+	feedback       FeedbackEnqueuer
 }
 
 var (
@@ -95,7 +106,7 @@ var (
 // ownerGlobalURI populates agent_assignments.to_principal so the push fan-out
 // worker knows whose tokens to push (Phase 2). push is optional; nil opts out
 // of push enqueue (Phase 0/1 tests, CI without APNs/FCM creds).
-func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router Router, runner StageRunner, ownerGlobalURI string, pushEnqueuer PushEnqueuer) {
+func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router Router, runner StageRunner, ownerGlobalURI string, pushEnqueuer PushEnqueuer, feedbackEnqueuer FeedbackEnqueuer) {
 	depsMu.Lock()
 	deps = &envDeps{
 		pool:           pool,
@@ -104,6 +115,7 @@ func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router R
 		runner:         runner,
 		ownerGlobalURI: ownerGlobalURI,
 		push:           pushEnqueuer,
+		feedback:       feedbackEnqueuer,
 	}
 	depsMu.Unlock()
 	dbos.RegisterWorkflow(dctx, ChainWorkflow, dbos.WithWorkflowName(WorkflowName))
@@ -194,7 +206,7 @@ func ChainWorkflow(ctx dbos.DBOSContext, taskIDStr string) (string, error) {
 		var result json.RawMessage
 		if decision.IsHuman {
 			// Human path: open assignment + durable wait (Phase 1/2 mechanism).
-			if err := runOpenAssignmentStep(ctx, d, taskID, stage); err != nil {
+			if err := runOpenAssignmentStep(ctx, d, taskID, stage, decision.HandoffReason); err != nil {
 				return "", err
 			}
 			result, err = WaitForResult(ctx, TopicForStage(stage), HumanSlotTimeout)
@@ -218,6 +230,19 @@ func ChainWorkflow(ctx dbos.DBOSContext, taskIDStr string) (string, error) {
 	// Final: COMPLETION step (EXECUTING → DONE + EndChainWorkflow).
 	if err := runCompletionStep(ctx, d, taskID); err != nil {
 		return "", err
+	}
+
+	// Post-completion: start the feedback workflow as a durable child (mirrors
+	// the toolflow sibling). Best-effort by design — a crash in the narrow
+	// window between the completion commit and this child-start would, on
+	// recovery, hit the terminal early-return above and skip feedback for this
+	// task. Started from the workflow body (NOT a step): DBOS forbids spawning a
+	// child workflow from within a step, and the fixed child id makes the start
+	// idempotent. nil enqueuer (tests / CI) is a no-op.
+	if d.feedback != nil {
+		if err := d.feedback.EnqueueFeedback(ctx, taskID); err != nil {
+			return "", fmt.Errorf("enqueue feedback: %w", err)
+		}
 	}
 	return "ok", nil
 }
@@ -275,10 +300,12 @@ func runRouteAndOccupyStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, s
 		}
 
 		// Check if the agent failed-close to human (budget exhausted,
-		// max iterations, RequestDecision, gateway error). If so, return
-		// IsHuman: true so the chain enters the human-wait path.
+		// max iterations, RequestDecision, gateway error, or an explicit
+		// handoff_to_human call). If so, return IsHuman: true so the chain
+		// enters the human-wait path, carrying the agent's handoff reason
+		// (empty for non-handoff fail-closes) onto the assignment ask.
 		if isFailCloseResult(stageResult) {
-			return SlotDecision{IsHuman: true}, nil
+			return SlotDecision{IsHuman: true, HandoffReason: handoffReasonOf(stageResult)}, nil
 		}
 
 		return SlotDecision{
@@ -305,6 +332,22 @@ func isFailCloseResult(raw json.RawMessage) bool {
 	return result.FailCloseToHuman
 }
 
+// handoffReasonOf extracts the agent-authored handoff reason from a raw
+// StageResult JSON. Empty for non-handoff fail-closes (budget, max-iter, etc.)
+// and on any decode error.
+func handoffReasonOf(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var result struct {
+		HandoffReason string `json:"handoff_reason"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return ""
+	}
+	return result.HandoffReason
+}
+
 // runAdvanceStageStep advances the chain stage in one DBOS step.
 func runAdvanceStageStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, from, to lifecycle.ChainStage, reason string) error {
 	_, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (struct{}, error) {
@@ -321,7 +364,15 @@ func runAdvanceStageStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, fro
 // audit row in one tx. Idempotent under recovery (skips if an open row
 // already exists for (task, stage)). After the tx commits, enqueues a push
 // fan-out job (Phase 2; no-op when PushEnqueuer is nil).
-func runOpenAssignmentStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, stage lifecycle.ChainStage) error {
+//
+// handoffReason, when non-empty, replaces the stage-default ask — an agent
+// fail-closed via handoff_to_human, so the human sees the specialist's own
+// explanation of why it could not complete the work.
+func runOpenAssignmentStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, stage lifecycle.ChainStage, handoffReason string) error {
+	ask := DefaultAsk(stage)
+	if handoffReason != "" {
+		ask = "An automated specialist handed this task to you: " + handoffReason
+	}
 	var outerAssignmentID uuid.UUID
 	_, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (struct{}, error) {
 		err := pgx.BeginFunc(stepCtx, d.pool, func(tx pgx.Tx) error {
@@ -337,7 +388,7 @@ func runOpenAssignmentStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, s
 			row, ierr := q.InsertAgentAssignment(stepCtx, db.InsertAgentAssignmentParams{
 				TaskID:          taskID,
 				Stage:           stage,
-				Ask:             DefaultAsk(stage),
+				Ask:             ask,
 				GatheredContext: json.RawMessage("{}"),
 			})
 			if ierr != nil {

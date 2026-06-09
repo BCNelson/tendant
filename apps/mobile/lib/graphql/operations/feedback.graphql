@@ -1,0 +1,62 @@
+# Post-completion feedback — conversation loader + turn/accept/dismiss mutations.
+
+query FeedbackRequest($id: ID!) {
+  pendingDecision(id: $id) {
+    __typename
+    id
+    createdAt
+    ... on FeedbackRequest {
+      draftGuidance
+      task {
+        id
+        title
+      }
+      messages {
+        id
+        role
+        content
+        createdAt
+      }
+    }
+  }
+}
+
+mutation SendFeedbackMessage($decisionId: ID!, $text: String!) {
+  sendFeedbackMessage(decisionId: $decisionId, text: $text) {
+    id
+    draftGuidance
+    messages {
+      id
+      role
+      content
+      createdAt
+    }
+  }
+}
+
+mutation AcceptFeedbackGuidance(
+  $decisionId: ID!
+  $guidance: String!
+  $scope: GuidanceScope!
+  $agentConfigId: ID
+  $rating: Int
+) {
+  acceptFeedbackGuidance(
+    decisionId: $decisionId
+    guidance: $guidance
+    scope: $scope
+    agentConfigId: $agentConfigId
+    rating: $rating
+  ) {
+    id
+    note
+    scope
+    agentConfigId
+  }
+}
+
+mutation DismissFeedback($decisionId: ID!, $rating: Int) {
+  dismissFeedback(decisionId: $decisionId, rating: $rating) {
+    id
+  }
+}

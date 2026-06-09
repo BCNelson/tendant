@@ -24,3 +24,9 @@ result-*
 coverage/
 coverage.out
 coverage.html
+
+# Android SDK local state (AVDs, cache, debug keystore)
+.android/
+
+# Flutter — nix-generated local SDK paths
+local.properties

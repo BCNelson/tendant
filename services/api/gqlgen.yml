@@ -45,6 +45,12 @@ models:
         resolver: true
       workflow:
         resolver: true
+      # Phase 6 — stageSlots derives per-stage occupancy from the audit DAG.
+      stageSlots:
+        resolver: true
+      # activity — the task's full audit timeline (lazy; detail page only).
+      activity:
+        resolver: true
   AgentAssignment:
     fields:
       task:
@@ -79,6 +85,14 @@ models:
       task:
         resolver: true
       tool:
+        resolver: true
+  # Post-completion feedback — task + messages join lazily; draftGuidance is
+  # populated eagerly by the mapper from the decision payload (plain model field).
+  FeedbackRequest:
+    fields:
+      task:
+        resolver: true
+      messages:
         resolver: true
 
   # Phase 5 — gate-script lazy joins. Tool gains two script-history fields.

@@ -7,7 +7,7 @@
 set -euo pipefail
 
 HOST="${HOST:-http://localhost:8080}"
-SETUP="${TENDANT_SETUP_SECRET:-dev-setup-2026-05-28}"
+SETUP="${TENDANT_SETUP_SECRET:-dev}"
 DBURL="${DATABASE_URL:-postgres://postgres:postgres@127.0.0.1:5432/tendant?sslmode=disable}"
 
 pass() { printf "%s ........... OK\n" "$1"; }

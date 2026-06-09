@@ -85,6 +85,9 @@ type GateConfig struct {
 // AgentRunnerConfig holds agent-layer budget controls.
 type AgentRunnerConfig struct {
 	MaxIter int `koanf:"max_iter"`
+	// Connection names an [[llm_connections]] entry the agent router+runner
+	// use for inference. Empty ⇒ human-only routing (no agent inference).
+	Connection string `koanf:"connection"`
 }
 
 // OverseerConfig holds the Phase-4 overseer (LLM grader) settings.
@@ -271,6 +274,7 @@ var legacyAliases = []aliasEntry{
 	{Env: "HTTP_ADDR", Key: "server.http_addr"},
 	{Env: "TENDANT_GATE_CALL_BUDGET", Key: "gate.call_budget"},
 	{Env: "TENDANT_AGENT_MAX_ITER", Key: "agent.max_iter"},
+	{Env: "TENDANT_AGENT_CONNECTION", Key: "agent.connection"},
 	{Env: "TENDANT_OVERSEER_CONNECTION", Key: "overseer.connection"},
 	{Env: "TENDANT_OVERSEER_PROVIDER", Key: "overseer.provider"},
 	{Env: "TENDANT_OVERSEER_MODEL_ID", Key: "overseer.model_id"},

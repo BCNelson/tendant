@@ -33,6 +33,7 @@ systemd `CREDENTIALS_DIRECTORY`).
 
 | Key | Type | Default | DB-configurable | Takes effect | Description |
 |---|---|---|---|---|---|
+| `agent.connection` | string | `` | — | bootstrap | Name of an [[llm_connections]] entry the agent runner+router use (empty ⇒ human-only routing, no agent inference) |
 | `agent.max_iter` | int | `20` | yes | restart | Per-stage max agent loop iterations |
 
 ## auth

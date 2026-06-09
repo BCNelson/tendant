@@ -209,6 +209,41 @@ func TestFlagBadDemotesAndRevokes(t *testing.T) {
 	require.False(t, live, "the routine's grant must be revoked")
 }
 
+// TestDemoteForFeedbackDemotesActingTools proves that negative post-completion
+// feedback demotes every tool that acted under the task and revokes its grants.
+func TestDemoteForFeedbackDemotesActingTools(t *testing.T) {
+	pool, q, tool, taskID := testEnv(t)
+	ctx := context.Background()
+	eng := calibration.New(pool, testCfg(), nil)
+	payload := []byte(`{"to":"known@friend.example"}`)
+	fp := calibration.Fingerprint(tool.GlobalUri, payload)
+
+	// Promote: score in auto band + a live grant, and record a clean outcome so
+	// the tool counts as having acted under the task.
+	setScore(t, q, tool.ID, calibration.AutoThreshold)
+	_, err := q.InsertRoutineGrant(ctx, db.InsertRoutineGrantParams{
+		ToolID: tool.ID, RoutineFingerprint: fp, Evidence: []byte(`{}`), GrantedBy: "owner",
+	})
+	require.NoError(t, err)
+	require.NoError(t, pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		_, e := eng.RecordOutcome(ctx, tx, calibration.OutcomeInput{
+			ToolID: tool.ID, TaskID: taskID, ToolGlobalURI: tool.GlobalUri, Payload: payload, At: time.Now(),
+		})
+		return e
+	}))
+
+	require.NoError(t, eng.DemoteForFeedback(ctx, taskID, "negative feedback"))
+
+	updated, err := q.GetToolByID(ctx, tool.ID)
+	require.NoError(t, err)
+	require.Less(t, updated.TrustScore, calibration.AutoThreshold, "must drop out of auto band")
+	require.GreaterOrEqual(t, updated.TrustScore, calibration.Baseline, "must clamp at baseline")
+
+	live, err := q.LiveGrantExists(ctx, db.LiveGrantExistsParams{ToolID: tool.ID, RoutineFingerprint: fp})
+	require.NoError(t, err)
+	require.False(t, live, "the tool's grant must be revoked on negative feedback")
+}
+
 // TestConcurrentDemotionSerializes proves GetToolForUpdate serializes two
 // near-simultaneous demotions (no lost update) — spec edge case / T044.
 func TestConcurrentDemotionSerializes(t *testing.T) {

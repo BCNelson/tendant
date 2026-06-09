@@ -35,7 +35,15 @@ type CalibrationRateProvider interface {
 	CalibrationSnapshot() (proposals, demotions, matured, openProposals int, window string)
 }
 
+// ServiceName is the stable identifier clients use to confirm a host is a
+// tendant server (not merely something answering 200 on /healthz). It is
+// emitted in the /healthz body as the `service` field.
+const ServiceName = "tendant"
+
 type healthzResponse struct {
+	// Service self-identifies the deployment so clients can fingerprint a
+	// tendant server during address detection. Always ServiceName.
+	Service     string                   `json:"service"`
 	OK          bool                     `json:"ok"`
 	Overseer    *healthzOverseerBlock    `json:"overseer,omitempty"`
 	GateScript  *healthzGateScriptBlock  `json:"gatescript,omitempty"`
@@ -77,7 +85,7 @@ func healthzWithOverseer(pool *pgxpool.Pool, gateway RateProvider, scripts GateS
 			http.Error(w, "db unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		resp := healthzResponse{OK: true}
+		resp := healthzResponse{Service: ServiceName, OK: true}
 		if gateway != nil {
 			resp.Overseer = &healthzOverseerBlock{
 				EvaluationsPerMinute: gateway.RatePerMinute(),

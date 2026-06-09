@@ -19,7 +19,7 @@ class AssignmentDetail {
 /// assignmentProvider is overridden by tests and wired against the Ferry
 /// AgentAssignment(id:) query at app boot (T065).
 final assignmentProvider =
-    FutureProviderFamily<AssignmentDetail?, String>((ref, id) async => null);
+    FutureProvider.family<AssignmentDetail?, String>((ref, id) async => null);
 
 /// completeTaskProvider is overridden by tests and wired against the Ferry
 /// CompleteTask mutation at app boot.

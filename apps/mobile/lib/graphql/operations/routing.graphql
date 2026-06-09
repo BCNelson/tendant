@@ -1,0 +1,32 @@
+# Phase 6 — routing/specialist read-only views.
+
+query TaskStageSlots($taskId: ID!) {
+  task(id: $taskId) {
+    id
+    stageSlots {
+      stage
+      isHuman
+      occupant {
+        id
+        name
+        stage
+        isHuman
+        model
+        origin
+        version
+      }
+    }
+  }
+}
+
+query AgentConfigs($stage: AgentStage) {
+  agentConfigs(stage: $stage) {
+    id
+    name
+    stage
+    isHuman
+    model
+    origin
+    version
+  }
+}

@@ -1,3 +1,5 @@
 inputs:
   nixpkgs:
     url: github:cachix/devenv-nixpkgs/rolling
+# The Android SDK components are unfree; required for `android.enable` in devenv.nix.
+allowUnfree: true

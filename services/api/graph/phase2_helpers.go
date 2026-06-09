@@ -121,6 +121,8 @@ func pendingDecisionToInboxItem(pd model.PendingDecision) (model.InboxItem, erro
 		return v, nil
 	case *model.PromotionProposal:
 		return v, nil
+	case *model.FeedbackRequest:
+		return v, nil
 	}
 	return nil, fmt.Errorf("PendingDecision %T does not implement InboxItem", pd)
 }
@@ -143,6 +145,12 @@ func mapPendingDecisionRow(row *db.PendingDecision) (model.PendingDecision, erro
 			FromLevel: from,
 			ToLevel:   to,
 			Evidence:  evidence,
+		}, nil
+	case db.DecisionKindFeedbackRequest:
+		return &model.FeedbackRequest{
+			ID:            id,
+			CreatedAt:     row.CreatedAt,
+			DraftGuidance: parseDraftGuidance(row.Payload),
 		}, nil
 	}
 	return nil, fmt.Errorf("unknown decision kind: %s", row.Kind)

@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 /// non-null (owner-authored tasks have no provenance).
 ///
 /// Provenance is a reference, never a content copy — `raw_ref` is a source-stable
-/// id (e.g. "gmail:message/<id>", "rss:<feed>#<guid>") the connector re-fetches
+/// id (e.g. `gmail:message/<id>`, `rss:<feed>#<guid>`) the connector re-fetches
 /// on demand for detail view.
 class ProvenanceCard extends StatelessWidget {
   const ProvenanceCard({super.key, required this.provenance});

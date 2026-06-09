@@ -52,6 +52,7 @@ const (
 	KindAgentCallRefused     = "agent_call_refused"
 	KindBudgetExhausted      = "budget_exhausted"
 	KindMaxIterationsReached = "max_iterations_reached"
+	KindAgentHandoff         = "agent_handoff" // task-scope: agent called handoff_to_human
 
 	// Phase 7 (the intake edge). Scope annotations refer to the migration-00006
 	// CHECK (audit_task_required_unless_owner_scope, extended): the three
@@ -72,6 +73,12 @@ const (
 	KindToolDemoted        = "tool_demoted"        // task-scope
 	KindPromotionProposed  = "promotion_proposed"  // task-scope (representative)
 	KindPromotionResponded = "promotion_responded" // task-scope (representative)
+
+	// Post-completion feedback (conversational). All task-scoped (a completed
+	// task always has a real task_id) — no CHECK-allowlist change.
+	KindFeedbackOpened       = "feedback_opened"        // task-scope: agent opened the conversation
+	KindFeedbackSubmitted    = "feedback_submitted"     // task-scope: owner accepted/dismissed (carries rating)
+	KindAgentGuidanceApplied = "agent_guidance_applied" // task-scope: owner accepted a verbatim guidance note
 )
 
 // SystemActorURI is the principal globalUri used for system-authored audit
@@ -340,6 +347,37 @@ type PromotionRespondedPayload struct {
 	DecisionID uuid.UUID `json:"decision_id"`
 	Accepted   bool      `json:"accepted"`
 	NewScore   float64   `json:"new_score,omitempty"`
+}
+
+// --- Post-completion feedback (conversational) audit payloads. --------------
+
+// FeedbackOpenedPayload — kind=feedback_opened (task-scope). Written when the
+// feedback workflow opens the conversation (inserts the FeedbackRequest + the
+// agent's opening message).
+type FeedbackOpenedPayload struct {
+	DecisionID uuid.UUID `json:"decision_id"`
+	Converser  string    `json:"converser"` // "llm:<model>" | "stub"
+}
+
+// FeedbackSubmittedPayload — kind=feedback_submitted (task-scope). Written when
+// the owner accepts or dismisses the feedback conversation. Rating is the 1–5
+// satisfaction (0 when not supplied); Negative is the derived dissatisfaction
+// signal routed into calibration. GuidanceID is set when guidance was accepted.
+type FeedbackSubmittedPayload struct {
+	DecisionID  uuid.UUID  `json:"decision_id"`
+	Accepted    bool       `json:"accepted"`
+	Rating      int        `json:"rating,omitempty"`
+	Negative    bool       `json:"negative"`
+	GuidanceID  *uuid.UUID `json:"guidance_id,omitempty"`
+	SubmittedBy string     `json:"submitted_by"`
+}
+
+// AgentGuidanceAppliedPayload — kind=agent_guidance_applied (task-scope). The
+// owner accepted a verbatim guidance note and chose its scope.
+type AgentGuidanceAppliedPayload struct {
+	GuidanceID    uuid.UUID  `json:"guidance_id"`
+	Scope         string     `json:"scope"` // "global" | "agent"
+	AgentConfigID *uuid.UUID `json:"agent_config_id,omitempty"`
 }
 
 // WriteAuditMessage inserts one audit_messages row inside the provided tx.

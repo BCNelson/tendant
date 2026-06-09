@@ -76,6 +76,16 @@ func CreateSchedule(dctx dbos.DBOSContext, cron string) error {
 	if cron == "" {
 		return fmt.Errorf("calibration: a non-blank cron schedule is required")
 	}
+	// Idempotent: the sweep schedule persists in workflow_schedules across boots,
+	// and dbos.CreateSchedule errors on a duplicate schedule_name, so skip when
+	// it already exists rather than failing every restart.
+	existing, err := dbos.GetSchedule(dctx, ScheduleName)
+	if err != nil {
+		return fmt.Errorf("calibration: check existing sweep schedule: %w", err)
+	}
+	if existing != nil {
+		return nil
+	}
 	return dbos.CreateSchedule(dctx, SweepWorkflow, dbos.CreateScheduleRequest{
 		ScheduleName: ScheduleName,
 		Schedule:     cron,

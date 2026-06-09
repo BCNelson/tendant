@@ -13,6 +13,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/config"
 	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/bcnelson/tendant/services/api/internal/feedback"
 	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/overseer"
 	"github.com/bcnelson/tendant/services/api/internal/push"
@@ -40,6 +41,10 @@ type Resolver struct {
 	ScriptEvaluator gatescript.ScriptEvaluator
 	Connectors      ConnectorDeps       // Phase 7 — owner connector mutations
 	Calibrator      *calibration.Engine // Phase 8 — flagOutcome + cancel demotion; nil in pre-Phase-8 tests
+
+	// Post-completion feedback — the conversational converser the
+	// sendFeedbackMessage resolver uses to reply. nil ⇒ stub replies.
+	FeedbackConverser feedback.Converser
 
 	// Layered config — admin configKeys/setConfigEntry. ConfigOverlay is the
 	// DB-side override cache (nil-safe); ConfigSnapshot is the boot env/file/default

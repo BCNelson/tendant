@@ -8,3 +8,6 @@ tendant
 coverage/
 .github/
 .claude/
+apps/mobile/build/
+apps/mobile/.dart_tool/
+services/api/internal/webui/dist/

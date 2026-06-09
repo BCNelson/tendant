@@ -6,7 +6,13 @@
 # `replace github.com/bcnelson/tendant/db => ../../db`, so we build the single
 # services/api module with the workspace disabled — db resolves through the
 # replace directive against ./db, which is present in src.
-{ lib, buildGoModule, version ? "dev" }:
+#
+# When `webui` (the Flutter web bundle from ./webui.nix) is supplied, it is
+# staged into internal/webui/dist before `go build` so the //go:embed all:dist
+# directive bakes the real UI into the binary — the same artifact the
+# Dockerfile produces. With `webui = null` the server falls back to the
+# built-in placeholder page (a fast, web-free build).
+{ lib, buildGoModule, version ? "dev", webui ? null }:
 
 buildGoModule {
   pname = "tendant";
@@ -23,9 +29,21 @@ buildGoModule {
   '';
   env.GOWORK = "off";
 
+  # Stage the Flutter web bundle into the //go:embed dist directory. Runs in
+  # postConfigure (cwd = modRoot = services/api, vendor already in place) which
+  # — unlike preBuild/postPatch — is NOT inherited by the goModules vendoring
+  # FOD, so vendoring never forces a Flutter build and the vendorHash is
+  # unaffected.
+  postConfigure = lib.optionalString (webui != null) ''
+    rm -rf internal/webui/dist
+    mkdir -p internal/webui/dist
+    cp -r ${webui}/. internal/webui/dist/
+    chmod -R u+w internal/webui/dist
+  '';
+
   # Replace lib.fakeHash with the value Nix reports on first build (the "got:"
   # hash in the mismatch error).
-  vendorHash = "sha256-cf3clh7Ee6leC45xF3WkHtFYzgkFwpdyd9u4gklh7nI=";
+  vendorHash = "sha256-FILSYEhB4KH8Wk80zlMvq5rAN9XJx8tL3xxyoOxkQHw=";
 
   # Static build, matching the Dockerfile (distroless-static compatible).
   env.CGO_ENABLED = "0";

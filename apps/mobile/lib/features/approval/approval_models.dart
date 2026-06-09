@@ -2,6 +2,7 @@
 /// `Artifact` types. Kept separate from generated Ferry types so the
 /// approval UI is testable without a live GraphQL link — the bootstrap
 /// layer (T077) will hydrate these from the generated query results.
+library;
 
 /// Discriminated kinds of an Artifact payload. New tools that introduce
 /// new kinds extend this enum (and the matching server-side

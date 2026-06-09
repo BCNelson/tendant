@@ -138,7 +138,45 @@ type PromotionProposal implements PendingDecision {
   tool: Tool!  fromLevel: AutonomyLevel!  toLevel: AutonomyLevel!  evidence: JSON!
 }
 
-union InboxItem = ApprovalRequest | AgentQuestion | PromotionProposal | AgentAssignment
+# Post-completion feedback (additive, Path 1). After a task reaches DONE, the
+# feedback workflow opens a CONVERSATION as a FeedbackRequest: the agent and the
+# owner exchange messages; the agent maintains a `draftGuidance` proposal; the
+# owner accepts a final guidance text (stored verbatim and injected into agent
+# system prompts) and/or supplies a satisfaction rating that feeds calibration.
+type FeedbackMessage {
+  id: ID!
+  role: String!   # "agent" | "user"
+  content: String!
+  createdAt: Time!
+}
+
+type FeedbackRequest implements PendingDecision {
+  id: ID!  task: Task!  createdAt: Time!
+  messages: [FeedbackMessage!]!
+  # The agent's current draft of standing guidance — what acceptFeedbackGuidance
+  # pre-fills (the owner can edit it before accepting). Null/empty until the
+  # conversation yields a durable lesson.
+  draftGuidance: String
+}
+
+# A feedback-authored standing-guidance note, injected verbatim into the
+# matching agent's system prompt. scope is "global" or "agent".
+type AgentGuidance {
+  id: ID!
+  note: String!
+  scope: GuidanceScope!
+  agentConfigId: ID
+  createdAt: Time!
+}
+
+enum GuidanceScope { GLOBAL AGENT }
+
+extend type Query {
+  # Owner-only: list standing guidance notes by status ("active" default).
+  agentGuidance(status: String): [AgentGuidance!]!
+}
+
+union InboxItem = ApprovalRequest | AgentQuestion | PromotionProposal | AgentAssignment | FeedbackRequest
 
 # ----- Notifications (subscription type) --------------------------------
 
@@ -227,6 +265,37 @@ extend type Mutation {
   # operation. OWNER-ONLY. Returns the updated Tool. Demotion needs no
   # approval. Errors: PERMISSION_DENIED, TASK_UNKNOWN, TOOL_UNKNOWN.
   flagOutcome(taskId: ID!, toolId: ID!, reason: String): Tool!
+
+  # Post-completion feedback (additive, Path 1).
+  #
+  # sendFeedbackMessage appends the owner's message to a FeedbackRequest
+  # conversation and returns the updated request (with the agent's reply +
+  # refreshed draftGuidance). Errors: DECISION_NOT_FOUND, DECISION_KIND_MISMATCH,
+  # DECISION_ALREADY_RESOLVED.
+  sendFeedbackMessage(decisionId: ID!, text: String!): FeedbackRequest!
+
+  # acceptFeedbackGuidance stores `guidance` VERBATIM as an active AgentGuidance
+  # note (no further modification), scoped GLOBAL or to `agentConfigId` (required
+  # when scope=AGENT), optionally records a 1–5 satisfaction `rating` (low →
+  # calibration demotion), resolves the decision, and wakes the feedback
+  # workflow. OWNER-ONLY (auth.RequireOwner FIRST). Pass empty guidance to accept
+  # with no note (rating only). Errors: PERMISSION_DENIED, DECISION_NOT_FOUND,
+  # DECISION_KIND_MISMATCH, DECISION_ALREADY_RESOLVED, INVALID_SCOPE.
+  acceptFeedbackGuidance(
+    decisionId: ID!
+    guidance: String!
+    scope: GuidanceScope!
+    agentConfigId: ID
+    rating: Int
+  ): AgentGuidance
+
+  # dismissFeedback closes a FeedbackRequest with no guidance. Optionally records
+  # a 1–5 rating (low → calibration demotion). OWNER-ONLY.
+  dismissFeedback(decisionId: ID!, rating: Int): PendingDecision!
+
+  # deactivateAgentGuidance retires an active guidance note so it stops being
+  # injected into agent prompts. OWNER-ONLY.
+  deactivateAgentGuidance(guidanceId: ID!): AgentGuidance!
 }
 
 # ----- Subscriptions ---------------------------------------------------
@@ -272,4 +341,23 @@ extend type Task {
 
 extend type Query {
   agentConfigs(stage: AgentStage): [AgentConfigSummary!]!
+}
+
+# ActivityEvent is one row of a task's audit DAG — an agent run, a tool-call
+# step (composed → gate verdict → decision → dispatched → outcome), a stage
+# advance, a state transition, etc. `kind` is the audit kind; `detail` is the
+# raw typed payload for that kind (tokens, tool name, verdict, outcome, …);
+# `inReplyTo` chains an event to its parent for threaded rendering.
+type ActivityEvent {
+  id: ID!
+  kind: String!
+  at: Time!
+  actor: String!
+  inReplyTo: ID
+  detail: JSON
+}
+
+extend type Task {
+  # The full audit timeline for this task, chronological (oldest first).
+  activity: [ActivityEvent!]!
 }

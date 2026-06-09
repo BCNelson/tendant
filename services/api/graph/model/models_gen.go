@@ -32,6 +32,15 @@ type Principal interface {
 	GetDisplayName() string
 }
 
+type ActivityEvent struct {
+	ID        string         `json:"id"`
+	Kind      string         `json:"kind"`
+	At        time.Time      `json:"at"`
+	Actor     string         `json:"actor"`
+	InReplyTo *string        `json:"inReplyTo,omitempty"`
+	Detail    map[string]any `json:"detail,omitempty"`
+}
+
 type AgentAssignment struct {
 	ID              string         `json:"id"`
 	Task            *Task          `json:"task"`
@@ -53,6 +62,14 @@ type AgentConfigSummary struct {
 	Model   *string    `json:"model,omitempty"`
 	Origin  string     `json:"origin"`
 	Version int        `json:"version"`
+}
+
+type AgentGuidance struct {
+	ID            string        `json:"id"`
+	Note          string        `json:"note"`
+	Scope         GuidanceScope `json:"scope"`
+	AgentConfigID *string       `json:"agentConfigId,omitempty"`
+	CreatedAt     time.Time     `json:"createdAt"`
 }
 
 type AgentQuestion struct {
@@ -127,6 +144,28 @@ type Connector struct {
 	Enabled       bool           `json:"enabled"`
 	Config        map[string]any `json:"config"`
 }
+
+type FeedbackMessage struct {
+	ID        string    `json:"id"`
+	Role      string    `json:"role"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+type FeedbackRequest struct {
+	ID            string             `json:"id"`
+	Task          *Task              `json:"task"`
+	CreatedAt     time.Time          `json:"createdAt"`
+	Messages      []*FeedbackMessage `json:"messages"`
+	DraftGuidance *string            `json:"draftGuidance,omitempty"`
+}
+
+func (FeedbackRequest) IsPendingDecision()           {}
+func (this FeedbackRequest) GetID() string           { return this.ID }
+func (this FeedbackRequest) GetTask() *Task          { return this.Task }
+func (this FeedbackRequest) GetCreatedAt() time.Time { return this.CreatedAt }
+
+func (FeedbackRequest) IsInboxItem() {}
 
 type GateScript struct {
 	ID                  string           `json:"id"`
@@ -258,6 +297,7 @@ type Task struct {
 	CreatedAt      time.Time        `json:"createdAt"`
 	EditedAt       *time.Time       `json:"editedAt,omitempty"`
 	StageSlots     []*StageSlot     `json:"stageSlots"`
+	Activity       []*ActivityEvent `json:"activity"`
 }
 
 type TaskConnection struct {
@@ -638,6 +678,61 @@ func (e *GateScriptTier) UnmarshalJSON(b []byte) error {
 }
 
 func (e GateScriptTier) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type GuidanceScope string
+
+const (
+	GuidanceScopeGlobal GuidanceScope = "GLOBAL"
+	GuidanceScopeAgent  GuidanceScope = "AGENT"
+)
+
+var AllGuidanceScope = []GuidanceScope{
+	GuidanceScopeGlobal,
+	GuidanceScopeAgent,
+}
+
+func (e GuidanceScope) IsValid() bool {
+	switch e {
+	case GuidanceScopeGlobal, GuidanceScopeAgent:
+		return true
+	}
+	return false
+}
+
+func (e GuidanceScope) String() string {
+	return string(e)
+}
+
+func (e *GuidanceScope) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = GuidanceScope(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid GuidanceScope", str)
+	}
+	return nil
+}
+
+func (e GuidanceScope) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *GuidanceScope) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e GuidanceScope) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -150,6 +150,7 @@ const (
 	DecisionKindApprovalRequest   DecisionKind = "approval_request"
 	DecisionKindAgentQuestion     DecisionKind = "agent_question"
 	DecisionKindPromotionProposal DecisionKind = "promotion_proposal"
+	DecisionKindFeedbackRequest   DecisionKind = "feedback_request"
 )
 
 func (e *DecisionKind) Scan(src interface{}) error {
@@ -388,6 +389,18 @@ type AgentConfig struct {
 	Version       int32           `json:"version"`
 }
 
+type AgentGuidance struct {
+	ID               uuid.UUID          `json:"id"`
+	Note             string             `json:"note"`
+	Status           string             `json:"status"`
+	Scope            string             `json:"scope"`
+	AgentConfigID    pgtype.UUID        `json:"agent_config_id"`
+	SourceDecisionID pgtype.UUID        `json:"source_decision_id"`
+	SourceTaskID     pgtype.UUID        `json:"source_task_id"`
+	CreatedAt        time.Time          `json:"created_at"`
+	ActivatedAt      pgtype.Timestamptz `json:"activated_at"`
+}
+
 type AuditMessage struct {
 	ID            uuid.UUID       `json:"id"`
 	TaskID        pgtype.UUID     `json:"task_id"`
@@ -429,6 +442,14 @@ type DeviceToken struct {
 	OwnerID   uuid.UUID      `json:"owner_id"`
 	Platform  DevicePlatform `json:"platform"`
 	CreatedAt time.Time      `json:"created_at"`
+}
+
+type FeedbackMessage struct {
+	ID         uuid.UUID `json:"id"`
+	DecisionID uuid.UUID `json:"decision_id"`
+	Role       string    `json:"role"`
+	Content    string    `json:"content"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type GateScript struct {

@@ -22,10 +22,10 @@ void main() {
     expect(find.text('Buy milk'), findsOneWidget);
     expect(find.text('TRIAGE'), findsOneWidget);
     // Decision placeholder should NOT appear.
-    expect(find.text('Decision (Phase 3)'), findsNothing);
+    expect(find.text('Decision (Phase 4+)'), findsNothing);
   });
 
-  testWidgets('PendingDecision tile renders the Phase 3 placeholder',
+  testWidgets('non-actionable decision renders the read-only placeholder',
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -33,15 +33,37 @@ void main() {
           body: InboxTile(
             item: const InboxItemRef(
               id: 'd1',
-              typename: 'ApprovalRequest',
+              typename: 'PromotionProposal',
               title: 'unused',
-              subtitle: 'approve',
+              subtitle: 'EXECUTE_GATED → EXECUTE_AUTO',
             ),
           ),
         ),
       ),
     );
-    expect(find.text('Decision (Phase 3)'), findsOneWidget);
+    expect(find.text('Decision (Phase 4+)'), findsOneWidget);
     expect(find.text('unused'), findsNothing);
+  });
+
+  testWidgets('FeedbackRequest tile is actionable, not the placeholder',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: InboxTile(
+            item: const InboxItemRef(
+              id: 'f1',
+              typename: 'FeedbackRequest',
+              title: 'Feedback: Buy milk',
+              subtitle: 'How did this task go? Tap to chat.',
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Feedback: Buy milk'), findsOneWidget);
+    expect(find.text('How did this task go? Tap to chat.'), findsOneWidget);
+    // Must be actionable, not the read-only placeholder.
+    expect(find.text('Decision (Phase 4+)'), findsNothing);
   });
 }

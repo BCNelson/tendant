@@ -1,0 +1,27 @@
+# air — live-reload for the Go core during local development.
+# Driven by the devenv process manager (`devenv up` runs the `tendant` process,
+# which execs `air -c .air.toml`). Runs the server with the local-dev config
+# (Ollama overseer + dev pairing password). See README § "Full local stack".
+root = "."
+tmp_dir = "tmp"
+
+[build]
+# Build from the repo root so the go.work workspace (services/api + db) resolves.
+cmd = "go build -o ./tmp/tendant ./services/api/cmd/tendant"
+bin = "./tmp/tendant"
+args_bin = ["serve", "--config", "tendant.dev.toml"]
+include_ext = ["go"]
+# Watch the Go core; ignore the Flutter app, SDKs, generated/build dirs, specs.
+exclude_dir = ["tmp", "apps", "sdks", "specs", "docs", "scripts", "nix", ".devenv", ".direnv", ".git"]
+exclude_regex = ["_test.go"]
+delay = 1000
+stop_on_error = true
+# Let the server's signal-driven graceful shutdown (DBOS + HTTP) run before kill.
+send_interrupt = true
+kill_delay = "3s"
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = true

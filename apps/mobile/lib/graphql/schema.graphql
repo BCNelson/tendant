@@ -1,0 +1,454 @@
+# Layered configuration — admin surface. Additive (Path 1).
+#
+# Exposes the typed config Registry merged with the DB overlay (config_entries)
+# so the owner can inspect and edit DB-configurable settings at runtime. Sensitive
+# values are NEVER returned (effectiveValue is null and sensitive=true).
+#
+# All operations are OWNER-PRINCIPAL-ONLY: the resolver MUST reject any viewer
+# with Principal.Kind != "user" with PERMISSION_DENIED *before* any DB read or
+# write (auth.RequireOwner — a structural check, not a feature flag).
+
+type ConfigKey {
+  key: String!
+  type: String!                 # string | int | bool | duration | float64
+  description: String!
+  reload: String!               # hot | restart | bootstrap
+  sensitive: Boolean!
+  dbConfigurable: Boolean!
+  hotReloadable: Boolean!
+  readonlyReason: String
+  defaultValue: String          # stringified default (null if sensitive)
+  effectiveValue: String        # stringified resolved value (null if sensitive)
+  overridden: Boolean!          # true when a config_entries row overrides this key
+}
+
+type Query {
+  # Owner-only. The full config registry with each key's effective value and
+  # whether it is overridden in the DB. Sensitive values are redacted.
+  configKeys: [ConfigKey!]!
+  # Owner-only. Lists configured integrations (which sources are connected).
+  connectors: [Connector!]!
+  viewer: User
+  task(id: ID!): Task
+  tasks(first: Int, after: String, state: TaskState): TaskConnection!
+  inbox(first: Int, after: String): [InboxItem!]!
+  pendingDecision(id: ID!): PendingDecision
+  agentAssignment(id: ID!): AgentAssignment
+  sessions: [Session!]!
+  agentConfigs(stage: AgentStage): [AgentConfigSummary!]!
+  # Owner-only. Standing guidance notes by status (default "active").
+  agentGuidance(status: String): [AgentGuidance!]!
+}
+
+type Mutation {
+  # Owner-only. Set a DB-configurable key's override. `value` is the raw scalar
+  # form (e.g. "0.95", "true", "30m", "info"); it is validated and type-checked
+  # against the registry, stored as jsonb, and propagated via LISTEN/NOTIFY.
+  setConfigEntry(key: String!, value: String!): ConfigKey!
+  # Owner-only. Remove a key's override, reverting it to env/file/default.
+  deleteConfigEntry(key: String!): Boolean!
+  # Owner-only. Upsert the integration's config (connector_type, filter,
+  # schedule, disposition_rules). Validates connector_type against the registry.
+  setConnectorConfig(connectorId: ID!, config: JSON!): Connector!
+  # Owner-only. Enable/disable polling. Enabling creates the per-connector DBOS
+  # schedule; disabling deletes it. Requires a valid cron schedule to enable.
+  enableConnector(connectorId: ID!, enabled: Boolean!): Connector!
+  # OWNER-ONLY. Uploads a pre-compiled .wasm + capability manifest, runs the
+  # static-validation pipeline, stores tier=BYO_WASM, advances active version.
+  # Errors: PERMISSION_DENIED, TOOL_UNKNOWN, INVALID_MANIFEST, MODULE_TOO_LARGE.
+  attachGateScript(toolId: ID!, wasm: Bytes!, manifest: JSON!): GateScript!
+  # OWNER-ONLY. Compiles AssemblyScript source via the asc-on-wazero sandbox,
+  # then runs the SAME pipeline; stores tier=ASSEMBLYSCRIPT_IN_APP + source.
+  # Errors: PERMISSION_DENIED, TOOL_UNKNOWN, COMPILE_FAILED, INVALID_MANIFEST.
+  compileAndAttachGateScript(toolId: ID!, source: String!, manifest: JSON!): GateScript!
+  # OWNER-ONLY. Clears tools.active_script_version and disables the prior row.
+  # Errors: PERMISSION_DENIED, TOOL_UNKNOWN, NO_ACTIVE_SCRIPT.
+  disableGateScript(toolId: ID!): Tool!
+  # OWNER-ONLY. Upserts an owner rule read by owner.rule(key).
+  # Errors: PERMISSION_DENIED, INVALID_RULE.
+  setOwnerRule(key: String!, value: String!): OwnerRule!
+  createTask(title: String!, description: String): Task!
+  completeTask(taskId: ID!, result: JSON): Task!
+  cancelTask(taskId: ID!): Task!
+  acceptProposedTask(taskId: ID!): Task!
+  dismissProposedTask(taskId: ID!, reason: String): Task!
+  pairDevice(password: String!, displayName: String!): SessionMintResult!
+  revokeSession(sessionId: ID!): Session!
+  registerDeviceToken(token: String!, platform: DevicePlatform!): Boolean!
+  unregisterDeviceToken(token: String!): Boolean!
+  approveArtifact(decisionId: ID!): PendingDecision!
+  rejectApproval(decisionId: ID!, reason: String): PendingDecision!
+  answerQuestion(decisionId: ID!, answer: String!): PendingDecision!
+  # DEPRECATED (Phase 8). Superseded by respondToPromotion, which returns the
+  # updated Tool instead of a PendingDecision. The stub continues to return
+  # NOT_YET_AVAILABLE; do not build new clients against it.
+  decidePromotion(decisionId: ID!, accept: Boolean!): PendingDecision!
+    @deprecated(reason: "Phase 8: use respondToPromotion (returns the updated Tool).")
+  # Post-completion feedback conversation + verbatim guidance accept.
+  sendFeedbackMessage(decisionId: ID!, text: String!): FeedbackRequest!
+  acceptFeedbackGuidance(decisionId: ID!, guidance: String!, scope: GuidanceScope!, agentConfigId: ID, rating: Int): AgentGuidance
+  dismissFeedback(decisionId: ID!, rating: Int): PendingDecision!
+  deactivateAgentGuidance(guidanceId: ID!): AgentGuidance!
+  # Phase 3 — Universal Gate, Hard-Rule Floor & the First Tool.
+  # Compose a tool call against a task. Runs the gate; on RequestDecision
+  # writes an ApprovalRequest and starts the durable ToolCallWorkflow that
+  # awaits resolution. Errors:
+  #   TOOL_UNKNOWN     — toolGlobalUri does not match any tool row
+  #   TASK_NOT_OPEN    — task is not in an EXECUTION-eligible state
+  #   PERMISSION_DENIED — viewer cannot act on the task
+  proposeToolCall(
+    taskId: ID!
+    toolGlobalUri: String!
+    payload: JSON!
+  ): ApprovalRequest!
+  # Phase 4 — OWNER-PRINCIPAL-ONLY tool tuning mutations. Resolver MUST
+  # reject any viewer with Principal.Kind != "user" with PERMISSION_DENIED
+  # before any DB write (structural check via auth.RequireOwner, not a
+  # runtime feature flag).
+  #
+  # setToolPermissions validates against the floor's schema:
+  #   { read_only: bool, spend: bool,
+  #     irreversible_third_party: "never"|"always"|"stranger_recipient",
+  #     secret_classes: [string] }
+  # Errors:
+  #   PERMISSION_DENIED, TOOL_UNKNOWN, INVALID_PERMISSIONS.
+  setToolPermissions(toolId: ID!, permissions: JSON!): Tool!
+  # setToolOverseerInstructions replaces the tool's overseer instructions
+  # string. Empty string is allowed (treated as "no owner guidance" — the
+  # overseer returns RequestDecision conservatively).
+  # Errors: PERMISSION_DENIED, TOOL_UNKNOWN.
+  setToolOverseerInstructions(toolId: ID!, instructions: String!): Tool!
+  # Phase 8 — Calibration & the Earned-Autonomy Ratchet (additive, Path 1).
+  #
+  # respondToPromotion is the SINGLE path that RAISES a tool's autonomy.
+  # OWNER-ONLY — structurally guarded by auth.RequireOwner(ctx) FIRST; an
+  # agent (non-"user") principal is refused before any DB write
+  # (Constitution IV; NFR-004).
+  #   accept:true  → trust score jumps into the proposed band AND a live
+  #                  per-routine grant is created; returns the updated Tool.
+  #   accept:false → no change; the proposal is withdrawn and will not
+  #                  re-propose until NEW matured-clean outcomes accrue.
+  # Errors: PERMISSION_DENIED, DECISION_UNKNOWN, DECISION_ALREADY_RESOLVED.
+  respondToPromotion(proposalId: ID!, accept: Boolean!): Tool!
+  # flagOutcome is the owner's retroactive veto: records the outcome BAD and
+  # REFLEXIVELY demotes the tool (proportional score decrement clamped at the
+  # EXECUTE_GATED baseline + revoke the affected routine's grant) in one
+  # operation. OWNER-ONLY. Returns the updated Tool. Demotion needs no
+  # approval. Errors: PERMISSION_DENIED, TASK_UNKNOWN, TOOL_UNKNOWN.
+  flagOutcome(taskId: ID!, toolId: ID!, reason: String): Tool!
+}
+
+# Phase 7 — The Intake Edge (Connectors & Dispositions). Additive (Path 1).
+# Contract: specs/008-intake-edge-connectors/contracts/graphql.v1.graphqls.
+#
+# A configured integration: one trusted connector bound to a coarse filter, a
+# schedule, and disposition rules. `config` (JSON) carries connector_type,
+# filter, schedule, disposition_rules, enabled. Credentials are NEVER exposed
+# here — they live sealed in source_credentials and never cross the read surface.
+#
+# All three operations are OWNER-PRINCIPAL-ONLY: the resolver MUST reject any
+# viewer with Principal.Kind != "user" with PERMISSION_DENIED *before* any DB
+# read or write (auth.RequireOwner — a structural check, not a feature flag).
+
+type Connector {
+  id: ID!
+  connectorType: String!
+  enabled: Boolean!
+  config: JSON!
+}
+
+# Tendant operator-edge GraphQL — Phase 5 additive delta (gate scripts).
+# Versioning policy: specs/003-operator-edge-wake/contracts/versioning-policy.md.
+# Strictly additive on Phase 4 — PR template Path 1. No existing field renamed,
+# removed, or retyped. Contract of record: specs/006-gate-script-sandbox/
+# contracts/graphql.v1.graphqls.
+#
+# All four mutations are OWNER-PRINCIPAL-ONLY: the resolver MUST reject any
+# viewer with Principal.Kind != "user" with PERMISSION_DENIED before any DB
+# write (structural check via auth.RequireOwner, not a runtime feature flag).
+
+# Base64-encoded byte sequence. Used for WASM module uploads/downloads.
+scalar Bytes
+
+enum GateScriptTier {
+  # Authored as AssemblyScript source; server-compiled via the vendored
+  # asc-on-wazero sandbox. `source` is populated.
+  ASSEMBLYSCRIPT_IN_APP
+  # Authored locally against the published SDK; .wasm uploaded by the owner.
+  # `source` is null.
+  BYO_WASM
+}
+
+enum GateScriptStatus {
+  # The version pointed at by tools.active_script_version.
+  ACTIVE
+  # A previously-active version retired by disableGateScript or superseded.
+  DISABLED
+}
+
+# A persisted, immutable WASM gate script. Append-only modulo `status`.
+type GateScript {
+  id: ID!
+  tool: Tool!
+  version: Int!
+  manifest: JSON!                # the v1 capability manifest
+  manifestHash: String!          # sha256 of canonicalized manifest
+  tier: GateScriptTier!
+  status: GateScriptStatus!
+  attachedByPrincipal: String!   # viewer.global_uri who attached
+  attachedAt: Time!
+
+  # Opt-in heavy field. The .wasm bytes — typically 50-500 KiB. NOT selected
+  # by default by list queries.
+  wasm: Bytes
+  # Opt-in heavy field. AssemblyScript source for Tier 1; null for Tier 2.
+  source: String
+}
+
+# A free-form (key, value) preference the owner can set and gate scripts can
+# read via the owner.rule(key) host function.
+type OwnerRule {
+  key: String!
+  value: String!
+  updatedAt: Time!
+}
+
+# Captures the verdict + evidence a script wrote when it escalated an
+# ApprovalRequest via RequestDecision.
+type GateScriptEvaluation {
+  verdict: String!
+  summary: String!
+  consideredFields: [String!]!
+  hostcallTrace: [String!]!
+  scriptId: ID!
+  scriptVersion: Int!
+  manifestHash: String!
+  at: Time!
+}
+
+type Tool {
+  # The currently-active gate script, or null when none is attached.
+  activeGateScript: GateScript
+  # Version history newest-first. limit/offset clamped to a max of 100.
+  gateScripts(limit: Int = 20, offset: Int = 0): [GateScript!]!
+  id: ID!  globalUri: String!  name: String!
+  rung: AutonomyLevel!
+  permissions: JSON!
+  overseerInstructions: String
+}
+
+type ApprovalRequest implements PendingDecision {
+  # Non-null when a gate script escalated this approval; null when the floor
+  # or the overseer was the escalator (mutually exclusive in practice).
+  gateScriptEvaluation: GateScriptEvaluation
+  id: ID!  task: Task!  createdAt: Time!
+  tool: Tool!  payload: ApprovalPayload!
+  # Phase 4 additive: non-null when the overseer was the layer that
+  # escalated this approval. Null when the floor tripped (floor evidence
+  # is implicit in the gate_verdict audit row) or when the overseer was
+  # not consulted.
+  overseerEvaluation: OverseerEvaluation
+}
+
+# Tendant operator-edge GraphQL — v1.
+# Source of truth: specs/003-operator-edge-wake/contracts/graphql.v1.graphqls
+# + per-phase additive deltas (Phase 3: specs/004-universal-gate-floor/,
+#   Phase 4: specs/005-overseer-tool-grader/).
+# Versioning policy: specs/003-operator-edge-wake/contracts/versioning-policy.md
+#   — additive-by-default; field deprecation before any removal; a versioned
+#   endpoint is reserved only for unavoidable breaking changes.
+# Kept in sync; CI checks gqlgen drift.
+#
+# Every phase since Phase 1 has been strictly additive; no existing field has
+# been renamed, removed, or retyped.
+
+scalar Time
+scalar JSON
+
+# =========================================================================
+# Phase 0/1 baseline — UNCHANGED.
+# =========================================================================
+
+enum TaskState     { PROPOSED ACCEPTED WAITING EXECUTING DONE DISMISSED HALTED }
+enum ChainStage    { CREATION TRIAGE EXPANSION EXECUTION COMPLETION }
+enum AutonomyLevel { NONE ENRICH_ONLY PROPOSE EXECUTE_GATED EXECUTE_AUTO }
+
+interface Principal { id: ID!  globalUri: String!  displayName: String! }
+type User implements Principal { id: ID!  globalUri: String!  displayName: String! }
+type Bot  implements Principal { id: ID!  globalUri: String!  displayName: String! }
+
+type WorkflowRef { id: ID!  startedAt: Time! }
+
+type Task {
+  id: ID!  globalUri: String!
+  title: String!  description: String
+  state: TaskState!
+  currentStage: ChainStage!
+  autonomy: AutonomyLevel!
+  provenance: JSON
+  contextRefs: JSON
+  findings: JSON
+  workflow: WorkflowRef
+  openAssignment: AgentAssignment
+  createdAt: Time!  editedAt: Time
+  stageSlots: [StageSlot!]!
+  # The full audit timeline for this task, chronological (oldest first).
+  activity: [ActivityEvent!]!
+}
+
+type AgentAssignment {
+  id: ID!
+  task: Task!
+  stage: ChainStage!
+  fromAgent: Principal
+  ask: String!
+  gatheredContext: JSON
+  createdAt: Time!
+  resolvedAt: Time
+}
+
+type TaskEdge { node: Task!  cursor: String! }
+type TaskConnection { edges: [TaskEdge!]!  pageInfo: PageInfo! }
+type PageInfo { hasNextPage: Boolean!  endCursor: String }
+
+# =========================================================================
+# Phase 2 — additive surface starts here.
+# =========================================================================
+
+# ----- Sessions & device tokens (Clarification Q4) ----------------------
+
+enum DevicePlatform { IOS ANDROID WEB }
+
+type Session {
+  id: ID!
+  displayName: String!
+  createdAt: Time!
+  lastSeenAt: Time!
+}
+
+type SessionMintResult {
+  session: Session!
+  token: String!
+}
+
+# ----- Tools, approval payloads, decision kinds -------------------------
+
+type Artifact { kind: String!  content: JSON!  recipient: String }
+type Mandate  { goal: String!  constraints: JSON!  guardrails: JSON! }
+
+union ApprovalPayload = Artifact | Mandate
+
+interface PendingDecision { id: ID!  task: Task!  createdAt: Time! }
+
+# Phase 4 additive: OverseerEvaluation carries the verdict + evidence the
+# overseer wrote when it escalated an ApprovalRequest.
+type OverseerEvaluation {
+  verdict: String!
+  summary: String!
+  consideredFields: [String!]!
+  modelId: String!
+  provider: String!
+  tokensIn: Int!
+  tokensOut: Int!
+  estimatedCostUsd: Float!
+  at: Time!
+}
+type AgentQuestion implements PendingDecision {
+  id: ID!  task: Task!  createdAt: Time!
+  asker: Principal!  question: String!  disclosureClass: String
+}
+type PromotionProposal implements PendingDecision {
+  id: ID!  task: Task!  createdAt: Time!
+  tool: Tool!  fromLevel: AutonomyLevel!  toLevel: AutonomyLevel!  evidence: JSON!
+}
+
+# Post-completion feedback — a conversation that converges on accepted guidance.
+type FeedbackMessage {
+  id: ID!
+  role: String!
+  content: String!
+  createdAt: Time!
+}
+
+type FeedbackRequest implements PendingDecision {
+  id: ID!  task: Task!  createdAt: Time!
+  messages: [FeedbackMessage!]!
+  draftGuidance: String
+}
+
+type AgentGuidance {
+  id: ID!
+  note: String!
+  scope: GuidanceScope!
+  agentConfigId: ID
+  createdAt: Time!
+}
+
+enum GuidanceScope { GLOBAL AGENT }
+
+union InboxItem = ApprovalRequest | AgentQuestion | PromotionProposal | AgentAssignment | FeedbackRequest
+
+# ----- Notifications (subscription type) --------------------------------
+
+type Notification {
+  id: ID!
+  kind: String!
+  createdAt: Time!
+  taskId: ID
+}
+
+# ----- Query additions --------------------------------------------------
+
+# ----- Mutation additions ----------------------------------------------
+
+# ----- Subscriptions ---------------------------------------------------
+
+type Subscription {
+  inboxItemArrived: InboxItem!
+  taskChanged(taskId: ID): Task!
+  notificationReceived: Notification!
+}
+
+# =========================================================================
+# Phase 6: Agent Layer & Routing — ADDITIVE (Path 1).
+# =========================================================================
+
+enum AgentStage { TRIAGE EXPANSION EXECUTION }
+
+type AgentConfigSummary {
+  id: ID!
+  name: String!
+  stage: AgentStage!
+  isHuman: Boolean!
+  model: String
+  origin: String!
+  version: Int!
+}
+
+type RoutingDecision {
+  stage: AgentStage!
+  eligibleSet: [AgentConfigSummary!]!
+  picked: AgentConfigSummary
+  pickedHuman: Boolean!
+}
+
+type StageSlot {
+  stage: AgentStage!
+  occupant: AgentConfigSummary
+  isHuman: Boolean!
+}
+
+# ActivityEvent is one row of a task's audit DAG — an agent run, a tool-call
+# step (composed → gate verdict → decision → dispatched → outcome), a stage
+# advance, a state transition, etc. `kind` is the audit kind; `detail` is the
+# raw typed payload for that kind (tokens, tool name, verdict, outcome, …);
+# `inReplyTo` chains an event to its parent for threaded rendering.
+type ActivityEvent {
+  id: ID!
+  kind: String!
+  at: Time!
+  actor: String!
+  inReplyTo: ID
+  detail: JSON
+}
+

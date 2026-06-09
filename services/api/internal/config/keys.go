@@ -45,6 +45,9 @@ var Registry = []KeyDef{
 	{Key: "gate.call_budget", Type: "int", Default: 100, Description: "Per-task max gated calls before fail-close to human", Reload: ReloadHot, DBConfigurable: true, HotReloadable: false},
 	{Key: "agent.max_iter", Type: "int", Default: 20, Description: "Per-stage max agent loop iterations", Reload: ReloadHot, DBConfigurable: true, HotReloadable: false},
 
+	// Agent layer — inference routing is boot-only (agents cannot reroute inference).
+	{Key: "agent.connection", Type: "string", Default: "", Description: "Name of an [[llm_connections]] entry the agent runner+router use (empty ⇒ human-only routing, no agent inference)", Reload: ReloadBootstrap, DBConfigurable: false, ReadonlyReason: "Inference routing is fixed at boot (no self-escalation)"},
+
 	// Overseer — provider selection is boot-only (agents cannot reroute inference).
 	{Key: "overseer.connection", Type: "string", Default: "", Description: "Name of an [[llm_connections]] entry the overseer uses (empty ⇒ legacy overseer.provider)", Reload: ReloadBootstrap, DBConfigurable: false, ReadonlyReason: "Inference routing is fixed at boot (no self-escalation)"},
 	{Key: "overseer.provider", Type: "string", Default: "log", Description: "Overseer provider: anthropic, openai, log", Reload: ReloadBootstrap, DBConfigurable: false, ReadonlyReason: "Inference routing is fixed at boot (no self-escalation)"},

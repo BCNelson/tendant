@@ -55,9 +55,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Assert apps/mobile/graphql/schema.graphql matches services/api/graph/schema.graphqls
+      - name: Assert apps/mobile/graphql/schema.graphql matches services/api/graph/*.graphqls
         run: |
-          diff -u services/api/graph/schema.graphqls apps/mobile/graphql/schema.graphql \
+          cat services/api/graph/*.graphqls | diff -u - apps/mobile/graphql/schema.graphql \
             || { echo "::error::Flutter schema mirror is stale; run 'just sync-flutter-schema'"; exit 1; }
 
   go-test:

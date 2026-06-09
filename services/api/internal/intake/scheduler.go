@@ -23,8 +23,21 @@ func CreateSchedule(dctx dbos.DBOSContext, connectorID uuid.UUID, cron string) e
 	if strings.TrimSpace(cron) == "" {
 		return fmt.Errorf("intake: a non-blank cron schedule is required to enable a connector")
 	}
+	name := ScheduleName(connectorID)
+	// Idempotent: a schedule with this name may already live in the durable
+	// workflow_schedules table (a prior boot's rehydration, or a re-enable).
+	// dbos.CreateSchedule errors on the unique schedule_name, so skip when it
+	// is already registered. (To change an existing connector's cadence,
+	// disable then re-enable: DeleteSchedule clears the row first.)
+	existing, err := dbos.GetSchedule(dctx, name)
+	if err != nil {
+		return fmt.Errorf("intake: check existing schedule %s: %w", name, err)
+	}
+	if existing != nil {
+		return nil
+	}
 	return dbos.CreateSchedule(dctx, PollWorkflow, dbos.CreateScheduleRequest{
-		ScheduleName: ScheduleName(connectorID),
+		ScheduleName: name,
 		Schedule:     cron,
 	}, dbos.WithScheduleContext(connectorID.String()))
 }

@@ -18,22 +18,47 @@
       version = self.shortRev or self.dirtyShortRev or "dev";
     in
     {
-      # Deployable binary. `nix build .#tendant` → result/bin/tendant.
+      # Build variants:
+      #   nix build .#tendant         → API server with the Flutter web UI embedded (default).
+      #   nix build .#tendant-server  → API server only, no bundled UI (serves placeholder).
+      #   nix build .#webui           → the standalone Flutter web bundle.
+      #   nix build .#tendant-desktop → the Flutter Linux/GTK desktop app.
       packages = forEachSystem (system:
         let
-          tendant = nixpkgs.legacyPackages.${system}.callPackage ./nix/package.nix {
-            inherit version;
+          pkgs = nixpkgs.legacyPackages.${system};
+          webui = pkgs.callPackage ./nix/webui.nix { };
+          tendant = pkgs.callPackage ./nix/package.nix {
+            inherit version webui;
           };
+          tendant-server = pkgs.callPackage ./nix/package.nix {
+            inherit version;
+            webui = null;
+          };
+          tendant-desktop = pkgs.callPackage ./nix/desktop.nix { };
         in
         {
-          inherit tendant;
+          inherit
+            tendant
+            tendant-server
+            webui
+            tendant-desktop
+            ;
           default = tendant;
         }
       );
 
-      # Overlay so consumers get pkgs.tendant.
+      # Overlay so consumers get pkgs.tendant (web UI embedded) and the variants.
       overlays.default = final: _prev: {
-        tendant = final.callPackage ./nix/package.nix { inherit version; };
+        tendant-webui = final.callPackage ./nix/webui.nix { };
+        tendant-desktop = final.callPackage ./nix/desktop.nix { };
+        tendant-server = final.callPackage ./nix/package.nix {
+          inherit version;
+          webui = null;
+        };
+        tendant = final.callPackage ./nix/package.nix {
+          inherit version;
+          webui = final.callPackage ./nix/webui.nix { };
+        };
       };
 
       # NixOS module: services.tendant. Defaults its package to a build from this

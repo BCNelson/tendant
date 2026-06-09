@@ -76,5 +76,5 @@ final approvalRequestProvider =
 /// onlineProvider is a tiny adapter so the FloorAwareApprovalMutator can
 /// be wired from connectivityProvider in one line.
 final onlineProvider = Provider<bool>((ref) {
-  return ref.watch(connectivityProvider).valueOrNull ?? false;
+  return ref.watch(connectivityProvider).value ?? false;
 });

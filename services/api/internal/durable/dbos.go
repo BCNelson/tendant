@@ -12,6 +12,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/chain"
 	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/bcnelson/tendant/services/api/internal/feedback"
 	"github.com/bcnelson/tendant/services/api/internal/toolflow"
 	"github.com/bcnelson/tendant/services/api/internal/tools"
 )
@@ -54,8 +55,17 @@ func Shutdown(ctx dbos.DBOSContext, timeout time.Duration) {
 //
 // ownerGlobalURI populates agent_assignments.to_principal for Phase 2;
 // pushEnqueuer (nil-able) schedules push fan-out on assignment open.
-func RegisterChainWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router chain.Router, runner chain.StageRunner, ownerGlobalURI string, pushEnqueuer chain.PushEnqueuer) {
-	chain.Register(dctx, pool, q, router, runner, ownerGlobalURI, pushEnqueuer)
+func RegisterChainWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router chain.Router, runner chain.StageRunner, ownerGlobalURI string, pushEnqueuer chain.PushEnqueuer, feedbackEnqueuer chain.FeedbackEnqueuer) {
+	chain.Register(dctx, pool, q, router, runner, ownerGlobalURI, pushEnqueuer, feedbackEnqueuer)
+}
+
+// RegisterFeedbackWorkflow registers the post-completion feedback workflow
+// (open conversation → FeedbackRequest → await accept/dismiss → audit +
+// calibration). MUST be called between Init and Launch, like the chain and
+// tool-call workflows. converser opens the conversation (stub when no agent
+// connection); calibrator routes the satisfaction signal.
+func RegisterFeedbackWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, converser feedback.Converser, calibrator *calibration.Engine) {
+	feedback.Register(dctx, pool, q, converser, calibrator)
 }
 
 // PushQueueName is the named DBOS workflow queue used for push fan-out.

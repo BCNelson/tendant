@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart'; // StateProvider moved here in riverpod 3
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 const _kSessionKey = 'tendant.session_token';

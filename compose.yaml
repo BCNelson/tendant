@@ -24,7 +24,7 @@ services:
     profiles: ["full"]
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/tendant?sslmode=disable
-      TENDANT_PASSWORD: "dev-setup-2026-05-28"
+      TENDANT_PASSWORD: "dev"
       HTTP_ADDR: ":8080"
     ports:
       - "8080:8080"

@@ -1,0 +1,74 @@
+# Phase 3/4/5 — approval detail loader + decision mutations.
+
+query PendingDecision($id: ID!) {
+  pendingDecision(id: $id) {
+    __typename
+    id
+    createdAt
+    ... on ApprovalRequest {
+      tool {
+        id
+        name
+        globalUri
+      }
+      payload {
+        __typename
+        ... on Artifact {
+          kind
+          content
+          recipient
+        }
+        ... on Mandate {
+          goal
+          constraints
+          guardrails
+        }
+      }
+      overseerEvaluation {
+        verdict
+        summary
+        consideredFields
+        modelId
+        provider
+        tokensIn
+        tokensOut
+        estimatedCostUsd
+        at
+      }
+      gateScriptEvaluation {
+        verdict
+        summary
+        consideredFields
+        hostcallTrace
+        scriptVersion
+        at
+      }
+    }
+    ... on AgentQuestion {
+      asker {
+        id
+        displayName
+      }
+      question
+      disclosureClass
+    }
+  }
+}
+
+mutation ApproveArtifact($decisionId: ID!) {
+  approveArtifact(decisionId: $decisionId) {
+    id
+  }
+}
+
+mutation RejectApproval($decisionId: ID!, $reason: String) {
+  rejectApproval(decisionId: $decisionId, reason: $reason) {
+    id
+  }
+}
+
+mutation AnswerQuestion($decisionId: ID!, $answer: String!) {
+  answerQuestion(decisionId: $decisionId, answer: $answer) {
+    id
+  }
+}

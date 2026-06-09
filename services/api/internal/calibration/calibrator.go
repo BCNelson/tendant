@@ -17,9 +17,10 @@ import (
 
 // Demotion trigger labels (recorded in the tool_demoted audit).
 const (
-	TriggerBadOutcome  = "bad_outcome"
-	TriggerCancelTask  = "cancel_task"
-	TriggerFlagOutcome = "flag_outcome"
+	TriggerBadOutcome       = "bad_outcome"
+	TriggerCancelTask       = "cancel_task"
+	TriggerFlagOutcome      = "flag_outcome"
+	TriggerFeedbackNegative = "feedback_negative"
 )
 
 // Proposal is an eligible promotion the sweep turns into a PromotionProposal.
@@ -309,6 +310,28 @@ func (e *Engine) DemoteForCancel(ctx context.Context, taskID uuid.UUID) error {
 		}
 		for _, toolID := range toolIDs {
 			if _, derr := e.demote(ctx, tx, toolID, taskID, "", TriggerCancelTask); derr != nil {
+				return derr
+			}
+		}
+		return nil
+	})
+}
+
+// DemoteForFeedback reflexively demotes every tool that acted under a task whose
+// post-completion feedback came back negative. Mirrors DemoteForCancel: the
+// offending routine is unspecified (the owner judged the task outcome, not a
+// single call), so each tool's grants are all revoked. Opens its own tx — the
+// feedback workflow records its audit in a separate step. A task with no tool
+// activity is a no-op (the loop body never runs).
+func (e *Engine) DemoteForFeedback(ctx context.Context, taskID uuid.UUID, reason string) error {
+	return pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
+		q := db.New(tx)
+		toolIDs, err := q.ToolsActedUnderTask(ctx, taskID)
+		if err != nil {
+			return fmt.Errorf("tools acted under task: %w", err)
+		}
+		for _, toolID := range toolIDs {
+			if _, derr := e.demote(ctx, tx, toolID, taskID, "", TriggerFeedbackNegative); derr != nil {
 				return derr
 			}
 		}

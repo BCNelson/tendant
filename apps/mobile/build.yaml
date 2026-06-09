@@ -2,15 +2,28 @@ targets:
   $default:
     sources:
       - lib/**
-      - graphql/**
       - $package$
     builders:
       ferry_generator|graphql_builder:
         enabled: true
-        options:
-          schema: tendant|graphql/schema.graphql
+        options: &ferry_options
+          schema: tendant|lib/graphql/schema.graphql
           extensions:
             - .graphql
+          # The `JSON` scalar carries arbitrary JSON (objects/arrays), so map it
+          # to built_value's JsonObject instead of the default String-backed
+          # scalar wrapper (which crashes when the server sends an object).
+          type_overrides:
+            JSON:
+              name: JsonObject
+              import: 'package:built_value/json_object.dart'
+      # The serializer_builder emits the shared serializers.gql.dart next to the
+      # schema. It needs the SAME options (especially `schema`); without them its
+      # schemaId is null and the file is never generated, leaving every
+      # `*.var.gql.dart` importing an undefined `serializers`.
+      ferry_generator|serializer_builder:
+        enabled: true
+        options: *ferry_options
       drift_dev|preparing_builder:
         enabled: true
       drift_dev|drift_dev:

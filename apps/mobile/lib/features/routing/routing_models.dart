@@ -1,6 +1,7 @@
 /// View models for the Phase 6 routing/specialist read-only views.
 ///
 /// These are presentation-layer types, separate from ferry-generated types.
+library;
 
 enum AgentStageView { triage, expansion, execution }
 

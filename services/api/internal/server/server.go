@@ -21,6 +21,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/config"
 	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/bcnelson/tendant/services/api/internal/feedback"
 	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/overseer"
 	"github.com/bcnelson/tendant/services/api/internal/push"
@@ -40,6 +41,10 @@ type Options struct {
 	ToolRegistry *tools.Registry            // Phase 4 — used by auto-approve dispatch path
 	GateScript   gatescript.ScriptEvaluator // Phase 5 — gate's Layer-3 evaluator; nil = no script layer
 
+	// Post-completion feedback — the conversational converser used by the
+	// sendFeedbackMessage resolver to reply. nil ⇒ replies fall back to the stub.
+	FeedbackConverser feedback.Converser
+
 	// Phase 7 — the intake edge. Handlers are built in main (so server stays
 	// decoupled from internal/connector). nil ⇒ the route is not mounted.
 	WebhookIngress    http.Handler            // POST /intake/webhook/{connectorID}
@@ -50,6 +55,11 @@ type Options struct {
 	Calibrator        *calibration.Engine     // Phase 8 — flagOutcome + cancel demotion
 	ConfigOverlay     *config.Overlay         // Layered config — DB override cache
 	ConfigSnapshot    *config.Config          // Layered config — boot env/file/default snapshot
+
+	// WebUI, when non-nil, serves the embedded Flutter web build as a
+	// catch-all (SPA fallback). Mounted last so the explicit API routes above
+	// take precedence. nil ⇒ no web UI is served. See internal/webui.
+	WebUI http.Handler
 }
 
 // New builds the chi router with the gqlgen handler mounted at /graphql,
@@ -63,20 +73,21 @@ func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 
 	q := db.New(pool)
 	resolver := &graph.Resolver{
-		Pool:            pool,
-		Queries:         q,
-		DBOS:            dctx,
-		Dispatcher:      opts.Dispatcher,
-		PushSelector:    opts.PushSelector,
-		PushQueueName:   opts.PushQueue,
-		Password:        opts.Password,
-		Overseer:        opts.Overseer,
-		ToolRegistry:    opts.ToolRegistry,
-		ScriptEvaluator: opts.GateScript,
-		Connectors:      opts.ConnectorResolver,
-		Calibrator:      opts.Calibrator,
-		ConfigOverlay:   opts.ConfigOverlay,
-		ConfigSnapshot:  opts.ConfigSnapshot,
+		Pool:              pool,
+		Queries:           q,
+		DBOS:              dctx,
+		Dispatcher:        opts.Dispatcher,
+		PushSelector:      opts.PushSelector,
+		PushQueueName:     opts.PushQueue,
+		Password:          opts.Password,
+		Overseer:          opts.Overseer,
+		ToolRegistry:      opts.ToolRegistry,
+		ScriptEvaluator:   opts.GateScript,
+		Connectors:        opts.ConnectorResolver,
+		Calibrator:        opts.Calibrator,
+		ConfigOverlay:     opts.ConfigOverlay,
+		ConfigSnapshot:    opts.ConfigSnapshot,
+		FeedbackConverser: opts.FeedbackConverser,
 	}
 
 	// Mount /graphql with auth.Middleware applied via With() so that both
@@ -104,6 +115,13 @@ func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 	}
 	if opts.OAuthCallback != nil {
 		r.Handle("/oauth/callback/*", opts.OAuthCallback)
+	}
+
+	// The embedded web UI is a catch-all; chi matches the explicit routes
+	// above (/graphql, /playground, /healthz, intake, oauth) before this
+	// wildcard, so only unmatched paths fall through to the SPA.
+	if opts.WebUI != nil {
+		r.Handle("/*", opts.WebUI)
 	}
 
 	return r

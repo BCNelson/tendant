@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -187,6 +188,73 @@ func TestRunner_BenignToolCall(t *testing.T) {
 	}
 }
 
+// TestRunner_HandoffToHuman covers the honest-output path: an agent that cannot
+// complete the task calls the built-in handoff_to_human tool. The runner must
+// fail-close to human (not fabricate a completion), record an agent_handoff
+// audit row, and surface the agent's stated reason on the StageResult. The
+// handoff tool is exercised through the real Runner.Run (the loop that injects
+// and special-cases it), with an empty allowlist so resolveAllowlist needs no DB.
+func TestRunner_HandoffToHuman(t *testing.T) {
+	auditor := &mockAuditor{}
+	client := &LogAgentClient{
+		Fixtures: []ChatResponse{
+			{
+				ToolCalls: []ToolCall{
+					{ID: "call-1", Name: HandoffToolName, Payload: `{"reason":"this task needs a phone call and I have no tool for that"}`},
+				},
+			},
+		},
+	}
+
+	runner := &Runner{
+		Client:     client,
+		Gate:       &mockGate{verdict: GateVerdict{Decision: "approve"}},
+		Dispatcher: &mockDispatcher{result: `{"ok":true}`},
+		Auditor:    auditor,
+		Queries:    nil, // empty allowlist ⇒ resolveAllowlist never touches the DB
+		MaxIter:    10,
+		Budget:     100,
+	}
+
+	rc := RunConfig{
+		Config: db.AgentConfig{
+			ID:            uuid.New(),
+			Name:          "general-executor",
+			Stage:         "execution",
+			ToolAllowlist: json.RawMessage(`[]`),
+		},
+		TaskID:    uuid.New(),
+		TaskTitle: "Call the dentist to reschedule",
+	}
+
+	result, err := runner.Run(ctx(t), rc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !result.FailCloseToHuman {
+		t.Error("handoff must fail-close to human, not complete")
+	}
+	if result.FailReason != "agent_handoff" {
+		t.Errorf("FailReason = %q, want agent_handoff", result.FailReason)
+	}
+	if result.HandoffReason == "" || !containsStr(result.HandoffReason, "phone call") {
+		t.Errorf("HandoffReason did not carry the agent's reason: %q", result.HandoffReason)
+	}
+	if result.Findings != nil {
+		t.Error("handoff must not emit findings (no fabricated completion)")
+	}
+	if !auditor.hasKind("agent_handoff") {
+		t.Error("expected agent_handoff audit entry")
+	}
+	// The dispatcher must never be reached — handoff is not a dispatchable tool.
+	if d, ok := runner.Dispatcher.(*mockDispatcher); ok && d.calls != 0 {
+		t.Errorf("dispatcher called %d times; handoff must not dispatch", d.calls)
+	}
+}
+
+func containsStr(s, sub string) bool { return strings.Contains(s, sub) }
+
 func TestRunner_FloorTripsRequestDecision(t *testing.T) {
 	decisionID := uuid.New()
 	gate := &mockGate{verdict: GateVerdict{Decision: "request_decision", PendingDecisionID: &decisionID}}
@@ -283,7 +351,7 @@ func runWithResolvedTools(r *Runner, ctx context.Context, rc RunConfig, tools []
 
 		if len(resp.ToolCalls) == 0 {
 			result := parseStageResult(resp.Content)
-			r.auditFinish(ctx, rc, iter+1, totalTokensIn, totalTokensOut)
+			r.auditFinish(ctx, rc, iter+1, totalTokensIn, totalTokensOut, nil)
 			return result, nil
 		}
 
@@ -322,7 +390,7 @@ func runWithResolvedTools(r *Runner, ctx context.Context, rc RunConfig, tools []
 					messages = append(messages, Message{Role: "tool_result", Content: outcome})
 				}
 			case "request_decision":
-				r.auditFinish(ctx, rc, iter+1, totalTokensIn, totalTokensOut)
+				r.auditFinish(ctx, rc, iter+1, totalTokensIn, totalTokensOut, nil)
 				return StageResult{FailCloseToHuman: true, FailReason: "request_decision"}, nil
 			case "deny":
 				messages = append(messages, Message{Role: "tool_result", Content: `{"error":"denied"}`})

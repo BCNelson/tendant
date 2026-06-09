@@ -1,0 +1,31 @@
+# Full task detail: header, stage occupancy, agent output (findings), and the
+# complete audit timeline (agent runs, tool calls, actions).
+
+query TaskDetail($id: ID!) {
+  task(id: $id) {
+    id
+    title
+    description
+    state
+    currentStage
+    autonomy
+    findings
+    stageSlots {
+      stage
+      isHuman
+      occupant {
+        id
+        name
+        model
+      }
+    }
+    activity {
+      id
+      kind
+      at
+      actor
+      inReplyTo
+      detail
+    }
+  }
+}

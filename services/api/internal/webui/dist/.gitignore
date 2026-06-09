@@ -1,0 +1,6 @@
+# The compiled Flutter web bundle is a build artifact produced by
+# `just build-web` (or the Docker flutter stage) and copied here before
+# `go build`. Nothing in this directory is committed except this file, which
+# keeps the directory present so the //go:embed in webui.go always compiles.
+*
+!.gitignore

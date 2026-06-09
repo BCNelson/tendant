@@ -23,6 +23,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/core"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/durable"
+	"github.com/bcnelson/tendant/services/api/internal/feedback"
 	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/intake"
 	"github.com/bcnelson/tendant/services/api/internal/llm"
@@ -31,6 +32,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/realtime"
 	"github.com/bcnelson/tendant/services/api/internal/server"
 	"github.com/bcnelson/tendant/services/api/internal/tools"
+	"github.com/bcnelson/tendant/services/api/internal/webui"
 )
 
 var (
@@ -205,9 +207,19 @@ func runServe(logLevel *slog.LevelVar) error {
 		return fmt.Errorf("dbos init: %w", err)
 	}
 	defer durable.Shutdown(dctx, 5*time.Second)
-	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, nil, ownerURI, pushAdapter)
+	// Phase 6: build the agent router + runner from agent.connection (empty ⇒
+	// HumanOnlyRouter + nil runner, the unchanged default). buildLLMRegistry has
+	// no DBOS dependency, so it is built here and reused by the overseer below.
+	llmRegistry := buildLLMRegistry(cfg)
+	agentRouter, agentRunner := buildAgentWiring(cfg, llmRegistry, pool, q, overlay)
+	// Post-completion feedback converser: reuse the agent connection's LLM; fall
+	// back to the deterministic stub when no agent connection is configured. The
+	// same converser drives the workflow's opener and the resolver's replies.
+	feedbackConverser := buildFeedbackConverser(cfg, llmRegistry)
+	durable.RegisterChainWorkflow(dctx, pool, q, agentRouter, agentRunner, ownerURI, pushAdapter, feedback.Enqueuer{})
 	durable.RegisterPushQueue(dctx)
 	durable.RegisterToolCallWorkflow(dctx, pool, q, toolRegistry, calibrator)
+	durable.RegisterFeedbackWorkflow(dctx, pool, q, feedbackConverser, calibrator)
 
 	// 5b. Phase 7 intake edge: connector registry + disposition router +
 	// per-connector poll workflow. Registered before Launch so recovery and
@@ -251,7 +263,6 @@ func runServe(logLevel *slog.LevelVar) error {
 	// (TENDANT_OVERSEER_PROVIDER). LogProvider is the deterministic default
 	// — CI uses it; production opts in to anthropic/openai. Anthropic /
 	// OpenAI provider construction lands in US4.
-	llmRegistry := buildLLMRegistry(cfg)
 	overseerProvider, overseerModelID := buildOverseerProvider(cfg, llmRegistry)
 	if overseerModelID == "" {
 		overseerModelID = "log"
@@ -313,6 +324,7 @@ func runServe(logLevel *slog.LevelVar) error {
 	auth.DefaultRegistry.AssertCovers(graph.OperatorEdgeRequiredFields())
 
 	// 8. HTTP server.
+	slog.Info("web ui", "embedded", webui.Built())
 	httpServer := &http.Server{
 		Addr: cfg.Server.HTTPAddr,
 		Handler: server.New(pool, dctx, server.Options{
@@ -331,6 +343,8 @@ func runServe(logLevel *slog.LevelVar) error {
 			CalibrationRate:   calibMetrics,
 			ConfigOverlay:     overlay,
 			ConfigSnapshot:    cfg,
+			FeedbackConverser: feedbackConverser,
+			WebUI:             webui.Handler(),
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
@@ -415,6 +429,25 @@ func calibrationConfigFrom(cfg *config.Config, ov *config.Overlay) calibration.C
 // wins; otherwise the legacy overseer.provider switch applies. Empty / "log" /
 // any failure → deterministic LogProvider (CI default + production fallback if
 // real-provider creds are missing).
+// buildFeedbackConverser selects the post-completion feedback converser. It
+// reuses the agent connection's LLM (the same connection the agent layer routes
+// inference through) when configured; otherwise the deterministic StubConverser
+// (the secure/cheap default, CI parity).
+func buildFeedbackConverser(cfg *config.Config, reg *llm.Registry) feedback.Converser {
+	name := cfg.Agent.Connection
+	if name == "" {
+		slog.Info("feedback.converser", "source", "stub")
+		return feedback.StubConverser{}
+	}
+	client, ok := reg.Get(name)
+	if !ok {
+		slog.Warn("feedback: agent connection not found; using stub converser", "connection", name)
+		return feedback.StubConverser{}
+	}
+	slog.Info("feedback.converser", "source", "llm", "connection", name, "model", client.Model())
+	return feedback.NewLLMConverser(client)
+}
+
 func buildOverseerProvider(cfg *config.Config, reg *llm.Registry) (overseer.Provider, string) {
 	if name := cfg.Overseer.Connection; name != "" {
 		client, ok := reg.Get(name)

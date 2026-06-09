@@ -1,0 +1,31 @@
+# All current tasks + live agent occupancy for the Tasks view.
+
+query Tasks($first: Int, $after: String, $state: TaskState) {
+  tasks(first: $first, after: $after, state: $state) {
+    edges {
+      node {
+        id
+        title
+        state
+        currentStage
+        autonomy
+        openAssignment {
+          id
+        }
+        stageSlots {
+          stage
+          isHuman
+          occupant {
+            id
+            name
+            model
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}

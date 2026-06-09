@@ -5,11 +5,57 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/bcnelson/tendant/services/api/internal/db"
 )
+
+// HandoffToolName is the built-in tool every agent may call to escalate a task
+// to a human when it cannot honestly complete the work with the tools it has.
+// It is injected into every Chat request regardless of the agent's allowlist
+// and is never dispatched or gated — calling it ends the agent loop with a
+// fail-close so the chain opens a human assignment.
+const HandoffToolName = "handoff_to_human"
+
+// handoffToolDef is the synthetic tool definition presented to the model. The
+// description is the behavioural lever: it tells the model to hand off rather
+// than fabricate a completion it cannot actually perform.
+var handoffToolDef = ToolDef{
+	Name: HandoffToolName,
+	Description: "Hand this task off to a human. Call this — instead of reporting the work as done — " +
+		"whenever you cannot honestly complete it with the tools available to you: the task needs an " +
+		"action you have no tool for (placing a phone call, signing a document, visiting a location), " +
+		"requires information you cannot obtain, or is ambiguous in a way only the owner can resolve. " +
+		"Never claim you performed an action that you did not actually perform via a tool call.",
+	Schema: `{"type":"object","properties":{"reason":{"type":"string",` +
+		`"description":"One or two sentences: what you were asked to do, and specifically why you cannot complete it."}},` +
+		`"required":["reason"]}`,
+}
+
+// appendGuidance appends active owner-feedback guidance for this agent config
+// (global + agent-scoped) to the system prompt under a labeled section. Nil
+// Queries or a load error degrades to the unmodified prompt (best-effort).
+func (r *Runner) appendGuidance(ctx context.Context, agentConfigID uuid.UUID, systemPrompt string) string {
+	if r.Queries == nil {
+		return systemPrompt
+	}
+	notes, err := r.Queries.ActiveGuidanceForAgent(ctx, pgtype.UUID{Bytes: agentConfigID, Valid: true})
+	if err != nil || len(notes) == 0 {
+		return systemPrompt
+	}
+	var b strings.Builder
+	b.WriteString(systemPrompt)
+	b.WriteString("\n\n[OWNER_FEEDBACK]\nStanding guidance from the owner, distilled from past task feedback — follow it:\n")
+	for _, n := range notes {
+		b.WriteString("- ")
+		b.WriteString(n)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
 
 // GateEvaluator is the interface the runner uses to gate tool calls.
 // It mirrors the gate package's interface to avoid circular imports.
@@ -62,11 +108,22 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 		return StageResult{FailCloseToHuman: true, FailReason: "gateway_error"}, fmt.Errorf("resolve allowlist: %w", err)
 	}
 
-	// Build system prompt from config.
+	// Every agent always sees the built-in handoff tool, on top of its
+	// allowlist. It is deliberately NOT added to allowedIDs: it is never
+	// dispatched or gated — calling it ends the loop with a fail-close. A fresh
+	// slice avoids mutating the allowlist's backing array.
+	modelTools := make([]ToolDef, 0, len(allowedTools)+1)
+	modelTools = append(modelTools, allowedTools...)
+	modelTools = append(modelTools, handoffToolDef)
+
+	// Build system prompt from config, then append any owner feedback guidance
+	// (global + this-agent active notes) under a labeled [OWNER_FEEDBACK]
+	// section. The notes are owner-accepted verbatim text (see internal/feedback).
 	systemPrompt := ""
 	if rc.Config.SystemPrompt != nil {
 		systemPrompt = *rc.Config.SystemPrompt
 	}
+	systemPrompt = r.appendGuidance(ctx, rc.Config.ID, systemPrompt)
 
 	model := ""
 	if rc.Config.Model != nil {
@@ -82,9 +139,25 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 		})
 	}
 
-	// Initialize conversation with task context.
+	// Initialize conversation with task context. `messages` is the model-facing
+	// history; `transcript` is the persisted record (also carries the system
+	// prompt, the final assistant answer, and per-turn tool calls) so the UI can
+	// show what the model actually said, not just token counts.
+	userPrompt := buildTaskPrompt(rc)
 	messages := []Message{
-		{Role: "user", Content: buildTaskPrompt(rc)},
+		{Role: "user", Content: userPrompt},
+	}
+	transcript := make([]transcriptTurn, 0, 8)
+	if systemPrompt != "" {
+		transcript = append(transcript, transcriptTurn{Role: "system", Content: systemPrompt})
+	}
+	transcript = append(transcript, transcriptTurn{Role: "user", Content: userPrompt})
+
+	// recordToolResult appends a tool observation to both the model-facing
+	// messages and the persisted transcript.
+	recordToolResult := func(content string) {
+		messages = append(messages, Message{Role: "tool_result", Content: content})
+		transcript = append(transcript, transcriptTurn{Role: "tool_result", Content: content})
 	}
 
 	var gateCallCount int
@@ -97,7 +170,7 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 			Model:    model,
 			System:   systemPrompt,
 			Messages: messages,
-			Tools:    allowedTools,
+			Tools:    modelTools,
 		})
 		if chatErr != nil {
 			slog.ErrorContext(ctx, "agent: model call failed", "err", chatErr, "iter", iter)
@@ -106,10 +179,19 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 		totalTokensIn += resp.TokensIn
 		totalTokensOut += resp.TokensOut
 
+		// Record the assistant turn (content + any proposed tool calls) before
+		// branching, so the final answer is captured even on the early exit.
+		assistantTurn := transcriptTurn{Role: "assistant", Content: resp.Content}
+		for _, tc := range resp.ToolCalls {
+			assistantTurn.ToolCalls = append(assistantTurn.ToolCalls,
+				transcriptToolCall{Name: tc.Name, Payload: tc.Payload})
+		}
+		transcript = append(transcript, assistantTurn)
+
 		// No tool calls → agent is done, extract StageResult.
 		if len(resp.ToolCalls) == 0 {
 			result := parseStageResult(resp.Content)
-			r.auditFinish(ctx, rc, iter+1, totalTokensIn, totalTokensOut)
+			r.auditFinish(ctx, rc, iter+1, totalTokensIn, totalTokensOut, transcript)
 			return result, nil
 		}
 
@@ -117,6 +199,26 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 		messages = append(messages, Message{Role: "assistant", Content: resp.Content})
 
 		for _, tc := range resp.ToolCalls {
+			// Built-in handoff: the agent is honestly declining to complete the
+			// work. Handled before the allowlist/budget/gate — it is never
+			// dispatched. End the loop with a fail-close so the chain opens a
+			// human assignment carrying the agent's reason.
+			if tc.Name == HandoffToolName {
+				reason := parseHandoffReason(tc.Payload)
+				if r.Auditor != nil {
+					_ = r.Auditor.WriteAudit(ctx, rc.TaskID, "agent_handoff", map[string]any{
+						"stage":  rc.Config.Stage,
+						"reason": reason,
+					})
+				}
+				r.auditFinish(ctx, rc, iter+1, totalTokensIn, totalTokensOut, transcript)
+				return StageResult{
+					FailCloseToHuman: true,
+					FailReason:       "agent_handoff",
+					HandoffReason:    reason,
+				}, nil
+			}
+
 			// Allowlist enforcement: refuse tools not in the allowlist.
 			toolID, inAllowlist := allowedIDs[tc.Name]
 			if !inAllowlist {
@@ -126,10 +228,7 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 						"reason":    "not_in_allowlist",
 					})
 				}
-				messages = append(messages, Message{
-					Role:    "tool_result",
-					Content: fmt.Sprintf(`{"error": "tool '%s' is not in your allowlist"}`, tc.Name),
-				})
+				recordToolResult(fmt.Sprintf(`{"error": "tool '%s' is not in your allowlist"}`, tc.Name))
 				continue
 			}
 
@@ -149,10 +248,7 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 			// Gate evaluation.
 			verdict, gErr := r.Gate.EvaluateCall(ctx, rc.TaskID, toolID, json.RawMessage(tc.Payload))
 			if gErr != nil {
-				messages = append(messages, Message{
-					Role:    "tool_result",
-					Content: `{"error": "gate evaluation failed"}`,
-				})
+				recordToolResult(`{"error": "gate evaluation failed"}`)
 				continue
 			}
 
@@ -161,30 +257,21 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 				// Dispatch the tool.
 				outcome, dErr := r.Dispatcher.Dispatch(ctx, rc.TaskID, toolID, json.RawMessage(tc.Payload))
 				if dErr != nil {
-					messages = append(messages, Message{
-						Role:    "tool_result",
-						Content: fmt.Sprintf(`{"error": "%s"}`, dErr.Error()),
-					})
+					recordToolResult(fmt.Sprintf(`{"error": "%s"}`, dErr.Error()))
 				} else {
-					messages = append(messages, Message{
-						Role:    "tool_result",
-						Content: outcome,
-					})
+					recordToolResult(outcome)
 				}
 
 			case "request_decision":
 				// Fail-close to human — a decision is needed.
-				r.auditFinish(ctx, rc, iter+1, totalTokensIn, totalTokensOut)
+				r.auditFinish(ctx, rc, iter+1, totalTokensIn, totalTokensOut, transcript)
 				return StageResult{
 					FailCloseToHuman: true,
 					FailReason:       "request_decision",
 				}, nil
 
 			case "deny":
-				messages = append(messages, Message{
-					Role:    "tool_result",
-					Content: `{"error": "tool call denied by gate"}`,
-				})
+				recordToolResult(`{"error": "tool call denied by gate"}`)
 			}
 		}
 	}
@@ -225,7 +312,22 @@ func (r *Runner) resolveAllowlist(ctx context.Context, allowlistRaw json.RawMess
 	return defs, idMap, nil
 }
 
-func (r *Runner) auditFinish(ctx context.Context, rc RunConfig, iterations, tokensIn, tokensOut int) {
+// transcriptTurn is one entry in the persisted LLM conversation: a system /
+// user / assistant / tool_result message. Assistant turns also carry any tool
+// calls the model proposed. Serialized into the agent_run_finished audit
+// payload under "messages".
+type transcriptTurn struct {
+	Role      string               `json:"role"`
+	Content   string               `json:"content,omitempty"`
+	ToolCalls []transcriptToolCall `json:"tool_calls,omitempty"`
+}
+
+type transcriptToolCall struct {
+	Name    string `json:"name"`
+	Payload string `json:"payload,omitempty"`
+}
+
+func (r *Runner) auditFinish(ctx context.Context, rc RunConfig, iterations, tokensIn, tokensOut int, transcript []transcriptTurn) {
 	if r.Auditor != nil {
 		_ = r.Auditor.WriteAudit(ctx, rc.TaskID, "agent_run_finished", map[string]any{
 			"config_id":  rc.Config.ID,
@@ -233,6 +335,7 @@ func (r *Runner) auditFinish(ctx context.Context, rc RunConfig, iterations, toke
 			"iterations": iterations,
 			"tokens_in":  tokensIn,
 			"tokens_out": tokensOut,
+			"messages":   transcript,
 		})
 	}
 }
@@ -245,9 +348,50 @@ func buildTaskPrompt(rc RunConfig) string {
 	if len(rc.Findings) > 0 && string(rc.Findings) != "{}" {
 		prompt += fmt.Sprintf("Current findings: %s\n", string(rc.Findings))
 	}
-	prompt += "\nComplete your stage's work. When done, respond with a JSON object containing your findings:\n"
-	prompt += `{"findings": {"structured": {"category_hints": [...], "stakes_score": N, "entities": [...], "required_capabilities": [...]}, "free_text": "..."}}`
+	const findingsShape = `{"findings": {"structured": {"category_hints": [...], "stakes_score": N, "entities": [...], "required_capabilities": [...]}, "free_text": "..."}}`
+
+	// The completion contract is stage-specific. Triage and expansion only
+	// assess/enrich the task and emit findings — they perform no outward action,
+	// so they must NOT hand off merely because the task will later need a
+	// capability they lack (that belongs in required_capabilities). Only
+	// execution agents actually act, so only they get the tool-honesty + handoff
+	// contract. A stage-agnostic handoff instruction made triage hand off on
+	// every task whose eventual execution needed a tool.
+	if rc.Config.Stage == db.AgentStageExecution {
+		prompt += "\nCarry out the task using ONLY the tools available to you, then end in exactly one of two " +
+			"honest ways:\n"
+		prompt += "1. If you genuinely performed the work via tool calls that succeeded, respond with a JSON " +
+			"object containing your findings:\n"
+		prompt += findingsShape + "\n"
+		prompt += "2. If you cannot complete it with the tools available to you — it needs an action you have no " +
+			"tool for (a phone call, signing a document), information you cannot obtain, or a decision only the " +
+			"owner can make — call the handoff_to_human tool with a brief reason.\n"
+		prompt += "Honesty rule: only report an action as done if you actually performed it by calling a tool and " +
+			"saw a successful result. Never describe work you did not do."
+		return prompt
+	}
+
+	prompt += "\nDo your stage's work: assess and enrich this task. You are NOT executing the task and are NOT " +
+		"expected to perform any outward action here. When done, respond with a JSON object containing your " +
+		"findings:\n"
+	prompt += findingsShape + "\n"
+	prompt += "If the task will eventually need a capability or tool that does not exist yet, that is normal — " +
+		"record it in required_capabilities; do NOT hand off for that reason. Only call the handoff_to_human tool " +
+		"if you genuinely cannot produce your assessment at all."
 	return prompt
+}
+
+// parseHandoffReason extracts the agent's stated reason from the handoff tool
+// payload, falling back to a generic message when absent or unparseable.
+func parseHandoffReason(payload string) string {
+	var p struct {
+		Reason string `json:"reason"`
+	}
+	_ = json.Unmarshal([]byte(payload), &p)
+	if reason := strings.TrimSpace(p.Reason); reason != "" {
+		return reason
+	}
+	return "agent handed off without a stated reason"
 }
 
 func parseStageResult(content string) StageResult {

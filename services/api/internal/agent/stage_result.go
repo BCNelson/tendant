@@ -29,5 +29,10 @@ type StageResult struct {
 	Findings         *Findings       `json:"findings,omitempty"`
 	ContextRefs      json.RawMessage `json:"context_refs,omitempty"` // expansion only
 	FailCloseToHuman bool            `json:"fail_close_to_human"`
-	FailReason       string          `json:"fail_reason,omitempty"` // "budget_exhausted", "max_iterations", "gateway_error"
+	FailReason       string          `json:"fail_reason,omitempty"` // "budget_exhausted", "max_iterations", "gateway_error", "request_decision", "agent_handoff"
+	// HandoffReason is the agent-authored explanation set when FailReason is
+	// "agent_handoff" — the agent called the built-in handoff_to_human tool
+	// rather than fabricate a completion it could not honestly perform. It is
+	// surfaced to the human as the assignment ask.
+	HandoffReason string `json:"handoff_reason,omitempty"`
 }
