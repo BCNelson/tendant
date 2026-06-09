@@ -410,3 +410,68 @@ func ctx(t *testing.T) context.Context {
 	t.Helper()
 	return context.Background()
 }
+
+// recordingClient captures the tools presented to the model on the first Chat
+// call, then returns a no-tool-call completion so the loop ends immediately.
+type recordingClient struct {
+	tools []ToolDef
+}
+
+func (c *recordingClient) Chat(_ context.Context, req ChatRequest) (ChatResponse, error) {
+	if c.tools == nil {
+		c.tools = req.Tools
+	}
+	return ChatResponse{Content: `{"findings":{}}`, TokensIn: 1, TokensOut: 1}, nil
+}
+
+func (c *recordingClient) hasTool(name string) bool {
+	for _, t := range c.tools {
+		if t.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// TestRunner_HandoffToolOnlyForExecution proves the built-in handoff_to_human
+// tool is presented to the model only for execution-stage agents. Triage and
+// expansion agents assess/enrich and perform no outward action, so they must
+// not even see the handoff tool.
+func TestRunner_HandoffToolOnlyForExecution(t *testing.T) {
+	cases := []struct {
+		stage      db.AgentStage
+		wantInList bool
+	}{
+		{db.AgentStageTriage, false},
+		{db.AgentStageExpansion, false},
+		{db.AgentStageExecution, true},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.stage), func(t *testing.T) {
+			client := &recordingClient{}
+			runner := &Runner{
+				Client:  client,
+				Auditor: &mockAuditor{},
+				Queries: nil, // empty allowlist ⇒ no DB access
+				MaxIter: 1,
+				Budget:  10,
+			}
+			rc := RunConfig{
+				Config: db.AgentConfig{
+					ID:            uuid.New(),
+					Name:          "agent-" + string(tc.stage),
+					Stage:         tc.stage,
+					ToolAllowlist: json.RawMessage(`[]`),
+				},
+				TaskID:    uuid.New(),
+				TaskTitle: "x",
+			}
+			if _, err := runner.Run(ctx(t), rc); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got := client.hasTool(HandoffToolName); got != tc.wantInList {
+				t.Errorf("stage %s: handoff tool presented = %v, want %v", tc.stage, got, tc.wantInList)
+			}
+		})
+	}
+}

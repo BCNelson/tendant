@@ -111,6 +111,7 @@ List<Override> ferryOverrides() => [
         final client = ref.watch(ferryClientProvider);
         return client
             .request(GTaskChangedReq((b) => b..vars.taskId = taskId))
+            .handleError((_) {}) // swallow transient transport drops
             .where((r) => r.data != null)
             .map<dynamic>((r) => r.data);
       }),
@@ -136,6 +137,7 @@ List<Override> ferryOverrides() => [
         final client = ref.watch(ferryClientProvider);
         return client
             .request(GTaskChangedReq((b) => b..vars.taskId = null))
+            .handleError((_) {}) // swallow transient transport drops
             .where((r) => r.data != null)
             .map<void>((_) {});
       }),

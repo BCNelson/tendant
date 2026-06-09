@@ -139,16 +139,24 @@
 # ---------------------------------------------------------------------------
 # Catalogs (file + DB; not env). When a section is present it is reconciled
 # into the DB on boot (non-destructive: rows the file omits are left alone).
-# Omit a section entirely to keep the in-code default catalog.
+# Omit a section entirely to keep the built-in default catalog.
 # ---------------------------------------------------------------------------
 
+# The built-in (core) agents live one-per-file under
+# services/api/internal/core/default_agents/*.toml — edit those to tune the
+# default specialists. An [[agents]] block here (or a future community file)
+# uses the same fields and is reconciled on boot.
 # [[agents]]
 # name = "general-triager"
 # stage = "triage"                  # triage | expansion | execution
 # system_prompt = "You are a triage agent. ..."
 # model = ""                        # empty = platform default
 # tool_allowlist = []               # tool UUIDs
-# eligibility = "{}"                # JSON expression (internal/router grammar)
+# eligibility = { pred = { op = "gte", field = "stakes_score", value = 7 } }
+#                                   # native table (internal/router grammar);
+#                                   # omit or {} = always eligible
+# origin = "community"              # "core" | "community"; default core
+                                    # (community rows survive the core re-sync)
 
 # [[tools]]
 # global_uri = "tendant://tools/send-email"

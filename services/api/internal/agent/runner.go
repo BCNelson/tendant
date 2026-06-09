@@ -108,13 +108,18 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 		return StageResult{FailCloseToHuman: true, FailReason: "gateway_error"}, fmt.Errorf("resolve allowlist: %w", err)
 	}
 
-	// Every agent always sees the built-in handoff tool, on top of its
-	// allowlist. It is deliberately NOT added to allowedIDs: it is never
-	// dispatched or gated — calling it ends the loop with a fail-close. A fresh
-	// slice avoids mutating the allowlist's backing array.
+	// Only execution agents see the built-in handoff tool, on top of their
+	// allowlist. Triage and expansion only assess/enrich the task and perform no
+	// outward action — they have nothing to honestly hand off, so exposing the
+	// tool only invites spurious escalations. When present it is deliberately NOT
+	// added to allowedIDs: it is never dispatched or gated — calling it ends the
+	// loop with a fail-close. A fresh slice avoids mutating the allowlist's
+	// backing array.
 	modelTools := make([]ToolDef, 0, len(allowedTools)+1)
 	modelTools = append(modelTools, allowedTools...)
-	modelTools = append(modelTools, handoffToolDef)
+	if rc.Config.Stage == db.AgentStageExecution {
+		modelTools = append(modelTools, handoffToolDef)
+	}
 
 	// Build system prompt from config, then append any owner feedback guidance
 	// (global + this-agent active notes) under a labeled [OWNER_FEEDBACK]
@@ -376,8 +381,8 @@ func buildTaskPrompt(rc RunConfig) string {
 		"findings:\n"
 	prompt += findingsShape + "\n"
 	prompt += "If the task will eventually need a capability or tool that does not exist yet, that is normal — " +
-		"record it in required_capabilities; do NOT hand off for that reason. Only call the handoff_to_human tool " +
-		"if you genuinely cannot produce your assessment at all."
+		"record it in required_capabilities. Always produce your assessment from the information available; " +
+		"escalation to a human is not your job at this stage."
 	return prompt
 }
 

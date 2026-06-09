@@ -31,6 +31,19 @@ FROM agent_assignments
 WHERE task_id = $1 AND stage = $2 AND resolved_at IS NULL
 LIMIT 1;
 
+-- name: FindLatestAssignmentForStage :one
+-- Like FindOpenAssignmentForStage but WITHOUT the resolved_at filter — returns
+-- the most recent assignment for (task, stage) whether open or closed. The
+-- chain workflow's resolve+advance step uses this so it can still write the
+-- assignment_resolved audit even when the completeTask resolver already closed
+-- the row synchronously (for immediate inbox responsiveness). Each human stage
+-- opens exactly one assignment, so "latest" is unambiguous in practice.
+SELECT id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at, to_principal
+FROM agent_assignments
+WHERE task_id = $1 AND stage = $2
+ORDER BY created_at DESC, id DESC
+LIMIT 1;
+
 -- name: SetAssignmentRecipient :one
 UPDATE agent_assignments
 SET to_principal = $2

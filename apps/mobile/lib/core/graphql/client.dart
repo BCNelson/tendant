@@ -61,11 +61,25 @@ final ferryClientProvider = Provider<Client>((ref) {
   }
 
   final httpLink = HttpLink(ref.watch(graphqlEndpointProvider));
-  final wsLink = WebSocketLink(
-    ref.watch(graphqlWsEndpointProvider),
-    initialPayload: () => <String, dynamic>{
-      if (token() != null) 'authorization': 'Bearer ${token()}',
-    },
+  // The server speaks the `graphql-transport-ws` subprotocol (see
+  // services/api/internal/server/server.go). Use TransportWebSocketLink — it
+  // advertises that subprotocol in the handshake and, unlike the legacy
+  // WebSocketLink, tears subscriptions down via sink.close() rather than
+  // addError-on-a-closed-controller (which surfaced as unhandled
+  // "Cannot add event after closing" exceptions on navigation/disconnect).
+  final wsEndpoint = ref.watch(graphqlWsEndpointProvider);
+  final wsLink = TransportWebSocketLink(
+    TransportWsClientOptions(
+      socketMaker: WebSocketMaker.url(() => wsEndpoint),
+      // Auth rides the connection_init payload, read freshly per (re)connect
+      // so a re-paired token is picked up without rebuilding the client.
+      connectionParams: () => <String, Object?>{
+        if (token() != null) 'authorization': 'Bearer ${token()}',
+      },
+      // Recover live subscriptions across transient network drops (the legacy
+      // link defaulted to autoReconnect: true).
+      retryAttempts: 5,
+    ),
   );
   final transportLink = Link.split(_isSubscription, wsLink, httpLink);
   final link = Link.from([

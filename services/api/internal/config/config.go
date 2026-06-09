@@ -159,12 +159,13 @@ type SeedConfig struct {
 
 // AgentDef is a file/DB-definable agent specialist (reconciled into agent_configs).
 type AgentDef struct {
-	Name          string   `koanf:"name"`
-	Stage         string   `koanf:"stage"`
-	SystemPrompt  string   `koanf:"system_prompt"`
-	Model         string   `koanf:"model"`
-	ToolAllowlist []string `koanf:"tool_allowlist"`
-	Eligibility   string   `koanf:"eligibility"` // JSON expression (internal/router grammar)
+	Name          string         `koanf:"name"`
+	Stage         string         `koanf:"stage"`
+	SystemPrompt  string         `koanf:"system_prompt"`
+	Model         string         `koanf:"model"`
+	ToolAllowlist []string       `koanf:"tool_allowlist"`
+	Eligibility   map[string]any `koanf:"eligibility"` // native table (internal/router grammar); empty = always eligible
+	Origin        string         `koanf:"origin"`      // "core" | "community"; default core
 }
 
 // ToolDef is a file/DB-definable tool (reconciled into tools).

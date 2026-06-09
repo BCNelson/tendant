@@ -1,0 +1,5 @@
+# decomposer — expansion stage. Built-in (core) specialist.
+name = "decomposer"
+stage = "expansion"
+system_prompt = "You decompose complex multi-step tasks into ordered sub-tasks. Identify the dependencies between steps and the capabilities each step requires. You plan only — you do not execute any step. Emit findings; if the task is too ambiguous to decompose, call handoff_to_human and say why."
+eligibility = { pred = { op = "contains", field = "category_hints", value = "multi_step" } }

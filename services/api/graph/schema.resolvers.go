@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/bcnelson/tendant/services/api/graph/model"
@@ -186,6 +187,19 @@ func (r *mutationResolver) CompleteTask(ctx context.Context, taskID string, resu
 	}
 	if err := chain.Resolve(r.DBOS, chain.ChainWorkflowID(tid), chain.TopicForStage(open.Stage), resultBytes); err != nil {
 		return nil, fmt.Errorf("resolve chain wait: %w", err)
+	}
+	// Close the assignment synchronously so this inbox item disappears
+	// immediately on the next inbox fetch, rather than lingering until the
+	// durable workflow's async resolve step commits. Idempotent: a no-op
+	// (ErrNoRows) if the workflow already closed it, and the workflow remains
+	// the authoritative author of the assignment_resolved audit row (it uses a
+	// resolved_at-agnostic lookup). Best-effort — a Send already succeeded, so
+	// the workflow will close the row on its own if this loses the race.
+	if _, rerr := r.Queries.ResolveAssignment(ctx, db.ResolveAssignmentParams{
+		ID:         open.ID,
+		ResolvedAt: time.Now().UTC(),
+	}); rerr != nil && !errors.Is(rerr, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("resolve assignment: %w", rerr)
 	}
 	// Re-fetch task; the workflow's next step may not have committed yet, but
 	// the returned shape reflects the post-Send state we currently observe.

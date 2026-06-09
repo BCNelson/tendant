@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../inbox/inbox_page.dart' show inboxItemsProvider;
+
 /// AssignmentDetail is the shape the page consumes — populated by the
 /// generated Ferry AgentAssignment query in T065.
 class AssignmentDetail {
@@ -54,6 +56,10 @@ class _AssignmentViewState extends ConsumerState<AssignmentView> {
     try {
       final fn = await ref.read(completeTaskProvider.future);
       await fn(a.taskId);
+      // Drop this just-completed assignment from the cached inbox so it
+      // doesn't reappear when we navigate back. The backend closes the
+      // assignment synchronously, so the refetch will exclude it.
+      ref.invalidate(inboxItemsProvider);
       if (mounted) context.go('/inbox');
     } catch (e) {
       setState(() => _error = e.toString());

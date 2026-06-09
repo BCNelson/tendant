@@ -460,14 +460,21 @@ func runResolveAndAdvanceStep(
 	_, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (struct{}, error) {
 		err := pgx.BeginFunc(stepCtx, d.pool, func(tx pgx.Tx) error {
 			q := db.New(tx)
-			open, ferr := q.FindOpenAssignmentForStage(stepCtx, db.FindOpenAssignmentForStageParams{
+			// Unfiltered lookup (open OR already-closed): the completeTask
+			// resolver closes the assignment synchronously so the inbox drops
+			// it immediately, which can win the race against this step. Using
+			// the resolved_at-agnostic query keeps this step the sole author of
+			// the assignment_resolved audit regardless of who closed the row.
+			open, ferr := q.FindLatestAssignmentForStage(stepCtx, db.FindLatestAssignmentForStageParams{
 				TaskID: taskID,
 				Stage:  stage,
 			})
 			if ferr != nil && !errors.Is(ferr, pgx.ErrNoRows) {
-				return fmt.Errorf("find open assignment: %w", ferr)
+				return fmt.Errorf("find assignment: %w", ferr)
 			}
 			if ferr == nil {
+				// Idempotent close — no-op (ErrNoRows) if the resolver already
+				// closed it; the audit below is still written exactly once.
 				if _, rerr := q.ResolveAssignment(stepCtx, db.ResolveAssignmentParams{
 					ID:         open.ID,
 					ResolvedAt: time.Now().UTC(),

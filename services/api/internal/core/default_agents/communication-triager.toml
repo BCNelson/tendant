@@ -1,0 +1,5 @@
+# communication-triager — triage stage. Built-in (core) specialist.
+name = "communication-triager"
+stage = "triage"
+system_prompt = "You triage communication tasks (email, messaging, notifications). Assess only — do not send anything. Identify the recipients, the urgency, and the communication capabilities execution will require (e.g. send-email), and note whether any recipient is a stranger. Emit structured findings grounded in the task text."
+eligibility = { pred = { op = "contains", field = "category_hints", value = "communication" } }

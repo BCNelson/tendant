@@ -42,7 +42,7 @@ maturation = "1h"
 name = "file-agent"
 stage = "triage"
 system_prompt = "from file"
-eligibility = "{}"
+eligibility = { pred = { op = "gte", field = "stakes_score", value = 7 } }
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
@@ -62,6 +62,11 @@ eligibility = "{}"
 	}
 	if len(cfg.Agents) != 1 || cfg.Agents[0].Name != "file-agent" {
 		t.Errorf("Agents = %+v, want one file-agent", cfg.Agents)
+	}
+	// eligibility parses as a native table (not a JSON string).
+	pred, ok := cfg.Agents[0].Eligibility["pred"].(map[string]any)
+	if !ok || pred["op"] != "gte" || pred["field"] != "stakes_score" {
+		t.Errorf("Eligibility = %+v, want native pred table", cfg.Agents[0].Eligibility)
 	}
 }
 

@@ -135,6 +135,25 @@ down:
     -pkill -f "exe/tendant" 2>/dev/null || true
     -docker compose down -v 2>/dev/null || true
 
+# Reset the local database: stop the core, stop + wipe the devenv Postgres state
+# dir, then start a fresh Postgres. The next `just up` re-runs goose migrations
+# and re-seeds the owner from scratch. DESTRUCTIVE — drops all local data.
+reset-db: down
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "stopping devenv postgres…"
+    devenv processes stop postgres >/dev/null 2>&1 || true
+    # Give it a moment to release the data dir before we delete it.
+    for _ in $(seq 1 20); do
+        pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null || break
+        sleep 0.5
+    done
+    echo "wiping postgres state dir (.devenv/state/postgres)…"
+    rm -rf .devenv/state/postgres
+    echo "starting fresh postgres…"
+    just _pg
+    echo "database reset — run 'just up' to migrate + seed."
+
 # Seed a Task via the in-process CreateTask path (TITLE=... override).
 seed-task TITLE="hello":
     go run -C services/api ./cmd/tendant seed --title="{{TITLE}}"

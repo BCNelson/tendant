@@ -13,6 +13,42 @@ import (
 	"github.com/google/uuid"
 )
 
+const findLatestAssignmentForStage = `-- name: FindLatestAssignmentForStage :one
+SELECT id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at, to_principal
+FROM agent_assignments
+WHERE task_id = $1 AND stage = $2
+ORDER BY created_at DESC, id DESC
+LIMIT 1
+`
+
+type FindLatestAssignmentForStageParams struct {
+	TaskID uuid.UUID  `json:"task_id"`
+	Stage  ChainStage `json:"stage"`
+}
+
+// Like FindOpenAssignmentForStage but WITHOUT the resolved_at filter — returns
+// the most recent assignment for (task, stage) whether open or closed. The
+// chain workflow's resolve+advance step uses this so it can still write the
+// assignment_resolved audit even when the completeTask resolver already closed
+// the row synchronously (for immediate inbox responsiveness). Each human stage
+// opens exactly one assignment, so "latest" is unambiguous in practice.
+func (q *Queries) FindLatestAssignmentForStage(ctx context.Context, arg FindLatestAssignmentForStageParams) (AgentAssignment, error) {
+	row := q.db.QueryRow(ctx, findLatestAssignmentForStage, arg.TaskID, arg.Stage)
+	var i AgentAssignment
+	err := row.Scan(
+		&i.ID,
+		&i.TaskID,
+		&i.Stage,
+		&i.FromPrincipal,
+		&i.Ask,
+		&i.GatheredContext,
+		&i.CreatedAt,
+		&i.ResolvedAt,
+		&i.ToPrincipal,
+	)
+	return i, err
+}
+
 const findOpenAssignmentForStage = `-- name: FindOpenAssignmentForStage :one
 SELECT id, task_id, stage, from_principal, ask, gathered_context, created_at, resolved_at, to_principal
 FROM agent_assignments

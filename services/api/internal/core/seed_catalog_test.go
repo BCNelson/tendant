@@ -7,9 +7,58 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/bcnelson/tendant/services/api/internal/agent"
 	"github.com/bcnelson/tendant/services/api/internal/db"
+	"github.com/bcnelson/tendant/services/api/internal/router"
 	"github.com/bcnelson/tendant/services/api/internal/testutil"
 )
+
+// TestDefaultAgentDefs_ParseAndShape guards that the embedded default_agents/
+// files all parse, yield the expected core specialists, and that every entry
+// carries a valid stage, valid-JSON eligibility, and core origin. A mistyped
+// TOML key (silently dropped by koanf) or a malformed eligibility is caught here
+// without needing a DB.
+func TestDefaultAgentDefs_ParseAndShape(t *testing.T) {
+	entries, err := catalogEntriesFor(nil) // nil ⇒ embedded defaults
+	require.NoError(t, err)
+
+	wantStages := map[string]db.AgentStage{
+		"general-triager":       db.AgentStageTriage,
+		"high-stakes-triager":   db.AgentStageTriage,
+		"communication-triager": db.AgentStageTriage,
+		"research-expander":     db.AgentStageExpansion,
+		"decomposer":            db.AgentStageExpansion,
+		"general-expander":      db.AgentStageExpansion,
+		"email-specialist":      db.AgentStageExecution,
+		"general-executor":      db.AgentStageExecution,
+		"code-executor":         db.AgentStageExecution,
+	}
+	require.Len(t, entries, len(wantStages))
+
+	byName := map[string]catalogEntry{}
+	for _, e := range entries {
+		stage, ok := wantStages[e.Name]
+		require.True(t, ok, "unexpected default agent %q", e.Name)
+		require.Equal(t, stage, e.Stage, "agent %q stage", e.Name)
+		require.NotEmpty(t, e.SystemPrompt, "agent %q system_prompt", e.Name)
+		require.Equal(t, db.ConfigOriginCore, e.Origin, "default agents are core-origin")
+		require.True(t, json.Valid(e.Eligibility), "agent %q eligibility is valid JSON", e.Name)
+		byName[e.Name] = e
+	}
+	require.Len(t, byName, len(wantStages), "every expected default agent present")
+
+	// The native-table eligibility must round-trip through the router grammar:
+	// high-stakes-triager is `gte stakes_score 7`, so it prunes a low-stakes task
+	// and survives a high-stakes one. This proves the TOML-table → JSON → Expression
+	// path (not just valid JSON), guarding the field/op/value shape.
+	hs := router.ParseExpression(byName["high-stakes-triager"].Eligibility)
+	require.False(t, router.Evaluate(hs, agent.StructuredFindings{StakesScore: 3}))
+	require.True(t, router.Evaluate(hs, agent.StructuredFindings{StakesScore: 8}))
+
+	// {} eligibility is always-true.
+	gt := router.ParseExpression(byName["general-triager"].Eligibility)
+	require.True(t, router.Evaluate(gt, agent.StructuredFindings{}))
+}
 
 func setupCatalogDB(t *testing.T) (*db.Queries, context.Context) {
 	t.Helper()
@@ -20,15 +69,17 @@ func setupCatalogDB(t *testing.T) (*db.Queries, context.Context) {
 	return db.New(pool), ctx
 }
 
-// defaultEntry returns the in-code baseCatalog entry for a (name, stage).
+// defaultEntry returns the embedded default-catalog entry for a (name, stage).
 func defaultEntry(t *testing.T, name string, stage db.AgentStage) catalogEntry {
 	t.Helper()
-	for _, e := range baseCatalog {
+	entries, err := catalogEntriesFor(nil) // nil ⇒ embedded defaults
+	require.NoError(t, err)
+	for _, e := range entries {
 		if e.Name == name && e.Stage == stage {
 			return e
 		}
 	}
-	t.Fatalf("no baseCatalog entry for %s/%s", name, stage)
+	t.Fatalf("no default-catalog entry for %s/%s", name, stage)
 	return catalogEntry{}
 }
 
