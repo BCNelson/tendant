@@ -542,6 +542,17 @@ type Task struct {
 	EditedAt       pgtype.Timestamptz `json:"edited_at"`
 }
 
+type TaskCategory struct {
+	ID            uuid.UUID       `json:"id"`
+	Key           string          `json:"key"`
+	ParentID      pgtype.UUID     `json:"parent_id"`
+	Label         string          `json:"label"`
+	Description   *string         `json:"description"`
+	StageBindings json.RawMessage `json:"stage_bindings"`
+	Origin        ConfigOrigin    `json:"origin"`
+	Version       int32           `json:"version"`
+}
+
 type Tool struct {
 	ID                   uuid.UUID       `json:"id"`
 	GlobalUri            string          `json:"global_uri"`

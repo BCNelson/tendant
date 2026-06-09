@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'inbox_provider.dart';
+
 /// InboxPage renders the unified inbox of AgentAssignment + PendingDecision
 /// items. Phase 2 only renders AgentAssignment tiles as actionable; the
 /// three PendingDecision kinds render a read-only "Decision (Phase 3)"
@@ -11,6 +13,12 @@ class InboxPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Any new inbox item (approval, assignment, feedback, …) → refetch the
+    // list so it appears live without a manual refresh or app restart.
+    ref.listen(inboxArrivedProvider, (_, __) {
+      ref.invalidate(inboxItemsProvider);
+    });
+
     final items = ref.watch(inboxItemsProvider);
     return Scaffold(
       appBar: AppBar(

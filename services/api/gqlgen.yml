@@ -51,6 +51,17 @@ models:
       # activity — the task's full audit timeline (lazy; detail page only).
       activity:
         resolver: true
+      # Category — resolves findings.structured.category → task_categories row.
+      category:
+        resolver: true
+  # Task categories — parent/children are lazy field resolvers so the tree is
+  # walked on demand (never eagerly materialized, which would recurse).
+  TaskCategory:
+    fields:
+      parent:
+        resolver: true
+      children:
+        resolver: true
   AgentAssignment:
     fields:
       task:

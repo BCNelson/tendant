@@ -8,6 +8,7 @@ import '../graphql/__generated__/schema.schema.gql.dart';
 import '../graphql/operations/__generated__/pair_device.req.gql.dart';
 import '../graphql/operations/__generated__/inbox.req.gql.dart';
 import '../graphql/operations/__generated__/inbox.data.gql.dart';
+import '../graphql/operations/__generated__/inbox_subscription.req.gql.dart';
 import '../graphql/operations/__generated__/agent_assignment.req.gql.dart';
 import '../graphql/operations/__generated__/complete_task.req.gql.dart';
 import '../graphql/operations/__generated__/create_task.req.gql.dart';
@@ -24,6 +25,7 @@ import '../graphql/operations/__generated__/task_detail.data.gql.dart';
 
 import '../features/pairing/pairing_page.dart';
 import '../features/inbox/inbox_page.dart';
+import '../features/inbox/inbox_provider.dart';
 import '../features/task/assignment_view.dart';
 import '../features/task/task_provider.dart';
 import '../features/task/create_task_provider.dart';
@@ -65,6 +67,16 @@ List<Override> ferryOverrides() => [
             ..fetchPolicy = FetchPolicy.NetworkOnly),
         );
         return _mapInbox(data);
+      }),
+
+      // ---- Inbox live arrival subscription (drives list refresh) ------
+      inboxArrivedProvider.overrideWith((ref) {
+        final client = ref.watch(ferryClientProvider);
+        return client
+            .request(GInboxItemArrivedReq())
+            .handleError((_) {}) // swallow transient transport drops
+            .where((r) => r.data != null)
+            .map<void>((_) {});
       }),
 
       // ---- Assignment detail + complete -------------------------------

@@ -21,13 +21,13 @@ import 'root_shell.dart';
 /// token (so the first render knows whether to land on /pairing or /inbox).
 /// The server address (resolved at boot into [serverAddressProvider]) gates
 /// everything: an unconfigured app lands on /server first.
-final routerProvider = Provider.family<GoRouter, String?>((ref, initialSession) {
+final routerProvider =
+    Provider.family<GoRouter, String?>((ref, initialSession) {
   // sessionTokenProvider is seeded via a ProviderScope override in main.dart —
   // a provider must not mutate another during build, so we only read here.
   final hasServer = ref.read(serverAddressProvider).isConfigured;
-  final initialLocation = !hasServer
-      ? '/server'
-      : (initialSession == null ? '/pairing' : '/inbox');
+  final initialLocation =
+      !hasServer ? '/server' : (initialSession == null ? '/pairing' : '/inbox');
 
   // Re-run redirect whenever the session token changes. This is what bounces
   // the app to /pairing the moment the token is cleared (e.g. the ferry client
@@ -135,6 +135,10 @@ final routerProvider = Provider.family<GoRouter, String?>((ref, initialSession) 
           GoRoute(
             path: 'connectors',
             builder: (_, __) => const ConnectorsScreen(),
+          ),
+          GoRoute(
+            path: 'categories',
+            builder: (_, __) => const CategoriesScreen(),
           ),
         ],
       ),

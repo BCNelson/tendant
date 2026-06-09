@@ -57,6 +57,33 @@ func (r *Runner) appendGuidance(ctx context.Context, agentConfigID uuid.UUID, sy
 	return b.String()
 }
 
+// appendTaxonomy appends the available task-category taxonomy (key — label) to a
+// triage agent's system prompt under a labeled section, instructing it to set
+// findings.structured.category to the single best-matching key. Nil Queries, a
+// load error, or an empty catalog degrades to the unmodified prompt (best-effort).
+func (r *Runner) appendTaxonomy(ctx context.Context, systemPrompt string) string {
+	if r.Queries == nil {
+		return systemPrompt
+	}
+	cats, err := r.Queries.ListTaskCategories(ctx)
+	if err != nil || len(cats) == 0 {
+		return systemPrompt
+	}
+	var b strings.Builder
+	b.WriteString(systemPrompt)
+	b.WriteString("\n\n[TASK_CATEGORIES]\nClassify this task by setting findings.structured.category to the single best-matching key below (the most specific one that fits). Use exactly one key, or leave it empty if none fit:\n")
+	for _, c := range cats {
+		b.WriteString("- ")
+		b.WriteString(c.Key)
+		if c.Label != "" {
+			b.WriteString(" — ")
+			b.WriteString(c.Label)
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
 // GateEvaluator is the interface the runner uses to gate tool calls.
 // It mirrors the gate package's interface to avoid circular imports.
 type GateEvaluator interface {
@@ -129,6 +156,14 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 		systemPrompt = *rc.Config.SystemPrompt
 	}
 	systemPrompt = r.appendGuidance(ctx, rc.Config.ID, systemPrompt)
+
+	// Triage is the categorizer: give it the available task-category taxonomy so
+	// it can classify the task by setting findings.structured.category. Downstream
+	// stages route by that category; other stages don't classify, so they don't
+	// need the list.
+	if rc.Config.Stage == db.AgentStageTriage {
+		systemPrompt = r.appendTaxonomy(ctx, systemPrompt)
+	}
 
 	model := ""
 	if rc.Config.Model != nil {

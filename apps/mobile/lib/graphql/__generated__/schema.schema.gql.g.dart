@@ -227,6 +227,8 @@ final BuiltSet<GAgentStage> _$gAgentStageValues =
   _$gAgentStageEXECUTION,
 ]);
 
+Serializer<GSetTaskCategoryInput> _$gSetTaskCategoryInputSerializer =
+    _$GSetTaskCategoryInputSerializer();
 Serializer<GGateScriptTier> _$gGateScriptTierSerializer =
     _$GGateScriptTierSerializer();
 Serializer<GGateScriptStatus> _$gGateScriptStatusSerializer =
@@ -240,6 +242,95 @@ Serializer<GDevicePlatform> _$gDevicePlatformSerializer =
 Serializer<GGuidanceScope> _$gGuidanceScopeSerializer =
     _$GGuidanceScopeSerializer();
 Serializer<GAgentStage> _$gAgentStageSerializer = _$GAgentStageSerializer();
+
+class _$GSetTaskCategoryInputSerializer
+    implements StructuredSerializer<GSetTaskCategoryInput> {
+  @override
+  final Iterable<Type> types = const [
+    GSetTaskCategoryInput,
+    _$GSetTaskCategoryInput
+  ];
+  @override
+  final String wireName = 'GSetTaskCategoryInput';
+
+  @override
+  Iterable<Object?> serialize(
+      Serializers serializers, GSetTaskCategoryInput object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      'key',
+      serializers.serialize(object.key, specifiedType: const FullType(String)),
+    ];
+    Object? value;
+    value = object.label;
+    if (value != null) {
+      result
+        ..add('label')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(String)));
+    }
+    value = object.description;
+    if (value != null) {
+      result
+        ..add('description')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(String)));
+    }
+    value = object.parent;
+    if (value != null) {
+      result
+        ..add('parent')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(String)));
+    }
+    value = object.stageBindings;
+    if (value != null) {
+      result
+        ..add('stageBindings')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(_i1.JsonObject)));
+    }
+    return result;
+  }
+
+  @override
+  GSetTaskCategoryInput deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = GSetTaskCategoryInputBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case 'key':
+          result.key = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'label':
+          result.label = serializers.deserialize(value,
+              specifiedType: const FullType(String)) as String?;
+          break;
+        case 'description':
+          result.description = serializers.deserialize(value,
+              specifiedType: const FullType(String)) as String?;
+          break;
+        case 'parent':
+          result.parent = serializers.deserialize(value,
+              specifiedType: const FullType(String)) as String?;
+          break;
+        case 'stageBindings':
+          result.stageBindings = serializers.deserialize(value,
+              specifiedType: const FullType(_i1.JsonObject)) as _i1.JsonObject?;
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
 
 class _$GGateScriptTierSerializer
     implements PrimitiveSerializer<GGateScriptTier> {
@@ -380,6 +471,141 @@ class _$GAgentStageSerializer implements PrimitiveSerializer<GAgentStage> {
   GAgentStage deserialize(Serializers serializers, Object serialized,
           {FullType specifiedType = FullType.unspecified}) =>
       GAgentStage.valueOf(serialized as String);
+}
+
+class _$GSetTaskCategoryInput extends GSetTaskCategoryInput {
+  @override
+  final String key;
+  @override
+  final String? label;
+  @override
+  final String? description;
+  @override
+  final String? parent;
+  @override
+  final _i1.JsonObject? stageBindings;
+
+  factory _$GSetTaskCategoryInput(
+          [void Function(GSetTaskCategoryInputBuilder)? updates]) =>
+      (GSetTaskCategoryInputBuilder()..update(updates))._build();
+
+  _$GSetTaskCategoryInput._(
+      {required this.key,
+      this.label,
+      this.description,
+      this.parent,
+      this.stageBindings})
+      : super._();
+  @override
+  GSetTaskCategoryInput rebuild(
+          void Function(GSetTaskCategoryInputBuilder) updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GSetTaskCategoryInputBuilder toBuilder() =>
+      GSetTaskCategoryInputBuilder()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GSetTaskCategoryInput &&
+        key == other.key &&
+        label == other.label &&
+        description == other.description &&
+        parent == other.parent &&
+        stageBindings == other.stageBindings;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, key.hashCode);
+    _$hash = $jc(_$hash, label.hashCode);
+    _$hash = $jc(_$hash, description.hashCode);
+    _$hash = $jc(_$hash, parent.hashCode);
+    _$hash = $jc(_$hash, stageBindings.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(r'GSetTaskCategoryInput')
+          ..add('key', key)
+          ..add('label', label)
+          ..add('description', description)
+          ..add('parent', parent)
+          ..add('stageBindings', stageBindings))
+        .toString();
+  }
+}
+
+class GSetTaskCategoryInputBuilder
+    implements Builder<GSetTaskCategoryInput, GSetTaskCategoryInputBuilder> {
+  _$GSetTaskCategoryInput? _$v;
+
+  String? _key;
+  String? get key => _$this._key;
+  set key(String? key) => _$this._key = key;
+
+  String? _label;
+  String? get label => _$this._label;
+  set label(String? label) => _$this._label = label;
+
+  String? _description;
+  String? get description => _$this._description;
+  set description(String? description) => _$this._description = description;
+
+  String? _parent;
+  String? get parent => _$this._parent;
+  set parent(String? parent) => _$this._parent = parent;
+
+  _i1.JsonObject? _stageBindings;
+  _i1.JsonObject? get stageBindings => _$this._stageBindings;
+  set stageBindings(_i1.JsonObject? stageBindings) =>
+      _$this._stageBindings = stageBindings;
+
+  GSetTaskCategoryInputBuilder();
+
+  GSetTaskCategoryInputBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _key = $v.key;
+      _label = $v.label;
+      _description = $v.description;
+      _parent = $v.parent;
+      _stageBindings = $v.stageBindings;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(GSetTaskCategoryInput other) {
+    _$v = other as _$GSetTaskCategoryInput;
+  }
+
+  @override
+  void update(void Function(GSetTaskCategoryInputBuilder)? updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GSetTaskCategoryInput build() => _build();
+
+  _$GSetTaskCategoryInput _build() {
+    final _$result = _$v ??
+        _$GSetTaskCategoryInput._(
+          key: BuiltValueNullFieldError.checkNotNull(
+              key, r'GSetTaskCategoryInput', 'key'),
+          label: label,
+          description: description,
+          parent: parent,
+          stageBindings: stageBindings,
+        );
+    replace(_$result);
+    return _$result;
+  }
 }
 
 class _$GBytes extends GBytes {

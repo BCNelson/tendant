@@ -1,28 +1,29 @@
-# Layered configuration — admin surface. Additive (Path 1).
+# Hierarchical task categories. Additive (Path 1) — operator-edge GraphQL contract.
 #
-# Exposes the typed config Registry merged with the DB overlay (config_entries)
-# so the owner can inspect and edit DB-configurable settings at runtime. Sensitive
-# values are NEVER returned (effectiveValue is null and sensitive=true).
+# A tree of categories (parent/children) where each node binds, per lifecycle
+# stage, an agent shortlist and/or an eligibility expression. Triage classifies a
+# task into one category; expansion + execution route to that category's bound
+# agents (inherited from ancestors).
 #
-# All operations are OWNER-PRINCIPAL-ONLY: the resolver MUST reject any viewer
-# with Principal.Kind != "user" with PERMISSION_DENIED *before* any DB read or
-# write (auth.RequireOwner — a structural check, not a feature flag).
+# Mutations are OWNER-PRINCIPAL-ONLY: the resolver MUST reject any viewer with
+# Principal.Kind != "user" with PERMISSION_DENIED *before* any DB read or write
+# (auth.RequireOwner — a structural check, not a feature flag).
 
-type ConfigKey {
+type TaskCategory {
   key: String!
-  type: String!                 # string | int | bool | duration | float64
-  description: String!
-  reload: String!               # hot | restart | bootstrap
-  sensitive: Boolean!
-  dbConfigurable: Boolean!
-  hotReloadable: Boolean!
-  readonlyReason: String
-  defaultValue: String          # stringified default (null if sensitive)
-  effectiveValue: String        # stringified resolved value (null if sensitive)
-  overridden: Boolean!          # true when a config_entries row overrides this key
+  label: String!
+  description: String
+  # parent in the category tree; null for a root category.
+  parent: TaskCategory
+  # direct children in the category tree.
+  children: [TaskCategory!]!
+  # per-stage bindings: {"execution":{"agents":[...],"eligibility":{...}}}.
+  stageBindings: JSON!
 }
 
 type Query {
+  # The full category taxonomy, ordered by key.
+  categories: [TaskCategory!]!
   # Owner-only. The full config registry with each key's effective value and
   # whether it is overridden in the DB. Sensitive values are redacted.
   configKeys: [ConfigKey!]!
@@ -31,16 +32,50 @@ type Query {
   viewer: User
   task(id: ID!): Task
   tasks(first: Int, after: String, state: TaskState): TaskConnection!
+  # Owner-only: list standing guidance notes by status ("active" default).
+  agentGuidance(status: String): [AgentGuidance!]!
   inbox(first: Int, after: String): [InboxItem!]!
   pendingDecision(id: ID!): PendingDecision
   agentAssignment(id: ID!): AgentAssignment
   sessions: [Session!]!
   agentConfigs(stage: AgentStage): [AgentConfigSummary!]!
-  # Owner-only. Standing guidance notes by status (default "active").
-  agentGuidance(status: String): [AgentGuidance!]!
+}
+
+type Task {
+  # The category triage assigned this task (from findings.structured.category);
+  # null when uncategorized or the key no longer resolves.
+  category: TaskCategory
+  id: ID!  globalUri: String!
+  title: String!  description: String
+  state: TaskState!
+  currentStage: ChainStage!
+  autonomy: AutonomyLevel!
+  provenance: JSON
+  contextRefs: JSON
+  findings: JSON
+  workflow: WorkflowRef
+  openAssignment: AgentAssignment
+  createdAt: Time!  editedAt: Time
+  stageSlots: [StageSlot!]!
+  # The full audit timeline for this task, chronological (oldest first).
+  activity: [ActivityEvent!]!
+}
+
+input SetTaskCategoryInput {
+  key: String!
+  label: String
+  description: String
+  # parent key; omit to derive from the key path prefix (e.g.
+  # "communication/email" → "communication"); "" forces a root category.
+  parent: String
+  stageBindings: JSON
 }
 
 type Mutation {
+  # Owner-only. Upsert a category (insert or override by key).
+  setTaskCategory(input: SetTaskCategoryInput!): TaskCategory!
+  # Owner-only. Delete a category by key.
+  deleteTaskCategory(key: String!): Boolean!
   # Owner-only. Set a DB-configurable key's override. `value` is the raw scalar
   # form (e.g. "0.95", "true", "30m", "info"); it is validated and type-checked
   # against the registry, stored as jsonb, and propagated via LISTEN/NOTIFY.
@@ -84,11 +119,6 @@ type Mutation {
   # NOT_YET_AVAILABLE; do not build new clients against it.
   decidePromotion(decisionId: ID!, accept: Boolean!): PendingDecision!
     @deprecated(reason: "Phase 8: use respondToPromotion (returns the updated Tool).")
-  # Post-completion feedback conversation + verbatim guidance accept.
-  sendFeedbackMessage(decisionId: ID!, text: String!): FeedbackRequest!
-  acceptFeedbackGuidance(decisionId: ID!, guidance: String!, scope: GuidanceScope!, agentConfigId: ID, rating: Int): AgentGuidance
-  dismissFeedback(decisionId: ID!, rating: Int): PendingDecision!
-  deactivateAgentGuidance(guidanceId: ID!): AgentGuidance!
   # Phase 3 — Universal Gate, Hard-Rule Floor & the First Tool.
   # Compose a tool call against a task. Runs the gate; on RequestDecision
   # writes an ApprovalRequest and starts the durable ToolCallWorkflow that
@@ -136,6 +166,57 @@ type Mutation {
   # operation. OWNER-ONLY. Returns the updated Tool. Demotion needs no
   # approval. Errors: PERMISSION_DENIED, TASK_UNKNOWN, TOOL_UNKNOWN.
   flagOutcome(taskId: ID!, toolId: ID!, reason: String): Tool!
+  # Post-completion feedback (additive, Path 1).
+  #
+  # sendFeedbackMessage appends the owner's message to a FeedbackRequest
+  # conversation and returns the updated request (with the agent's reply +
+  # refreshed draftGuidance). Errors: DECISION_NOT_FOUND, DECISION_KIND_MISMATCH,
+  # DECISION_ALREADY_RESOLVED.
+  sendFeedbackMessage(decisionId: ID!, text: String!): FeedbackRequest!
+  # acceptFeedbackGuidance stores `guidance` VERBATIM as an active AgentGuidance
+  # note (no further modification), scoped GLOBAL or to `agentConfigId` (required
+  # when scope=AGENT), optionally records a 1–5 satisfaction `rating` (low →
+  # calibration demotion), resolves the decision, and wakes the feedback
+  # workflow. OWNER-ONLY (auth.RequireOwner FIRST). Pass empty guidance to accept
+  # with no note (rating only). Errors: PERMISSION_DENIED, DECISION_NOT_FOUND,
+  # DECISION_KIND_MISMATCH, DECISION_ALREADY_RESOLVED, INVALID_SCOPE.
+  acceptFeedbackGuidance(
+    decisionId: ID!
+    guidance: String!
+    scope: GuidanceScope!
+    agentConfigId: ID
+    rating: Int
+  ): AgentGuidance
+  # dismissFeedback closes a FeedbackRequest with no guidance. Optionally records
+  # a 1–5 rating (low → calibration demotion). OWNER-ONLY.
+  dismissFeedback(decisionId: ID!, rating: Int): PendingDecision!
+  # deactivateAgentGuidance retires an active guidance note so it stops being
+  # injected into agent prompts. OWNER-ONLY.
+  deactivateAgentGuidance(guidanceId: ID!): AgentGuidance!
+}
+
+# Layered configuration — admin surface. Additive (Path 1).
+#
+# Exposes the typed config Registry merged with the DB overlay (config_entries)
+# so the owner can inspect and edit DB-configurable settings at runtime. Sensitive
+# values are NEVER returned (effectiveValue is null and sensitive=true).
+#
+# All operations are OWNER-PRINCIPAL-ONLY: the resolver MUST reject any viewer
+# with Principal.Kind != "user" with PERMISSION_DENIED *before* any DB read or
+# write (auth.RequireOwner — a structural check, not a feature flag).
+
+type ConfigKey {
+  key: String!
+  type: String!                 # string | int | bool | duration | float64
+  description: String!
+  reload: String!               # hot | restart | bootstrap
+  sensitive: Boolean!
+  dbConfigurable: Boolean!
+  hotReloadable: Boolean!
+  readonlyReason: String
+  defaultValue: String          # stringified default (null if sensitive)
+  effectiveValue: String        # stringified resolved value (null if sensitive)
+  overridden: Boolean!          # true when a config_entries row overrides this key
 }
 
 # Phase 7 — The Intake Edge (Connectors & Dispositions). Additive (Path 1).
@@ -279,23 +360,6 @@ type Bot  implements Principal { id: ID!  globalUri: String!  displayName: Strin
 
 type WorkflowRef { id: ID!  startedAt: Time! }
 
-type Task {
-  id: ID!  globalUri: String!
-  title: String!  description: String
-  state: TaskState!
-  currentStage: ChainStage!
-  autonomy: AutonomyLevel!
-  provenance: JSON
-  contextRefs: JSON
-  findings: JSON
-  workflow: WorkflowRef
-  openAssignment: AgentAssignment
-  createdAt: Time!  editedAt: Time
-  stageSlots: [StageSlot!]!
-  # The full audit timeline for this task, chronological (oldest first).
-  activity: [ActivityEvent!]!
-}
-
 type AgentAssignment {
   id: ID!
   task: Task!
@@ -362,10 +426,14 @@ type PromotionProposal implements PendingDecision {
   tool: Tool!  fromLevel: AutonomyLevel!  toLevel: AutonomyLevel!  evidence: JSON!
 }
 
-# Post-completion feedback — a conversation that converges on accepted guidance.
+# Post-completion feedback (additive, Path 1). After a task reaches DONE, the
+# feedback workflow opens a CONVERSATION as a FeedbackRequest: the agent and the
+# owner exchange messages; the agent maintains a `draftGuidance` proposal; the
+# owner accepts a final guidance text (stored verbatim and injected into agent
+# system prompts) and/or supplies a satisfaction rating that feeds calibration.
 type FeedbackMessage {
   id: ID!
-  role: String!
+  role: String!   # "agent" | "user"
   content: String!
   createdAt: Time!
 }
@@ -373,9 +441,14 @@ type FeedbackMessage {
 type FeedbackRequest implements PendingDecision {
   id: ID!  task: Task!  createdAt: Time!
   messages: [FeedbackMessage!]!
+  # The agent's current draft of standing guidance — what acceptFeedbackGuidance
+  # pre-fills (the owner can edit it before accepting). Null/empty until the
+  # conversation yields a durable lesson.
   draftGuidance: String
 }
 
+# A feedback-authored standing-guidance note, injected verbatim into the
+# matching agent's system prompt. scope is "global" or "agent".
 type AgentGuidance {
   id: ID!
   note: String!

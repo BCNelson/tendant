@@ -18,6 +18,7 @@ import 'package:tendant/graphql/__generated__/schema.schema.gql.dart'
         GGateScriptStatus,
         GGateScriptTier,
         GGuidanceScope,
+        GSetTaskCategoryInput,
         GTaskState,
         GTime;
 import 'package:tendant/graphql/operations/__generated__/agent_assignment.data.gql.dart'
@@ -124,6 +125,7 @@ import 'package:tendant/graphql/operations/__generated__/inbox_subscription.data
         GInboxItemArrivedData_inboxItemArrived__asAgentAssignment,
         GInboxItemArrivedData_inboxItemArrived__asAgentQuestion,
         GInboxItemArrivedData_inboxItemArrived__asApprovalRequest,
+        GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest,
         GInboxItemArrivedData_inboxItemArrived__asPromotionProposal,
         GInboxItemArrivedData_inboxItemArrived__base;
 import 'package:tendant/graphql/operations/__generated__/inbox_subscription.req.gql.dart'
@@ -188,6 +190,18 @@ import 'package:tendant/graphql/operations/__generated__/tasks.req.gql.dart'
     show GTasksReq;
 import 'package:tendant/graphql/operations/__generated__/tasks.var.gql.dart'
     show GTasksVars;
+import 'package:tendant/graphql/queries/__generated__/categories.data.gql.dart'
+    show
+        GCategoriesData,
+        GCategoriesData_categories,
+        GCategoriesData_categories_parent,
+        GDeleteTaskCategoryData,
+        GSetTaskCategoryData,
+        GSetTaskCategoryData_setTaskCategory;
+import 'package:tendant/graphql/queries/__generated__/categories.req.gql.dart'
+    show GCategoriesReq, GDeleteTaskCategoryReq, GSetTaskCategoryReq;
+import 'package:tendant/graphql/queries/__generated__/categories.var.gql.dart'
+    show GCategoriesVars, GDeleteTaskCategoryVars, GSetTaskCategoryVars;
 import 'package:tendant/graphql/queries/__generated__/config.data.gql.dart'
     show
         GConfigKeysData,
@@ -248,6 +262,11 @@ final SerializersBuilder _serializersBuilder = _$serializers.toBuilder()
   GApproveArtifactVars,
   GAutonomyLevel,
   GBytes,
+  GCategoriesData,
+  GCategoriesData_categories,
+  GCategoriesData_categories_parent,
+  GCategoriesReq,
+  GCategoriesVars,
   GChainStage,
   GCompleteTaskData,
   GCompleteTaskData_completeTask,
@@ -268,6 +287,9 @@ final SerializersBuilder _serializersBuilder = _$serializers.toBuilder()
   GDeleteConfigEntryData,
   GDeleteConfigEntryReq,
   GDeleteConfigEntryVars,
+  GDeleteTaskCategoryData,
+  GDeleteTaskCategoryReq,
+  GDeleteTaskCategoryVars,
   GDevicePlatform,
   GDismissFeedbackData,
   GDismissFeedbackData_dismissFeedback,
@@ -300,6 +322,7 @@ final SerializersBuilder _serializersBuilder = _$serializers.toBuilder()
   GInboxItemArrivedData_inboxItemArrived__asAgentAssignment,
   GInboxItemArrivedData_inboxItemArrived__asAgentQuestion,
   GInboxItemArrivedData_inboxItemArrived__asApprovalRequest,
+  GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest,
   GInboxItemArrivedData_inboxItemArrived__asPromotionProposal,
   GInboxItemArrivedData_inboxItemArrived__base,
   GInboxItemArrivedReq,
@@ -344,6 +367,11 @@ final SerializersBuilder _serializersBuilder = _$serializers.toBuilder()
   GSetConnectorConfigData_setConnectorConfig,
   GSetConnectorConfigReq,
   GSetConnectorConfigVars,
+  GSetTaskCategoryData,
+  GSetTaskCategoryData_setTaskCategory,
+  GSetTaskCategoryInput,
+  GSetTaskCategoryReq,
+  GSetTaskCategoryVars,
   GTaskChangedData,
   GTaskChangedData_taskChanged,
   GTaskChangedReq,

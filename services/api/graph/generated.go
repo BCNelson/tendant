@@ -39,6 +39,7 @@ type ResolverRoot interface {
 	Query() QueryResolver
 	Subscription() SubscriptionResolver
 	Task() TaskResolver
+	TaskCategory() TaskCategoryResolver
 	Tool() ToolResolver
 }
 
@@ -195,6 +196,7 @@ type ComplexityRoot struct {
 		DeactivateAgentGuidance     func(childComplexity int, guidanceID string) int
 		DecidePromotion             func(childComplexity int, decisionID string, accept bool) int
 		DeleteConfigEntry           func(childComplexity int, key string) int
+		DeleteTaskCategory          func(childComplexity int, key string) int
 		DisableGateScript           func(childComplexity int, toolID string) int
 		DismissFeedback             func(childComplexity int, decisionID string, rating *int) int
 		DismissProposedTask         func(childComplexity int, taskID string, reason *string) int
@@ -210,6 +212,7 @@ type ComplexityRoot struct {
 		SetConfigEntry              func(childComplexity int, key string, value string) int
 		SetConnectorConfig          func(childComplexity int, connectorID string, config map[string]any) int
 		SetOwnerRule                func(childComplexity int, key string, value string) int
+		SetTaskCategory             func(childComplexity int, input model.SetTaskCategoryInput) int
 		SetToolOverseerInstructions func(childComplexity int, toolID string, instructions string) int
 		SetToolPermissions          func(childComplexity int, toolID string, permissions map[string]any) int
 		UnregisterDeviceToken       func(childComplexity int, token string) int
@@ -259,6 +262,7 @@ type ComplexityRoot struct {
 		AgentAssignment func(childComplexity int, id string) int
 		AgentConfigs    func(childComplexity int, stage *model.AgentStage) int
 		AgentGuidance   func(childComplexity int, status *string) int
+		Categories      func(childComplexity int) int
 		ConfigKeys      func(childComplexity int) int
 		Connectors      func(childComplexity int) int
 		Inbox           func(childComplexity int, first *int, after *string) int
@@ -303,6 +307,7 @@ type ComplexityRoot struct {
 	Task struct {
 		Activity       func(childComplexity int) int
 		Autonomy       func(childComplexity int) int
+		Category       func(childComplexity int) int
 		ContextRefs    func(childComplexity int) int
 		CreatedAt      func(childComplexity int) int
 		CurrentStage   func(childComplexity int) int
@@ -317,6 +322,15 @@ type ComplexityRoot struct {
 		State          func(childComplexity int) int
 		Title          func(childComplexity int) int
 		Workflow       func(childComplexity int) int
+	}
+
+	TaskCategory struct {
+		Children      func(childComplexity int) int
+		Description   func(childComplexity int) int
+		Key           func(childComplexity int) int
+		Label         func(childComplexity int) int
+		Parent        func(childComplexity int) int
+		StageBindings func(childComplexity int) int
 	}
 
 	TaskConnection struct {
@@ -381,6 +395,8 @@ type MutationResolver interface {
 	CancelTask(ctx context.Context, taskID string) (*model.Task, error)
 	AcceptProposedTask(ctx context.Context, taskID string) (*model.Task, error)
 	DismissProposedTask(ctx context.Context, taskID string, reason *string) (*model.Task, error)
+	SetTaskCategory(ctx context.Context, input model.SetTaskCategoryInput) (*model.TaskCategory, error)
+	DeleteTaskCategory(ctx context.Context, key string) (bool, error)
 	SetConfigEntry(ctx context.Context, key string, value string) (*model.ConfigKey, error)
 	DeleteConfigEntry(ctx context.Context, key string) (bool, error)
 	SetConnectorConfig(ctx context.Context, connectorID string, config map[string]any) (*model.Connector, error)
@@ -416,6 +432,7 @@ type QueryResolver interface {
 	Viewer(ctx context.Context) (*model.User, error)
 	Task(ctx context.Context, id string) (*model.Task, error)
 	Tasks(ctx context.Context, first *int, after *string, state *model.TaskState) (*model.TaskConnection, error)
+	Categories(ctx context.Context) ([]*model.TaskCategory, error)
 	ConfigKeys(ctx context.Context) ([]*model.ConfigKey, error)
 	Connectors(ctx context.Context) ([]*model.Connector, error)
 	AgentGuidance(ctx context.Context, status *string) ([]*model.AgentGuidance, error)
@@ -434,8 +451,13 @@ type TaskResolver interface {
 	Workflow(ctx context.Context, obj *model.Task) (*model.WorkflowRef, error)
 	OpenAssignment(ctx context.Context, obj *model.Task) (*model.AgentAssignment, error)
 
+	Category(ctx context.Context, obj *model.Task) (*model.TaskCategory, error)
 	StageSlots(ctx context.Context, obj *model.Task) ([]*model.StageSlot, error)
 	Activity(ctx context.Context, obj *model.Task) ([]*model.ActivityEvent, error)
+}
+type TaskCategoryResolver interface {
+	Parent(ctx context.Context, obj *model.TaskCategory) (*model.TaskCategory, error)
+	Children(ctx context.Context, obj *model.TaskCategory) ([]*model.TaskCategory, error)
 }
 type ToolResolver interface {
 	ActiveGateScript(ctx context.Context, obj *model.Tool) (*model.GateScript, error)
@@ -1149,6 +1171,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteConfigEntry(childComplexity, args["key"].(string)), true
+	case "Mutation.deleteTaskCategory":
+		if e.ComplexityRoot.Mutation.DeleteTaskCategory == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteTaskCategory_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteTaskCategory(childComplexity, args["key"].(string)), true
 	case "Mutation.disableGateScript":
 		if e.ComplexityRoot.Mutation.DisableGateScript == nil {
 			break
@@ -1314,6 +1347,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetOwnerRule(childComplexity, args["key"].(string), args["value"].(string)), true
+	case "Mutation.setTaskCategory":
+		if e.ComplexityRoot.Mutation.SetTaskCategory == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setTaskCategory_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetTaskCategory(childComplexity, args["input"].(model.SetTaskCategoryInput)), true
 	case "Mutation.setToolOverseerInstructions":
 		if e.ComplexityRoot.Mutation.SetToolOverseerInstructions == nil {
 			break
@@ -1536,6 +1580,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AgentGuidance(childComplexity, args["status"].(*string)), true
+	case "Query.categories":
+		if e.ComplexityRoot.Query.Categories == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.Categories(childComplexity), true
 	case "Query.configKeys":
 		if e.ComplexityRoot.Query.ConfigKeys == nil {
 			break
@@ -1724,6 +1774,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Task.Autonomy(childComplexity), true
+	case "Task.category":
+		if e.ComplexityRoot.Task.Category == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Task.Category(childComplexity), true
 	case "Task.contextRefs":
 		if e.ComplexityRoot.Task.ContextRefs == nil {
 			break
@@ -1808,6 +1864,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Task.Workflow(childComplexity), true
+
+	case "TaskCategory.children":
+		if e.ComplexityRoot.TaskCategory.Children == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskCategory.Children(childComplexity), true
+	case "TaskCategory.description":
+		if e.ComplexityRoot.TaskCategory.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskCategory.Description(childComplexity), true
+	case "TaskCategory.key":
+		if e.ComplexityRoot.TaskCategory.Key == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskCategory.Key(childComplexity), true
+	case "TaskCategory.label":
+		if e.ComplexityRoot.TaskCategory.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskCategory.Label(childComplexity), true
+	case "TaskCategory.parent":
+		if e.ComplexityRoot.TaskCategory.Parent == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskCategory.Parent(childComplexity), true
+	case "TaskCategory.stageBindings":
+		if e.ComplexityRoot.TaskCategory.StageBindings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TaskCategory.StageBindings(childComplexity), true
 
 	case "TaskConnection.edges":
 		if e.ComplexityRoot.TaskConnection.Edges == nil {
@@ -1928,7 +2021,9 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputSetTaskCategoryInput,
+	)
 	first := true
 
 	switch opCtx.Operation.Operation {
@@ -2019,7 +2114,7 @@ func newExecutionContext(
 	}
 }
 
-//go:embed "config.graphqls" "connector.graphqls" "gatescript.graphqls" "schema.graphqls"
+//go:embed "category.graphqls" "config.graphqls" "connector.graphqls" "gatescript.graphqls" "schema.graphqls"
 var sourcesFS embed.FS
 
 func sourceData(filename string) string {
@@ -2031,6 +2126,7 @@ func sourceData(filename string) string {
 }
 
 var sources = []*ast.Source{
+	{Name: "category.graphqls", Input: sourceData("category.graphqls"), BuiltIn: false},
 	{Name: "config.graphqls", Input: sourceData("config.graphqls"), BuiltIn: false},
 	{Name: "connector.graphqls", Input: sourceData("connector.graphqls"), BuiltIn: false},
 	{Name: "gatescript.graphqls", Input: sourceData("gatescript.graphqls"), BuiltIn: false},
@@ -2386,12 +2482,32 @@ func (ec *executionContext) childFields_Task(ctx context.Context, field graphql.
 		return ec.fieldContext_Task_createdAt(ctx, field)
 	case "editedAt":
 		return ec.fieldContext_Task_editedAt(ctx, field)
+	case "category":
+		return ec.fieldContext_Task_category(ctx, field)
 	case "stageSlots":
 		return ec.fieldContext_Task_stageSlots(ctx, field)
 	case "activity":
 		return ec.fieldContext_Task_activity(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Task", field.Name)
+}
+
+func (ec *executionContext) childFields_TaskCategory(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "key":
+		return ec.fieldContext_TaskCategory_key(ctx, field)
+	case "label":
+		return ec.fieldContext_TaskCategory_label(ctx, field)
+	case "description":
+		return ec.fieldContext_TaskCategory_description(ctx, field)
+	case "parent":
+		return ec.fieldContext_TaskCategory_parent(ctx, field)
+	case "children":
+		return ec.fieldContext_TaskCategory_children(ctx, field)
+	case "stageBindings":
+		return ec.fieldContext_TaskCategory_stageBindings(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TaskCategory", field.Name)
 }
 
 func (ec *executionContext) childFields_TaskConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -2838,6 +2954,20 @@ func (ec *executionContext) field_Mutation_deleteConfigEntry_args(ctx context.Co
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteTaskCategory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "key",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["key"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_disableGateScript_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -3165,6 +3295,20 @@ func (ec *executionContext) field_Mutation_setOwnerRule_args(ctx context.Context
 		return nil, err
 	}
 	args["value"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setTaskCategory_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.SetTaskCategoryInput, error) {
+			return ec.unmarshalNSetTaskCategoryInput2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐSetTaskCategoryInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -5874,6 +6018,94 @@ func (ec *executionContext) fieldContext_Mutation_dismissProposedTask(ctx contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_setTaskCategory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setTaskCategory(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetTaskCategory(ctx, fc.Args["input"].(model.SetTaskCategoryInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.TaskCategory) graphql.Marshaler {
+			return ec.marshalNTaskCategory2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTaskCategory(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setTaskCategory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TaskCategory(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setTaskCategory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteTaskCategory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteTaskCategory(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteTaskCategory(ctx, fc.Args["key"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteTaskCategory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteTaskCategory_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_setConfigEntry(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -7687,6 +7919,38 @@ func (ec *executionContext) fieldContext_Query_tasks(ctx context.Context, field 
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_categories(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_categories(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().Categories(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.TaskCategory) graphql.Marshaler {
+			return ec.marshalNTaskCategory2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTaskCategoryᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_categories(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TaskCategory(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_configKeys(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -8853,6 +9117,38 @@ func (ec *executionContext) fieldContext_Task_editedAt(_ context.Context, field 
 	return graphql.NewScalarFieldContext("Task", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _Task_category(ctx context.Context, field graphql.CollectedField, obj *model.Task) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Task_category(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Task().Category(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.TaskCategory) graphql.Marshaler {
+			return ec.marshalOTaskCategory2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTaskCategory(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Task_category(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Task",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TaskCategory(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Task_stageSlots(ctx context.Context, field graphql.CollectedField, obj *model.Task) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -8915,6 +9211,162 @@ func (ec *executionContext) fieldContext_Task_activity(_ context.Context, field 
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _TaskCategory_key(ctx context.Context, field graphql.CollectedField, obj *model.TaskCategory) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TaskCategory_key(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Key, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TaskCategory_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TaskCategory", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TaskCategory_label(ctx context.Context, field graphql.CollectedField, obj *model.TaskCategory) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TaskCategory_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TaskCategory_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TaskCategory", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TaskCategory_description(ctx context.Context, field graphql.CollectedField, obj *model.TaskCategory) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TaskCategory_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TaskCategory_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TaskCategory", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TaskCategory_parent(ctx context.Context, field graphql.CollectedField, obj *model.TaskCategory) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TaskCategory_parent(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.TaskCategory().Parent(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.TaskCategory) graphql.Marshaler {
+			return ec.marshalOTaskCategory2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTaskCategory(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TaskCategory_parent(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskCategory",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TaskCategory(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskCategory_children(ctx context.Context, field graphql.CollectedField, obj *model.TaskCategory) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TaskCategory_children(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.TaskCategory().Children(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.TaskCategory) graphql.Marshaler {
+			return ec.marshalNTaskCategory2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTaskCategoryᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TaskCategory_children(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TaskCategory",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TaskCategory(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TaskCategory_stageBindings(ctx context.Context, field graphql.CollectedField, obj *model.TaskCategory) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TaskCategory_stageBindings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StageBindings, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v map[string]any) graphql.Marshaler {
+			return ec.marshalNJSON2map(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TaskCategory_stageBindings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TaskCategory", field, false, false, errors.New("field of type JSON does not have child fields"))
 }
 
 func (ec *executionContext) _TaskConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.TaskConnection) (ret graphql.Marshaler) {
@@ -10424,6 +10876,64 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputSetTaskCategoryInput(ctx context.Context, obj any) (model.SetTaskCategoryInput, error) {
+	var it model.SetTaskCategoryInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"key", "label", "description", "parent", "stageBindings"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "key":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("key"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Key = data
+		case "label":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("label"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Label = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "parent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parent"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Parent = data
+		case "stageBindings":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("stageBindings"))
+			data, err := ec.unmarshalOJSON2map(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StageBindings = data
+		}
+	}
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -11884,6 +12394,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setTaskCategory":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setTaskCategory(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteTaskCategory":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteTaskCategory(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "setConfigEntry":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_setConfigEntry(ctx, field)
@@ -12509,6 +13033,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "categories":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_categories(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "configKeys":
 			field := field
 
@@ -13051,6 +13597,39 @@ func (ec *executionContext) _Task(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "editedAt":
 			out.Values[i] = ec._Task_editedAt(ctx, field, obj)
+		case "category":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Task_category(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "stageSlots":
 			field := field
 
@@ -13123,6 +13702,126 @@ func (ec *executionContext) _Task(ctx context.Context, sel ast.SelectionSet, obj
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var taskCategoryImplementors = []string{"TaskCategory"}
+
+func (ec *executionContext) _TaskCategory(ctx context.Context, sel ast.SelectionSet, obj *model.TaskCategory) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, taskCategoryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TaskCategory")
+		case "key":
+			out.Values[i] = ec._TaskCategory_key(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "label":
+			out.Values[i] = ec._TaskCategory_label(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "description":
+			out.Values[i] = ec._TaskCategory_description(ctx, field, obj)
+		case "parent":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._TaskCategory_parent(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "children":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._TaskCategory_children(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "stageBindings":
+			out.Values[i] = ec._TaskCategory_stageBindings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -14328,6 +15027,11 @@ func (ec *executionContext) marshalNSessionMintResult2ᚖgithubᚗcomᚋbcnelson
 	return ec._SessionMintResult(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNSetTaskCategoryInput2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐSetTaskCategoryInput(ctx context.Context, v any) (model.SetTaskCategoryInput, error) {
+	res, err := ec.unmarshalInputSetTaskCategoryInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNStageSlot2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐStageSlotᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.StageSlot) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -14412,6 +15116,36 @@ func (ec *executionContext) marshalNTask2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋ
 		return graphql.Null
 	}
 	return ec._Task(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTaskCategory2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTaskCategory(ctx context.Context, sel ast.SelectionSet, v model.TaskCategory) graphql.Marshaler {
+	return ec._TaskCategory(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNTaskCategory2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTaskCategoryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.TaskCategory) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTaskCategory2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTaskCategory(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTaskCategory2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTaskCategory(ctx context.Context, sel ast.SelectionSet, v *model.TaskCategory) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TaskCategory(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNTaskConnection2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTaskConnection(ctx context.Context, sel ast.SelectionSet, v model.TaskConnection) graphql.Marshaler {
@@ -14830,6 +15564,13 @@ func (ec *executionContext) marshalOTask2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋ
 		return graphql.Null
 	}
 	return ec._Task(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOTaskCategory2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTaskCategory(ctx context.Context, sel ast.SelectionSet, v *model.TaskCategory) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._TaskCategory(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOTaskState2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐTaskState(ctx context.Context, v any) (*model.TaskState, error) {

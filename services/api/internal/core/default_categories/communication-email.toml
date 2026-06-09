@@ -1,0 +1,12 @@
+# communication/email — email-specific tasks. Built-in (core). Parent is derived
+# from the key prefix ("communication"). Demonstrates both binding mechanisms: a
+# static agent shortlist AND a dynamic eligibility expression (ANDed) — the email
+# specialist handles execution only when stakes are low enough; otherwise the
+# candidate set empties and routing falls through to the human.
+key = "communication/email"
+label = "Email"
+description = "Sending and managing email."
+
+[stage_bindings.execution]
+agents = ["email-specialist"]
+eligibility = { pred = { op = "lte", field = "stakes_score", value = 6 } }

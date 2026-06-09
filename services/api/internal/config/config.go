@@ -52,6 +52,7 @@ type Config struct {
 	Agents     []AgentDef     `koanf:"agents"`
 	Tools      []ToolDef      `koanf:"tools"`
 	Connectors []ConnectorDef `koanf:"connectors"`
+	Categories []CategoryDef  `koanf:"categories"`
 
 	// LLMConnections — file-defined named model endpoints (the internal/llm
 	// registry). Many connections of the same provider are allowed (e.g. two
@@ -166,6 +167,20 @@ type AgentDef struct {
 	ToolAllowlist []string       `koanf:"tool_allowlist"`
 	Eligibility   map[string]any `koanf:"eligibility"` // native table (internal/router grammar); empty = always eligible
 	Origin        string         `koanf:"origin"`      // "core" | "community"; default core
+}
+
+// CategoryDef is a file/DB-definable task category (reconciled into
+// task_categories). StageBindings maps a lifecycle stage ("triage"|"expansion"|
+// "execution") to a binding object: {"agents": [...], "eligibility": {...}}.
+// The agents shortlist and the eligibility expression (internal/router grammar)
+// are ANDed when building that stage's candidate set; either may be omitted.
+type CategoryDef struct {
+	Key           string                    `koanf:"key"`    // canonical path, e.g. "communication/email"
+	Parent        string                    `koanf:"parent"` // parent key; empty = root (else derived from key prefix)
+	Label         string                    `koanf:"label"`
+	Description   string                    `koanf:"description"`
+	StageBindings map[string]map[string]any `koanf:"stage_bindings"`
+	Origin        string                    `koanf:"origin"` // "core" | "community"; default core
 }
 
 // ToolDef is a file/DB-definable tool (reconciled into tools).
