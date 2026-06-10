@@ -45,12 +45,17 @@ func mapTaskWithAutonomy(t *db.Task, autonomy model.AutonomyLevel) (*model.Task,
 		State:        upperTaskState(t.State),
 		CurrentStage: upperChainStage(t.CurrentStage),
 		Autonomy:     autonomy,
+		Priority:     upperTaskPriority(t.Priority),
 		CreatedAt:    t.CreatedAt,
 		Workflow:     nil,
 	}
 	if t.EditedAt.Valid {
 		ts := t.EditedAt.Time
 		out.EditedAt = &ts
+	}
+	if t.DueAt.Valid {
+		ts := t.DueAt.Time
+		out.DueAt = &ts
 	}
 	if err := unmarshalJSON(t.Provenance, &out.Provenance); err != nil {
 		return nil, fmt.Errorf("provenance: %w", err)
@@ -115,6 +120,19 @@ func upperTaskState(s db.TaskState) model.TaskState {
 
 func upperChainStage(s db.ChainStage) model.ChainStage {
 	return model.ChainStage(strings.ToUpper(string(s)))
+}
+
+func upperTaskPriority(p db.TaskPriority) model.TaskPriority {
+	return model.TaskPriority(strings.ToUpper(string(p)))
+}
+
+// lowerTaskPriority maps a GraphQL TaskPriority (uppercase) to the db enum
+// (lowercase). nil → 'normal' (the create-screen default).
+func lowerTaskPriority(p *model.TaskPriority) db.TaskPriority {
+	if p == nil {
+		return db.TaskPriorityNormal
+	}
+	return db.TaskPriority(strings.ToLower(string(*p)))
 }
 
 func lowerTaskStateFilter(s *model.TaskState) *db.TaskState {

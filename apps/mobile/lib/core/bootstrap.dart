@@ -22,9 +22,10 @@ import '../graphql/operations/__generated__/tasks.req.gql.dart';
 import '../graphql/operations/__generated__/tasks.data.gql.dart';
 import '../graphql/operations/__generated__/task_detail.req.gql.dart';
 import '../graphql/operations/__generated__/task_detail.data.gql.dart';
+import '../graphql/operations/__generated__/update_task_metadata.req.gql.dart';
+import '../graphql/operations/__generated__/proposed_task.req.gql.dart';
 
 import '../features/pairing/pairing_page.dart';
-import '../features/inbox/inbox_page.dart';
 import '../features/inbox/inbox_provider.dart';
 import '../features/task/assignment_view.dart';
 import '../features/task/task_provider.dart';
@@ -57,23 +58,34 @@ List<Override> ferryOverrides() => [
         };
       }),
 
-      // ---- Inbox (one-shot query) -------------------------------------
-      inboxItemsProvider.overrideWith((ref) async {
+      // ---- Inbox ranked feed (paginated page fetcher) -----------------
+      inboxFeedFetcherProvider.overrideWith((ref) {
         final client = ref.watch(ferryClientProvider);
-        final data = await runOnceRequired(
-          client,
-          GInboxReq((b) => b
-            ..vars.first = 50
-            ..fetchPolicy = FetchPolicy.NetworkOnly),
-        );
-        return _mapInbox(data);
+        return (String? after) async {
+          final data = await runOnceRequired(
+            client,
+            GInboxFeedReq((b) {
+              b
+                ..vars.first = 25
+                ..fetchPolicy = FetchPolicy.NetworkOnly;
+              if (after != null) b.vars.after = after;
+            }),
+          );
+          return _mapInboxFeed(data);
+        };
       }),
 
-      // ---- Inbox live arrival subscription (drives list refresh) ------
+      // ---- Inbox inline accept/dismiss (ActionableTask cards) ---------
+      proposedTaskMutatorProvider.overrideWith((ref) {
+        final client = ref.watch(ferryClientProvider);
+        return _FerryProposedTaskMutator(client);
+      }),
+
+      // ---- Inbox live arrival subscription (drives feed refresh) ------
       inboxArrivedProvider.overrideWith((ref) {
         final client = ref.watch(ferryClientProvider);
         return client
-            .request(GInboxItemArrivedReq())
+            .request(GInboxEntryArrivedReq())
             .handleError((_) {}) // swallow transient transport drops
             .where((r) => r.data != null)
             .map<void>((_) {});
@@ -105,7 +117,12 @@ List<Override> ferryOverrides() => [
       // ---- Create task (manual compose) -------------------------------
       createTaskProvider.overrideWith((ref) async {
         final client = ref.watch(ferryClientProvider);
-        return ({required String title, String? description}) async {
+        return ({
+          required String title,
+          String? description,
+          String? priority,
+          DateTime? dueAt,
+        }) async {
           await runOnceRequired(
             client,
             GCreateTaskReq((b) => b
@@ -113,7 +130,14 @@ List<Override> ferryOverrides() => [
               ..vars.description =
                   (description != null && description.isEmpty)
                       ? null
-                      : description),
+                      : description
+              // null priority → omit the var so the server applies NORMAL.
+              ..vars.priority =
+                  (priority == null) ? null : GTaskPriority.valueOf(priority)
+              // dueAt is sent as a UTC ISO-8601 Time scalar; null → no deadline.
+              ..vars.dueAt = (dueAt == null)
+                  ? null
+                  : GTime(dueAt.toUtc().toIso8601String()).toBuilder()),
           );
         };
       }),
@@ -166,6 +190,23 @@ List<Override> ferryOverrides() => [
         final t = data?.task;
         if (t == null) return null;
         return _mapTaskDetail(t);
+      }),
+
+      // ---- Edit task metadata (priority + due date) -------------------
+      updateTaskMetadataProvider.overrideWith((ref) async {
+        final client = ref.watch(ferryClientProvider);
+        return (String taskId,
+            {required String priority, DateTime? dueAt}) async {
+          await runOnceRequired(
+            client,
+            GUpdateTaskMetadataReq((b) => b
+              ..vars.taskId = taskId
+              ..vars.priority = GTaskPriority.valueOf(priority)
+              ..vars.dueAt = (dueAt == null)
+                  ? null
+                  : GTime(dueAt.toUtc().toIso8601String()).toBuilder()),
+          );
+        };
       }),
 
       // ---- Approval detail + mutator ----------------------------------
@@ -263,58 +304,136 @@ List<Override> ferryOverrides() => [
 // Mapping helpers
 // ---------------------------------------------------------------------------
 
-List<InboxItemRef> _mapInbox(GInboxData data) {
-  final out = <InboxItemRef>[];
-  for (final node in data.inbox) {
-    switch (node.G__typename) {
-      case 'AgentAssignment':
-        final a = node as GInboxData_inbox__asAgentAssignment;
-        out.add(InboxItemRef(
-          id: a.id,
-          typename: 'AgentAssignment',
+InboxFeedResult _mapInboxFeed(GInboxFeedData data) {
+  final out = <InboxEntryRef>[];
+  for (final e in data.inboxFeed.entries) {
+    final item = e.item;
+    switch (item.G__typename) {
+      case 'ActionableTask':
+        final a =
+            item as GInboxFeedData_inboxFeed_entries_item__asActionableTask;
+        out.add(InboxEntryRef(
+          entryId: e.id,
+          kind: e.kind,
+          urgency: e.urgency,
+          typename: 'ActionableTask',
+          itemId: a.id,
           title: a.task.title,
-          subtitle: a.ask,
+          subtitle: 'Proposed',
+          taskId: a.task.id,
+          priority: a.task.priority.name,
+          dueAt: a.task.dueAt == null
+              ? null
+              : DateTime.tryParse(a.task.dueAt!.value)?.toLocal(),
+          taskState: a.task.state.name,
+        ));
+        break;
+      case 'AgentAssignment':
+        final asn =
+            item as GInboxFeedData_inboxFeed_entries_item__asAgentAssignment;
+        out.add(InboxEntryRef(
+          entryId: e.id,
+          kind: e.kind,
+          urgency: e.urgency,
+          typename: 'AgentAssignment',
+          itemId: asn.id,
+          title: asn.task.title,
+          subtitle: asn.ask,
         ));
         break;
       case 'ApprovalRequest':
-        final r = node as GInboxData_inbox__asApprovalRequest;
-        out.add(InboxItemRef(
-          id: r.id,
+        final r =
+            item as GInboxFeedData_inboxFeed_entries_item__asApprovalRequest;
+        out.add(InboxEntryRef(
+          entryId: e.id,
+          kind: e.kind,
+          urgency: e.urgency,
           typename: 'ApprovalRequest',
+          itemId: r.id,
           title: 'Approval requested',
           subtitle: 'Tap to review',
         ));
         break;
       case 'AgentQuestion':
-        final q = node as GInboxData_inbox__asAgentQuestion;
-        out.add(InboxItemRef(
-          id: q.id,
+        final q =
+            item as GInboxFeedData_inboxFeed_entries_item__asAgentQuestion;
+        out.add(InboxEntryRef(
+          entryId: e.id,
+          kind: e.kind,
+          urgency: e.urgency,
           typename: 'AgentQuestion',
+          itemId: q.id,
           title: 'Question',
           subtitle: q.question,
         ));
         break;
       case 'PromotionProposal':
-        final p = node as GInboxData_inbox__asPromotionProposal;
-        out.add(InboxItemRef(
-          id: p.id,
+        final p =
+            item as GInboxFeedData_inboxFeed_entries_item__asPromotionProposal;
+        out.add(InboxEntryRef(
+          entryId: e.id,
+          kind: e.kind,
+          urgency: e.urgency,
           typename: 'PromotionProposal',
+          itemId: p.id,
           title: 'Promotion proposal',
           subtitle: '${p.fromLevel.name} → ${p.toLevel.name}',
         ));
         break;
       case 'FeedbackRequest':
-        final f = node as GInboxData_inbox__asFeedbackRequest;
-        out.add(InboxItemRef(
-          id: f.id,
+        final f =
+            item as GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest;
+        out.add(InboxEntryRef(
+          entryId: e.id,
+          kind: e.kind,
+          urgency: e.urgency,
           typename: 'FeedbackRequest',
+          itemId: f.id,
           title: 'Feedback: ${f.task.title}',
           subtitle: 'How did this task go? Tap to chat.',
         ));
         break;
     }
   }
-  return out;
+  return InboxFeedResult(entries: out, nextCursor: data.inboxFeed.nextCursor);
+}
+
+/// _FerryProposedTaskMutator runs the inbox inline accept/dismiss mutations on
+/// PROPOSED tasks (ActionableTask cards). Both are `lowStakes` per the floor
+/// rail.
+class _FerryProposedTaskMutator implements ProposedTaskMutator {
+  _FerryProposedTaskMutator(this._client);
+
+  final Client _client;
+
+  @override
+  Future<bool> accept(String taskId) async {
+    try {
+      await runOnceRequired(
+        _client,
+        GAcceptProposedTaskReq((b) => b..vars.taskId = taskId),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> dismiss(String taskId, {String? reason}) async {
+    try {
+      await runOnceRequired(
+        _client,
+        GDismissProposedTaskReq((b) {
+          b.vars.taskId = taskId;
+          if (reason != null) b.vars.reason = reason;
+        }),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 List<TaskRef> _mapTasks(GTasksData data, TasksFilter filter) {
@@ -360,6 +479,8 @@ TaskDetail _mapTaskDetail(GTaskDetailData_task t) {
     state: t.state.name,
     currentStage: t.currentStage.name,
     autonomy: t.autonomy.name,
+    priority: t.priority.name,
+    dueAt: t.dueAt == null ? null : DateTime.tryParse(t.dueAt!.value)?.toLocal(),
     findings: _asMap(t.findings?.value),
     stageSlots: [
       for (final s in t.stageSlots)

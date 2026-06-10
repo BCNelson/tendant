@@ -26,6 +26,24 @@ const CreateTask = _i1.OperationDefinitionNode(
       defaultValue: _i1.DefaultValueNode(value: null),
       directives: [],
     ),
+    _i1.VariableDefinitionNode(
+      variable: _i1.VariableNode(name: _i1.NameNode(value: 'priority')),
+      type: _i1.NamedTypeNode(
+        name: _i1.NameNode(value: 'TaskPriority'),
+        isNonNull: false,
+      ),
+      defaultValue: _i1.DefaultValueNode(value: null),
+      directives: [],
+    ),
+    _i1.VariableDefinitionNode(
+      variable: _i1.VariableNode(name: _i1.NameNode(value: 'dueAt')),
+      type: _i1.NamedTypeNode(
+        name: _i1.NameNode(value: 'Time'),
+        isNonNull: false,
+      ),
+      defaultValue: _i1.DefaultValueNode(value: null),
+      directives: [],
+    ),
   ],
   directives: [],
   selectionSet: _i1.SelectionSetNode(selections: [
@@ -40,6 +58,14 @@ const CreateTask = _i1.OperationDefinitionNode(
         _i1.ArgumentNode(
           name: _i1.NameNode(value: 'description'),
           value: _i1.VariableNode(name: _i1.NameNode(value: 'description')),
+        ),
+        _i1.ArgumentNode(
+          name: _i1.NameNode(value: 'priority'),
+          value: _i1.VariableNode(name: _i1.NameNode(value: 'priority')),
+        ),
+        _i1.ArgumentNode(
+          name: _i1.NameNode(value: 'dueAt'),
+          value: _i1.VariableNode(name: _i1.NameNode(value: 'dueAt')),
         ),
       ],
       directives: [],

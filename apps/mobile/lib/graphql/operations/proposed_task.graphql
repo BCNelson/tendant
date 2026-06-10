@@ -1,0 +1,17 @@
+# Owner accept/dismiss of a PROPOSED task, surfaced as an inline action on the
+# inbox feed's ActionableTask card. Both are classified `lowStakes` by the
+# offline floor rail (core/offline/floor_rail.dart).
+
+mutation AcceptProposedTask($taskId: ID!) {
+  acceptProposedTask(taskId: $taskId) {
+    id
+    state
+  }
+}
+
+mutation DismissProposedTask($taskId: ID!, $reason: String) {
+  dismissProposedTask(taskId: $taskId, reason: $reason) {
+    id
+    state
+  }
+}

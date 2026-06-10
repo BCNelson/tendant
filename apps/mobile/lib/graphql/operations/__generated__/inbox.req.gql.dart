@@ -16,23 +16,24 @@ import 'package:tendant/graphql/operations/__generated__/inbox.var.gql.dart'
 
 part 'inbox.req.gql.g.dart';
 
-abstract class GInboxReq
+abstract class GInboxFeedReq
     implements
-        Built<GInboxReq, GInboxReqBuilder>,
-        _i1.OperationRequest<_i2.GInboxData, _i3.GInboxVars> {
-  GInboxReq._();
+        Built<GInboxFeedReq, GInboxFeedReqBuilder>,
+        _i1.OperationRequest<_i2.GInboxFeedData, _i3.GInboxFeedVars> {
+  GInboxFeedReq._();
 
-  factory GInboxReq([void Function(GInboxReqBuilder b) updates]) = _$GInboxReq;
+  factory GInboxFeedReq([void Function(GInboxFeedReqBuilder b) updates]) =
+      _$GInboxFeedReq;
 
-  static void _initializeBuilder(GInboxReqBuilder b) => b
+  static void _initializeBuilder(GInboxFeedReqBuilder b) => b
     ..operation = _i4.Operation(
       document: _i5.document,
-      operationName: 'Inbox',
+      operationName: 'InboxFeed',
     )
     ..executeOnListen = true;
 
   @override
-  _i3.GInboxVars get vars;
+  _i3.GInboxFeedVars get vars;
   @override
   _i4.Operation get operation;
   @override
@@ -46,12 +47,12 @@ abstract class GInboxReq
   String? get requestId;
   @override
   @BuiltValueField(serialize: false)
-  _i2.GInboxData? Function(
-    _i2.GInboxData?,
-    _i2.GInboxData?,
+  _i2.GInboxFeedData? Function(
+    _i2.GInboxFeedData?,
+    _i2.GInboxFeedData?,
   )? get updateResult;
   @override
-  _i2.GInboxData? get optimisticResponse;
+  _i2.GInboxFeedData? get optimisticResponse;
   @override
   String? get updateCacheHandlerKey;
   @override
@@ -64,30 +65,30 @@ abstract class GInboxReq
   @BuiltValueField(serialize: false)
   _i4.Context? get context;
   @override
-  _i2.GInboxData? parseData(Map<String, dynamic> json) =>
-      _i2.GInboxData.fromJson(json);
+  _i2.GInboxFeedData? parseData(Map<String, dynamic> json) =>
+      _i2.GInboxFeedData.fromJson(json);
 
   @override
   Map<String, dynamic> varsToJson() => vars.toJson();
 
   @override
-  Map<String, dynamic> dataToJson(_i2.GInboxData data) => data.toJson();
+  Map<String, dynamic> dataToJson(_i2.GInboxFeedData data) => data.toJson();
 
   @override
-  _i1.OperationRequest<_i2.GInboxData, _i3.GInboxVars> transformOperation(
-          _i4.Operation Function(_i4.Operation) transform) =>
-      this.rebuild((b) => b..operation = transform(operation));
+  _i1.OperationRequest<_i2.GInboxFeedData, _i3.GInboxFeedVars>
+      transformOperation(_i4.Operation Function(_i4.Operation) transform) =>
+          this.rebuild((b) => b..operation = transform(operation));
 
-  static Serializer<GInboxReq> get serializer => _$gInboxReqSerializer;
+  static Serializer<GInboxFeedReq> get serializer => _$gInboxFeedReqSerializer;
 
   Map<String, dynamic> toJson() => (_i6.serializers.serializeWith(
-        GInboxReq.serializer,
+        GInboxFeedReq.serializer,
         this,
       ) as Map<String, dynamic>);
 
-  static GInboxReq? fromJson(Map<String, dynamic> json) =>
+  static GInboxFeedReq? fromJson(Map<String, dynamic> json) =>
       _i6.serializers.deserializeWith(
-        GInboxReq.serializer,
+        GInboxFeedReq.serializer,
         json,
       );
 }

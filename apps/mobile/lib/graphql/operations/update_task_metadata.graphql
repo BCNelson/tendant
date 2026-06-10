@@ -1,0 +1,11 @@
+mutation UpdateTaskMetadata(
+  $taskId: ID!
+  $priority: TaskPriority!
+  $dueAt: Time
+) {
+  updateTaskMetadata(taskId: $taskId, priority: $priority, dueAt: $dueAt) {
+    id
+    priority
+    dueAt
+  }
+}

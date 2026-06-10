@@ -158,6 +158,34 @@ final BuiltSet<GAutonomyLevel> _$gAutonomyLevelValues =
   _$gAutonomyLevelEXECUTE_AUTO,
 ]);
 
+const GTaskPriority _$gTaskPriorityLOW = const GTaskPriority._('LOW');
+const GTaskPriority _$gTaskPriorityNORMAL = const GTaskPriority._('NORMAL');
+const GTaskPriority _$gTaskPriorityHIGH = const GTaskPriority._('HIGH');
+const GTaskPriority _$gTaskPriorityURGENT = const GTaskPriority._('URGENT');
+
+GTaskPriority _$gTaskPriorityValueOf(String name) {
+  switch (name) {
+    case 'LOW':
+      return _$gTaskPriorityLOW;
+    case 'NORMAL':
+      return _$gTaskPriorityNORMAL;
+    case 'HIGH':
+      return _$gTaskPriorityHIGH;
+    case 'URGENT':
+      return _$gTaskPriorityURGENT;
+    default:
+      throw ArgumentError(name);
+  }
+}
+
+final BuiltSet<GTaskPriority> _$gTaskPriorityValues =
+    BuiltSet<GTaskPriority>(const <GTaskPriority>[
+  _$gTaskPriorityLOW,
+  _$gTaskPriorityNORMAL,
+  _$gTaskPriorityHIGH,
+  _$gTaskPriorityURGENT,
+]);
+
 const GDevicePlatform _$gDevicePlatformIOS = const GDevicePlatform._('IOS');
 const GDevicePlatform _$gDevicePlatformANDROID =
     const GDevicePlatform._('ANDROID');
@@ -237,6 +265,8 @@ Serializer<GTaskState> _$gTaskStateSerializer = _$GTaskStateSerializer();
 Serializer<GChainStage> _$gChainStageSerializer = _$GChainStageSerializer();
 Serializer<GAutonomyLevel> _$gAutonomyLevelSerializer =
     _$GAutonomyLevelSerializer();
+Serializer<GTaskPriority> _$gTaskPrioritySerializer =
+    _$GTaskPrioritySerializer();
 Serializer<GDevicePlatform> _$gDevicePlatformSerializer =
     _$GDevicePlatformSerializer();
 Serializer<GGuidanceScope> _$gGuidanceScopeSerializer =
@@ -418,6 +448,23 @@ class _$GAutonomyLevelSerializer
   GAutonomyLevel deserialize(Serializers serializers, Object serialized,
           {FullType specifiedType = FullType.unspecified}) =>
       GAutonomyLevel.valueOf(serialized as String);
+}
+
+class _$GTaskPrioritySerializer implements PrimitiveSerializer<GTaskPriority> {
+  @override
+  final Iterable<Type> types = const <Type>[GTaskPriority];
+  @override
+  final String wireName = 'GTaskPriority';
+
+  @override
+  Object serialize(Serializers serializers, GTaskPriority object,
+          {FullType specifiedType = FullType.unspecified}) =>
+      object.name;
+
+  @override
+  GTaskPriority deserialize(Serializers serializers, Object serialized,
+          {FullType specifiedType = FullType.unspecified}) =>
+      GTaskPriority.valueOf(serialized as String);
 }
 
 class _$GDevicePlatformSerializer

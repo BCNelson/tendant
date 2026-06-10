@@ -1,39 +1,54 @@
-query Inbox($first: Int, $after: String) {
-  inbox(first: $first, after: $after) {
-    __typename
-    ... on AgentAssignment {
+query InboxFeed($first: Int, $after: String) {
+  inboxFeed(first: $first, after: $after) {
+    nextCursor
+    entries {
       id
-      stage
-      ask
+      kind
+      urgency
       createdAt
-      task {
-        id
-        title
-        state
-        currentStage
-      }
-    }
-    ... on ApprovalRequest {
-      id
-      createdAt
-    }
-    ... on AgentQuestion {
-      id
-      createdAt
-      question
-    }
-    ... on PromotionProposal {
-      id
-      createdAt
-      fromLevel
-      toLevel
-    }
-    ... on FeedbackRequest {
-      id
-      createdAt
-      task {
-        id
-        title
+      item {
+        __typename
+        ... on ActionableTask {
+          id
+          task {
+            id
+            title
+            state
+            priority
+            dueAt
+            currentStage
+          }
+        }
+        ... on AgentAssignment {
+          id
+          stage
+          ask
+          task {
+            id
+            title
+            state
+            currentStage
+          }
+        }
+        ... on ApprovalRequest {
+          id
+        }
+        ... on AgentQuestion {
+          id
+          question
+        }
+        ... on PromotionProposal {
+          id
+          fromLevel
+          toLevel
+        }
+        ... on FeedbackRequest {
+          id
+          task {
+            id
+            title
+          }
+        }
       }
     }
   }

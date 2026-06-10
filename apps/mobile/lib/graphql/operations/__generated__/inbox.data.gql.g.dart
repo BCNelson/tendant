@@ -6,109 +6,71 @@ part of 'inbox.data.gql.dart';
 // BuiltValueGenerator
 // **************************************************************************
 
-Serializer<GInboxData> _$gInboxDataSerializer = _$GInboxDataSerializer();
-Serializer<GInboxData_inbox__base> _$gInboxDataInboxBaseSerializer =
-    _$GInboxData_inbox__baseSerializer();
-Serializer<GInboxData_inbox__asAgentAssignment>
-    _$gInboxDataInboxAsAgentAssignmentSerializer =
-    _$GInboxData_inbox__asAgentAssignmentSerializer();
-Serializer<GInboxData_inbox__asAgentAssignment_task>
-    _$gInboxDataInboxAsAgentAssignmentTaskSerializer =
-    _$GInboxData_inbox__asAgentAssignment_taskSerializer();
-Serializer<GInboxData_inbox__asApprovalRequest>
-    _$gInboxDataInboxAsApprovalRequestSerializer =
-    _$GInboxData_inbox__asApprovalRequestSerializer();
-Serializer<GInboxData_inbox__asAgentQuestion>
-    _$gInboxDataInboxAsAgentQuestionSerializer =
-    _$GInboxData_inbox__asAgentQuestionSerializer();
-Serializer<GInboxData_inbox__asPromotionProposal>
-    _$gInboxDataInboxAsPromotionProposalSerializer =
-    _$GInboxData_inbox__asPromotionProposalSerializer();
-Serializer<GInboxData_inbox__asFeedbackRequest>
-    _$gInboxDataInboxAsFeedbackRequestSerializer =
-    _$GInboxData_inbox__asFeedbackRequestSerializer();
-Serializer<GInboxData_inbox__asFeedbackRequest_task>
-    _$gInboxDataInboxAsFeedbackRequestTaskSerializer =
-    _$GInboxData_inbox__asFeedbackRequest_taskSerializer();
+Serializer<GInboxFeedData> _$gInboxFeedDataSerializer =
+    _$GInboxFeedDataSerializer();
+Serializer<GInboxFeedData_inboxFeed> _$gInboxFeedDataInboxFeedSerializer =
+    _$GInboxFeedData_inboxFeedSerializer();
+Serializer<GInboxFeedData_inboxFeed_entries>
+    _$gInboxFeedDataInboxFeedEntriesSerializer =
+    _$GInboxFeedData_inboxFeed_entriesSerializer();
+Serializer<GInboxFeedData_inboxFeed_entries_item__base>
+    _$gInboxFeedDataInboxFeedEntriesItemBaseSerializer =
+    _$GInboxFeedData_inboxFeed_entries_item__baseSerializer();
+Serializer<GInboxFeedData_inboxFeed_entries_item__asActionableTask>
+    _$gInboxFeedDataInboxFeedEntriesItemAsActionableTaskSerializer =
+    _$GInboxFeedData_inboxFeed_entries_item__asActionableTaskSerializer();
+Serializer<GInboxFeedData_inboxFeed_entries_item__asActionableTask_task>
+    _$gInboxFeedDataInboxFeedEntriesItemAsActionableTaskTaskSerializer =
+    _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskSerializer();
+Serializer<GInboxFeedData_inboxFeed_entries_item__asAgentAssignment>
+    _$gInboxFeedDataInboxFeedEntriesItemAsAgentAssignmentSerializer =
+    _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentSerializer();
+Serializer<GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task>
+    _$gInboxFeedDataInboxFeedEntriesItemAsAgentAssignmentTaskSerializer =
+    _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskSerializer();
+Serializer<GInboxFeedData_inboxFeed_entries_item__asApprovalRequest>
+    _$gInboxFeedDataInboxFeedEntriesItemAsApprovalRequestSerializer =
+    _$GInboxFeedData_inboxFeed_entries_item__asApprovalRequestSerializer();
+Serializer<GInboxFeedData_inboxFeed_entries_item__asAgentQuestion>
+    _$gInboxFeedDataInboxFeedEntriesItemAsAgentQuestionSerializer =
+    _$GInboxFeedData_inboxFeed_entries_item__asAgentQuestionSerializer();
+Serializer<GInboxFeedData_inboxFeed_entries_item__asPromotionProposal>
+    _$gInboxFeedDataInboxFeedEntriesItemAsPromotionProposalSerializer =
+    _$GInboxFeedData_inboxFeed_entries_item__asPromotionProposalSerializer();
+Serializer<GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest>
+    _$gInboxFeedDataInboxFeedEntriesItemAsFeedbackRequestSerializer =
+    _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestSerializer();
+Serializer<GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task>
+    _$gInboxFeedDataInboxFeedEntriesItemAsFeedbackRequestTaskSerializer =
+    _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskSerializer();
 
-class _$GInboxDataSerializer implements StructuredSerializer<GInboxData> {
+class _$GInboxFeedDataSerializer
+    implements StructuredSerializer<GInboxFeedData> {
   @override
-  final Iterable<Type> types = const [GInboxData, _$GInboxData];
+  final Iterable<Type> types = const [GInboxFeedData, _$GInboxFeedData];
   @override
-  final String wireName = 'GInboxData';
+  final String wireName = 'GInboxFeedData';
 
   @override
-  Iterable<Object?> serialize(Serializers serializers, GInboxData object,
+  Iterable<Object?> serialize(Serializers serializers, GInboxFeedData object,
       {FullType specifiedType = FullType.unspecified}) {
     final result = <Object?>[
       '__typename',
       serializers.serialize(object.G__typename,
           specifiedType: const FullType(String)),
-      'inbox',
-      serializers.serialize(object.inbox,
-          specifiedType: const FullType(
-              BuiltList, const [const FullType(GInboxData_inbox)])),
+      'inboxFeed',
+      serializers.serialize(object.inboxFeed,
+          specifiedType: const FullType(GInboxFeedData_inboxFeed)),
     ];
 
     return result;
   }
 
   @override
-  GInboxData deserialize(Serializers serializers, Iterable<Object?> serialized,
-      {FullType specifiedType = FullType.unspecified}) {
-    final result = GInboxDataBuilder();
-
-    final iterator = serialized.iterator;
-    while (iterator.moveNext()) {
-      final key = iterator.current! as String;
-      iterator.moveNext();
-      final Object? value = iterator.current;
-      switch (key) {
-        case '__typename':
-          result.G__typename = serializers.deserialize(value,
-              specifiedType: const FullType(String))! as String;
-          break;
-        case 'inbox':
-          result.inbox.replace(serializers.deserialize(value,
-                  specifiedType: const FullType(
-                      BuiltList, const [const FullType(GInboxData_inbox)]))!
-              as BuiltList<Object?>);
-          break;
-      }
-    }
-
-    return result.build();
-  }
-}
-
-class _$GInboxData_inbox__baseSerializer
-    implements StructuredSerializer<GInboxData_inbox__base> {
-  @override
-  final Iterable<Type> types = const [
-    GInboxData_inbox__base,
-    _$GInboxData_inbox__base
-  ];
-  @override
-  final String wireName = 'GInboxData_inbox__base';
-
-  @override
-  Iterable<Object?> serialize(
-      Serializers serializers, GInboxData_inbox__base object,
-      {FullType specifiedType = FullType.unspecified}) {
-    final result = <Object?>[
-      '__typename',
-      serializers.serialize(object.G__typename,
-          specifiedType: const FullType(String)),
-    ];
-
-    return result;
-  }
-
-  @override
-  GInboxData_inbox__base deserialize(
+  GInboxFeedData deserialize(
       Serializers serializers, Iterable<Object?> serialized,
       {FullType specifiedType = FullType.unspecified}) {
-    final result = GInboxData_inbox__baseBuilder();
+    final result = GInboxFeedDataBuilder();
 
     final iterator = serialized.iterator;
     while (iterator.moveNext()) {
@@ -120,6 +82,11 @@ class _$GInboxData_inbox__baseSerializer
           result.G__typename = serializers.deserialize(value,
               specifiedType: const FullType(String))! as String;
           break;
+        case 'inboxFeed':
+          result.inboxFeed.replace(serializers.deserialize(value,
+                  specifiedType: const FullType(GInboxFeedData_inboxFeed))!
+              as GInboxFeedData_inboxFeed);
+          break;
       }
     }
 
@@ -127,19 +94,86 @@ class _$GInboxData_inbox__baseSerializer
   }
 }
 
-class _$GInboxData_inbox__asAgentAssignmentSerializer
-    implements StructuredSerializer<GInboxData_inbox__asAgentAssignment> {
+class _$GInboxFeedData_inboxFeedSerializer
+    implements StructuredSerializer<GInboxFeedData_inboxFeed> {
   @override
   final Iterable<Type> types = const [
-    GInboxData_inbox__asAgentAssignment,
-    _$GInboxData_inbox__asAgentAssignment
+    GInboxFeedData_inboxFeed,
+    _$GInboxFeedData_inboxFeed
   ];
   @override
-  final String wireName = 'GInboxData_inbox__asAgentAssignment';
+  final String wireName = 'GInboxFeedData_inboxFeed';
 
   @override
   Iterable<Object?> serialize(
-      Serializers serializers, GInboxData_inbox__asAgentAssignment object,
+      Serializers serializers, GInboxFeedData_inboxFeed object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+      'entries',
+      serializers.serialize(object.entries,
+          specifiedType: const FullType(BuiltList,
+              const [const FullType(GInboxFeedData_inboxFeed_entries)])),
+    ];
+    Object? value;
+    value = object.nextCursor;
+    if (value != null) {
+      result
+        ..add('nextCursor')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(String)));
+    }
+    return result;
+  }
+
+  @override
+  GInboxFeedData_inboxFeed deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = GInboxFeedData_inboxFeedBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'nextCursor':
+          result.nextCursor = serializers.deserialize(value,
+              specifiedType: const FullType(String)) as String?;
+          break;
+        case 'entries':
+          result.entries.replace(serializers.deserialize(value,
+              specifiedType: const FullType(BuiltList, const [
+                const FullType(GInboxFeedData_inboxFeed_entries)
+              ]))! as BuiltList<Object?>);
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GInboxFeedData_inboxFeed_entriesSerializer
+    implements StructuredSerializer<GInboxFeedData_inboxFeed_entries> {
+  @override
+  final Iterable<Type> types = const [
+    GInboxFeedData_inboxFeed_entries,
+    _$GInboxFeedData_inboxFeed_entries
+  ];
+  @override
+  final String wireName = 'GInboxFeedData_inboxFeed_entries';
+
+  @override
+  Iterable<Object?> serialize(
+      Serializers serializers, GInboxFeedData_inboxFeed_entries object,
       {FullType specifiedType = FullType.unspecified}) {
     final result = <Object?>[
       '__typename',
@@ -147,28 +181,27 @@ class _$GInboxData_inbox__asAgentAssignmentSerializer
           specifiedType: const FullType(String)),
       'id',
       serializers.serialize(object.id, specifiedType: const FullType(String)),
-      'stage',
-      serializers.serialize(object.stage,
-          specifiedType: const FullType(_i3.GChainStage)),
-      'ask',
-      serializers.serialize(object.ask, specifiedType: const FullType(String)),
+      'kind',
+      serializers.serialize(object.kind, specifiedType: const FullType(String)),
+      'urgency',
+      serializers.serialize(object.urgency,
+          specifiedType: const FullType(double)),
       'createdAt',
       serializers.serialize(object.createdAt,
-          specifiedType: const FullType(_i3.GTime)),
-      'task',
-      serializers.serialize(object.task,
-          specifiedType:
-              const FullType(GInboxData_inbox__asAgentAssignment_task)),
+          specifiedType: const FullType(_i2.GTime)),
+      'item',
+      serializers.serialize(object.item,
+          specifiedType: const FullType(GInboxFeedData_inboxFeed_entries_item)),
     ];
 
     return result;
   }
 
   @override
-  GInboxData_inbox__asAgentAssignment deserialize(
+  GInboxFeedData_inboxFeed_entries deserialize(
       Serializers serializers, Iterable<Object?> serialized,
       {FullType specifiedType = FullType.unspecified}) {
-    final result = GInboxData_inbox__asAgentAssignmentBuilder();
+    final result = GInboxFeedData_inboxFeed_entriesBuilder();
 
     final iterator = serialized.iterator;
     while (iterator.moveNext()) {
@@ -184,24 +217,23 @@ class _$GInboxData_inbox__asAgentAssignmentSerializer
           result.id = serializers.deserialize(value,
               specifiedType: const FullType(String))! as String;
           break;
-        case 'stage':
-          result.stage = serializers.deserialize(value,
-                  specifiedType: const FullType(_i3.GChainStage))!
-              as _i3.GChainStage;
-          break;
-        case 'ask':
-          result.ask = serializers.deserialize(value,
+        case 'kind':
+          result.kind = serializers.deserialize(value,
               specifiedType: const FullType(String))! as String;
+          break;
+        case 'urgency':
+          result.urgency = serializers.deserialize(value,
+              specifiedType: const FullType(double))! as double;
           break;
         case 'createdAt':
           result.createdAt.replace(serializers.deserialize(value,
-              specifiedType: const FullType(_i3.GTime))! as _i3.GTime);
+              specifiedType: const FullType(_i2.GTime))! as _i2.GTime);
           break;
-        case 'task':
-          result.task.replace(serializers.deserialize(value,
+        case 'item':
+          result.item = serializers.deserialize(value,
                   specifiedType:
-                      const FullType(GInboxData_inbox__asAgentAssignment_task))!
-              as GInboxData_inbox__asAgentAssignment_task);
+                      const FullType(GInboxFeedData_inboxFeed_entries_item))!
+              as GInboxFeedData_inboxFeed_entries_item;
           break;
       }
     }
@@ -210,19 +242,135 @@ class _$GInboxData_inbox__asAgentAssignmentSerializer
   }
 }
 
-class _$GInboxData_inbox__asAgentAssignment_taskSerializer
-    implements StructuredSerializer<GInboxData_inbox__asAgentAssignment_task> {
+class _$GInboxFeedData_inboxFeed_entries_item__baseSerializer
+    implements
+        StructuredSerializer<GInboxFeedData_inboxFeed_entries_item__base> {
   @override
   final Iterable<Type> types = const [
-    GInboxData_inbox__asAgentAssignment_task,
-    _$GInboxData_inbox__asAgentAssignment_task
+    GInboxFeedData_inboxFeed_entries_item__base,
+    _$GInboxFeedData_inboxFeed_entries_item__base
   ];
   @override
-  final String wireName = 'GInboxData_inbox__asAgentAssignment_task';
+  final String wireName = 'GInboxFeedData_inboxFeed_entries_item__base';
 
   @override
-  Iterable<Object?> serialize(
-      Serializers serializers, GInboxData_inbox__asAgentAssignment_task object,
+  Iterable<Object?> serialize(Serializers serializers,
+      GInboxFeedData_inboxFeed_entries_item__base object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+    ];
+
+    return result;
+  }
+
+  @override
+  GInboxFeedData_inboxFeed_entries_item__base deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = GInboxFeedData_inboxFeed_entries_item__baseBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GInboxFeedData_inboxFeed_entries_item__asActionableTaskSerializer
+    implements
+        StructuredSerializer<
+            GInboxFeedData_inboxFeed_entries_item__asActionableTask> {
+  @override
+  final Iterable<Type> types = const [
+    GInboxFeedData_inboxFeed_entries_item__asActionableTask,
+    _$GInboxFeedData_inboxFeed_entries_item__asActionableTask
+  ];
+  @override
+  final String wireName =
+      'GInboxFeedData_inboxFeed_entries_item__asActionableTask';
+
+  @override
+  Iterable<Object?> serialize(Serializers serializers,
+      GInboxFeedData_inboxFeed_entries_item__asActionableTask object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+      'id',
+      serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'task',
+      serializers.serialize(object.task,
+          specifiedType: const FullType(
+              GInboxFeedData_inboxFeed_entries_item__asActionableTask_task)),
+    ];
+
+    return result;
+  }
+
+  @override
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result =
+        GInboxFeedData_inboxFeed_entries_item__asActionableTaskBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'id':
+          result.id = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'task':
+          result.task.replace(serializers.deserialize(value,
+                  specifiedType: const FullType(
+                      GInboxFeedData_inboxFeed_entries_item__asActionableTask_task))!
+              as GInboxFeedData_inboxFeed_entries_item__asActionableTask_task);
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskSerializer
+    implements
+        StructuredSerializer<
+            GInboxFeedData_inboxFeed_entries_item__asActionableTask_task> {
+  @override
+  final Iterable<Type> types = const [
+    GInboxFeedData_inboxFeed_entries_item__asActionableTask_task,
+    _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task
+  ];
+  @override
+  final String wireName =
+      'GInboxFeedData_inboxFeed_entries_item__asActionableTask_task';
+
+  @override
+  Iterable<Object?> serialize(Serializers serializers,
+      GInboxFeedData_inboxFeed_entries_item__asActionableTask_task object,
       {FullType specifiedType = FullType.unspecified}) {
     final result = <Object?>[
       '__typename',
@@ -235,20 +383,31 @@ class _$GInboxData_inbox__asAgentAssignment_taskSerializer
           specifiedType: const FullType(String)),
       'state',
       serializers.serialize(object.state,
-          specifiedType: const FullType(_i3.GTaskState)),
+          specifiedType: const FullType(_i2.GTaskState)),
+      'priority',
+      serializers.serialize(object.priority,
+          specifiedType: const FullType(_i2.GTaskPriority)),
       'currentStage',
       serializers.serialize(object.currentStage,
-          specifiedType: const FullType(_i3.GChainStage)),
+          specifiedType: const FullType(_i2.GChainStage)),
     ];
-
+    Object? value;
+    value = object.dueAt;
+    if (value != null) {
+      result
+        ..add('dueAt')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(_i2.GTime)));
+    }
     return result;
   }
 
   @override
-  GInboxData_inbox__asAgentAssignment_task deserialize(
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask_task deserialize(
       Serializers serializers, Iterable<Object?> serialized,
       {FullType specifiedType = FullType.unspecified}) {
-    final result = GInboxData_inbox__asAgentAssignment_taskBuilder();
+    final result =
+        GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder();
 
     final iterator = serialized.iterator;
     while (iterator.moveNext()) {
@@ -270,12 +429,21 @@ class _$GInboxData_inbox__asAgentAssignment_taskSerializer
           break;
         case 'state':
           result.state = serializers.deserialize(value,
-              specifiedType: const FullType(_i3.GTaskState))! as _i3.GTaskState;
+              specifiedType: const FullType(_i2.GTaskState))! as _i2.GTaskState;
+          break;
+        case 'priority':
+          result.priority = serializers.deserialize(value,
+                  specifiedType: const FullType(_i2.GTaskPriority))!
+              as _i2.GTaskPriority;
+          break;
+        case 'dueAt':
+          result.dueAt.replace(serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTime))! as _i2.GTime);
           break;
         case 'currentStage':
           result.currentStage = serializers.deserialize(value,
-                  specifiedType: const FullType(_i3.GChainStage))!
-              as _i3.GChainStage;
+                  specifiedType: const FullType(_i2.GChainStage))!
+              as _i2.GChainStage;
           break;
       }
     }
@@ -284,19 +452,22 @@ class _$GInboxData_inbox__asAgentAssignment_taskSerializer
   }
 }
 
-class _$GInboxData_inbox__asApprovalRequestSerializer
-    implements StructuredSerializer<GInboxData_inbox__asApprovalRequest> {
+class _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentSerializer
+    implements
+        StructuredSerializer<
+            GInboxFeedData_inboxFeed_entries_item__asAgentAssignment> {
   @override
   final Iterable<Type> types = const [
-    GInboxData_inbox__asApprovalRequest,
-    _$GInboxData_inbox__asApprovalRequest
+    GInboxFeedData_inboxFeed_entries_item__asAgentAssignment,
+    _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment
   ];
   @override
-  final String wireName = 'GInboxData_inbox__asApprovalRequest';
+  final String wireName =
+      'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment';
 
   @override
-  Iterable<Object?> serialize(
-      Serializers serializers, GInboxData_inbox__asApprovalRequest object,
+  Iterable<Object?> serialize(Serializers serializers,
+      GInboxFeedData_inboxFeed_entries_item__asAgentAssignment object,
       {FullType specifiedType = FullType.unspecified}) {
     final result = <Object?>[
       '__typename',
@@ -304,19 +475,26 @@ class _$GInboxData_inbox__asApprovalRequestSerializer
           specifiedType: const FullType(String)),
       'id',
       serializers.serialize(object.id, specifiedType: const FullType(String)),
-      'createdAt',
-      serializers.serialize(object.createdAt,
-          specifiedType: const FullType(_i3.GTime)),
+      'stage',
+      serializers.serialize(object.stage,
+          specifiedType: const FullType(_i2.GChainStage)),
+      'ask',
+      serializers.serialize(object.ask, specifiedType: const FullType(String)),
+      'task',
+      serializers.serialize(object.task,
+          specifiedType: const FullType(
+              GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task)),
     ];
 
     return result;
   }
 
   @override
-  GInboxData_inbox__asApprovalRequest deserialize(
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment deserialize(
       Serializers serializers, Iterable<Object?> serialized,
       {FullType specifiedType = FullType.unspecified}) {
-    final result = GInboxData_inbox__asApprovalRequestBuilder();
+    final result =
+        GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentBuilder();
 
     final iterator = serialized.iterator;
     while (iterator.moveNext()) {
@@ -332,9 +510,20 @@ class _$GInboxData_inbox__asApprovalRequestSerializer
           result.id = serializers.deserialize(value,
               specifiedType: const FullType(String))! as String;
           break;
-        case 'createdAt':
-          result.createdAt.replace(serializers.deserialize(value,
-              specifiedType: const FullType(_i3.GTime))! as _i3.GTime);
+        case 'stage':
+          result.stage = serializers.deserialize(value,
+                  specifiedType: const FullType(_i2.GChainStage))!
+              as _i2.GChainStage;
+          break;
+        case 'ask':
+          result.ask = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'task':
+          result.task.replace(serializers.deserialize(value,
+                  specifiedType: const FullType(
+                      GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task))!
+              as GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task);
           break;
       }
     }
@@ -343,19 +532,22 @@ class _$GInboxData_inbox__asApprovalRequestSerializer
   }
 }
 
-class _$GInboxData_inbox__asAgentQuestionSerializer
-    implements StructuredSerializer<GInboxData_inbox__asAgentQuestion> {
+class _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskSerializer
+    implements
+        StructuredSerializer<
+            GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task> {
   @override
   final Iterable<Type> types = const [
-    GInboxData_inbox__asAgentQuestion,
-    _$GInboxData_inbox__asAgentQuestion
+    GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task,
+    _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task
   ];
   @override
-  final String wireName = 'GInboxData_inbox__asAgentQuestion';
+  final String wireName =
+      'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task';
 
   @override
-  Iterable<Object?> serialize(
-      Serializers serializers, GInboxData_inbox__asAgentQuestion object,
+  Iterable<Object?> serialize(Serializers serializers,
+      GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task object,
       {FullType specifiedType = FullType.unspecified}) {
     final result = <Object?>[
       '__typename',
@@ -363,9 +555,140 @@ class _$GInboxData_inbox__asAgentQuestionSerializer
           specifiedType: const FullType(String)),
       'id',
       serializers.serialize(object.id, specifiedType: const FullType(String)),
-      'createdAt',
-      serializers.serialize(object.createdAt,
-          specifiedType: const FullType(_i3.GTime)),
+      'title',
+      serializers.serialize(object.title,
+          specifiedType: const FullType(String)),
+      'state',
+      serializers.serialize(object.state,
+          specifiedType: const FullType(_i2.GTaskState)),
+      'currentStage',
+      serializers.serialize(object.currentStage,
+          specifiedType: const FullType(_i2.GChainStage)),
+    ];
+
+    return result;
+  }
+
+  @override
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result =
+        GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'id':
+          result.id = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'title':
+          result.title = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'state':
+          result.state = serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTaskState))! as _i2.GTaskState;
+          break;
+        case 'currentStage':
+          result.currentStage = serializers.deserialize(value,
+                  specifiedType: const FullType(_i2.GChainStage))!
+              as _i2.GChainStage;
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GInboxFeedData_inboxFeed_entries_item__asApprovalRequestSerializer
+    implements
+        StructuredSerializer<
+            GInboxFeedData_inboxFeed_entries_item__asApprovalRequest> {
+  @override
+  final Iterable<Type> types = const [
+    GInboxFeedData_inboxFeed_entries_item__asApprovalRequest,
+    _$GInboxFeedData_inboxFeed_entries_item__asApprovalRequest
+  ];
+  @override
+  final String wireName =
+      'GInboxFeedData_inboxFeed_entries_item__asApprovalRequest';
+
+  @override
+  Iterable<Object?> serialize(Serializers serializers,
+      GInboxFeedData_inboxFeed_entries_item__asApprovalRequest object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+      'id',
+      serializers.serialize(object.id, specifiedType: const FullType(String)),
+    ];
+
+    return result;
+  }
+
+  @override
+  GInboxFeedData_inboxFeed_entries_item__asApprovalRequest deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result =
+        GInboxFeedData_inboxFeed_entries_item__asApprovalRequestBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'id':
+          result.id = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GInboxFeedData_inboxFeed_entries_item__asAgentQuestionSerializer
+    implements
+        StructuredSerializer<
+            GInboxFeedData_inboxFeed_entries_item__asAgentQuestion> {
+  @override
+  final Iterable<Type> types = const [
+    GInboxFeedData_inboxFeed_entries_item__asAgentQuestion,
+    _$GInboxFeedData_inboxFeed_entries_item__asAgentQuestion
+  ];
+  @override
+  final String wireName =
+      'GInboxFeedData_inboxFeed_entries_item__asAgentQuestion';
+
+  @override
+  Iterable<Object?> serialize(Serializers serializers,
+      GInboxFeedData_inboxFeed_entries_item__asAgentQuestion object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+      'id',
+      serializers.serialize(object.id, specifiedType: const FullType(String)),
       'question',
       serializers.serialize(object.question,
           specifiedType: const FullType(String)),
@@ -375,10 +698,11 @@ class _$GInboxData_inbox__asAgentQuestionSerializer
   }
 
   @override
-  GInboxData_inbox__asAgentQuestion deserialize(
+  GInboxFeedData_inboxFeed_entries_item__asAgentQuestion deserialize(
       Serializers serializers, Iterable<Object?> serialized,
       {FullType specifiedType = FullType.unspecified}) {
-    final result = GInboxData_inbox__asAgentQuestionBuilder();
+    final result =
+        GInboxFeedData_inboxFeed_entries_item__asAgentQuestionBuilder();
 
     final iterator = serialized.iterator;
     while (iterator.moveNext()) {
@@ -393,10 +717,6 @@ class _$GInboxData_inbox__asAgentQuestionSerializer
         case 'id':
           result.id = serializers.deserialize(value,
               specifiedType: const FullType(String))! as String;
-          break;
-        case 'createdAt':
-          result.createdAt.replace(serializers.deserialize(value,
-              specifiedType: const FullType(_i3.GTime))! as _i3.GTime);
           break;
         case 'question':
           result.question = serializers.deserialize(value,
@@ -409,19 +729,22 @@ class _$GInboxData_inbox__asAgentQuestionSerializer
   }
 }
 
-class _$GInboxData_inbox__asPromotionProposalSerializer
-    implements StructuredSerializer<GInboxData_inbox__asPromotionProposal> {
+class _$GInboxFeedData_inboxFeed_entries_item__asPromotionProposalSerializer
+    implements
+        StructuredSerializer<
+            GInboxFeedData_inboxFeed_entries_item__asPromotionProposal> {
   @override
   final Iterable<Type> types = const [
-    GInboxData_inbox__asPromotionProposal,
-    _$GInboxData_inbox__asPromotionProposal
+    GInboxFeedData_inboxFeed_entries_item__asPromotionProposal,
+    _$GInboxFeedData_inboxFeed_entries_item__asPromotionProposal
   ];
   @override
-  final String wireName = 'GInboxData_inbox__asPromotionProposal';
+  final String wireName =
+      'GInboxFeedData_inboxFeed_entries_item__asPromotionProposal';
 
   @override
-  Iterable<Object?> serialize(
-      Serializers serializers, GInboxData_inbox__asPromotionProposal object,
+  Iterable<Object?> serialize(Serializers serializers,
+      GInboxFeedData_inboxFeed_entries_item__asPromotionProposal object,
       {FullType specifiedType = FullType.unspecified}) {
     final result = <Object?>[
       '__typename',
@@ -429,25 +752,23 @@ class _$GInboxData_inbox__asPromotionProposalSerializer
           specifiedType: const FullType(String)),
       'id',
       serializers.serialize(object.id, specifiedType: const FullType(String)),
-      'createdAt',
-      serializers.serialize(object.createdAt,
-          specifiedType: const FullType(_i3.GTime)),
       'fromLevel',
       serializers.serialize(object.fromLevel,
-          specifiedType: const FullType(_i3.GAutonomyLevel)),
+          specifiedType: const FullType(_i2.GAutonomyLevel)),
       'toLevel',
       serializers.serialize(object.toLevel,
-          specifiedType: const FullType(_i3.GAutonomyLevel)),
+          specifiedType: const FullType(_i2.GAutonomyLevel)),
     ];
 
     return result;
   }
 
   @override
-  GInboxData_inbox__asPromotionProposal deserialize(
+  GInboxFeedData_inboxFeed_entries_item__asPromotionProposal deserialize(
       Serializers serializers, Iterable<Object?> serialized,
       {FullType specifiedType = FullType.unspecified}) {
-    final result = GInboxData_inbox__asPromotionProposalBuilder();
+    final result =
+        GInboxFeedData_inboxFeed_entries_item__asPromotionProposalBuilder();
 
     final iterator = serialized.iterator;
     while (iterator.moveNext()) {
@@ -462,20 +783,16 @@ class _$GInboxData_inbox__asPromotionProposalSerializer
         case 'id':
           result.id = serializers.deserialize(value,
               specifiedType: const FullType(String))! as String;
-          break;
-        case 'createdAt':
-          result.createdAt.replace(serializers.deserialize(value,
-              specifiedType: const FullType(_i3.GTime))! as _i3.GTime);
           break;
         case 'fromLevel':
           result.fromLevel = serializers.deserialize(value,
-                  specifiedType: const FullType(_i3.GAutonomyLevel))!
-              as _i3.GAutonomyLevel;
+                  specifiedType: const FullType(_i2.GAutonomyLevel))!
+              as _i2.GAutonomyLevel;
           break;
         case 'toLevel':
           result.toLevel = serializers.deserialize(value,
-                  specifiedType: const FullType(_i3.GAutonomyLevel))!
-              as _i3.GAutonomyLevel;
+                  specifiedType: const FullType(_i2.GAutonomyLevel))!
+              as _i2.GAutonomyLevel;
           break;
       }
     }
@@ -484,19 +801,22 @@ class _$GInboxData_inbox__asPromotionProposalSerializer
   }
 }
 
-class _$GInboxData_inbox__asFeedbackRequestSerializer
-    implements StructuredSerializer<GInboxData_inbox__asFeedbackRequest> {
+class _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestSerializer
+    implements
+        StructuredSerializer<
+            GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest> {
   @override
   final Iterable<Type> types = const [
-    GInboxData_inbox__asFeedbackRequest,
-    _$GInboxData_inbox__asFeedbackRequest
+    GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest,
+    _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest
   ];
   @override
-  final String wireName = 'GInboxData_inbox__asFeedbackRequest';
+  final String wireName =
+      'GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest';
 
   @override
-  Iterable<Object?> serialize(
-      Serializers serializers, GInboxData_inbox__asFeedbackRequest object,
+  Iterable<Object?> serialize(Serializers serializers,
+      GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest object,
       {FullType specifiedType = FullType.unspecified}) {
     final result = <Object?>[
       '__typename',
@@ -504,23 +824,21 @@ class _$GInboxData_inbox__asFeedbackRequestSerializer
           specifiedType: const FullType(String)),
       'id',
       serializers.serialize(object.id, specifiedType: const FullType(String)),
-      'createdAt',
-      serializers.serialize(object.createdAt,
-          specifiedType: const FullType(_i3.GTime)),
       'task',
       serializers.serialize(object.task,
-          specifiedType:
-              const FullType(GInboxData_inbox__asFeedbackRequest_task)),
+          specifiedType: const FullType(
+              GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task)),
     ];
 
     return result;
   }
 
   @override
-  GInboxData_inbox__asFeedbackRequest deserialize(
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest deserialize(
       Serializers serializers, Iterable<Object?> serialized,
       {FullType specifiedType = FullType.unspecified}) {
-    final result = GInboxData_inbox__asFeedbackRequestBuilder();
+    final result =
+        GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestBuilder();
 
     final iterator = serialized.iterator;
     while (iterator.moveNext()) {
@@ -536,15 +854,11 @@ class _$GInboxData_inbox__asFeedbackRequestSerializer
           result.id = serializers.deserialize(value,
               specifiedType: const FullType(String))! as String;
           break;
-        case 'createdAt':
-          result.createdAt.replace(serializers.deserialize(value,
-              specifiedType: const FullType(_i3.GTime))! as _i3.GTime);
-          break;
         case 'task':
           result.task.replace(serializers.deserialize(value,
-                  specifiedType:
-                      const FullType(GInboxData_inbox__asFeedbackRequest_task))!
-              as GInboxData_inbox__asFeedbackRequest_task);
+                  specifiedType: const FullType(
+                      GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task))!
+              as GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task);
           break;
       }
     }
@@ -553,19 +867,22 @@ class _$GInboxData_inbox__asFeedbackRequestSerializer
   }
 }
 
-class _$GInboxData_inbox__asFeedbackRequest_taskSerializer
-    implements StructuredSerializer<GInboxData_inbox__asFeedbackRequest_task> {
+class _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskSerializer
+    implements
+        StructuredSerializer<
+            GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task> {
   @override
   final Iterable<Type> types = const [
-    GInboxData_inbox__asFeedbackRequest_task,
-    _$GInboxData_inbox__asFeedbackRequest_task
+    GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task,
+    _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task
   ];
   @override
-  final String wireName = 'GInboxData_inbox__asFeedbackRequest_task';
+  final String wireName =
+      'GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task';
 
   @override
-  Iterable<Object?> serialize(
-      Serializers serializers, GInboxData_inbox__asFeedbackRequest_task object,
+  Iterable<Object?> serialize(Serializers serializers,
+      GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task object,
       {FullType specifiedType = FullType.unspecified}) {
     final result = <Object?>[
       '__typename',
@@ -582,10 +899,11 @@ class _$GInboxData_inbox__asFeedbackRequest_taskSerializer
   }
 
   @override
-  GInboxData_inbox__asFeedbackRequest_task deserialize(
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task deserialize(
       Serializers serializers, Iterable<Object?> serialized,
       {FullType specifiedType = FullType.unspecified}) {
-    final result = GInboxData_inbox__asFeedbackRequest_taskBuilder();
+    final result =
+        GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder();
 
     final iterator = serialized.iterator;
     while (iterator.moveNext()) {
@@ -612,105 +930,108 @@ class _$GInboxData_inbox__asFeedbackRequest_taskSerializer
   }
 }
 
-class _$GInboxData extends GInboxData {
+class _$GInboxFeedData extends GInboxFeedData {
   @override
   final String G__typename;
   @override
-  final BuiltList<GInboxData_inbox> inbox;
+  final GInboxFeedData_inboxFeed inboxFeed;
 
-  factory _$GInboxData([void Function(GInboxDataBuilder)? updates]) =>
-      (GInboxDataBuilder()..update(updates))._build();
+  factory _$GInboxFeedData([void Function(GInboxFeedDataBuilder)? updates]) =>
+      (GInboxFeedDataBuilder()..update(updates))._build();
 
-  _$GInboxData._({required this.G__typename, required this.inbox}) : super._();
+  _$GInboxFeedData._({required this.G__typename, required this.inboxFeed})
+      : super._();
   @override
-  GInboxData rebuild(void Function(GInboxDataBuilder) updates) =>
+  GInboxFeedData rebuild(void Function(GInboxFeedDataBuilder) updates) =>
       (toBuilder()..update(updates)).build();
 
   @override
-  GInboxDataBuilder toBuilder() => GInboxDataBuilder()..replace(this);
+  GInboxFeedDataBuilder toBuilder() => GInboxFeedDataBuilder()..replace(this);
 
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is GInboxData &&
+    return other is GInboxFeedData &&
         G__typename == other.G__typename &&
-        inbox == other.inbox;
+        inboxFeed == other.inboxFeed;
   }
 
   @override
   int get hashCode {
     var _$hash = 0;
     _$hash = $jc(_$hash, G__typename.hashCode);
-    _$hash = $jc(_$hash, inbox.hashCode);
+    _$hash = $jc(_$hash, inboxFeed.hashCode);
     _$hash = $jf(_$hash);
     return _$hash;
   }
 
   @override
   String toString() {
-    return (newBuiltValueToStringHelper(r'GInboxData')
+    return (newBuiltValueToStringHelper(r'GInboxFeedData')
           ..add('G__typename', G__typename)
-          ..add('inbox', inbox))
+          ..add('inboxFeed', inboxFeed))
         .toString();
   }
 }
 
-class GInboxDataBuilder implements Builder<GInboxData, GInboxDataBuilder> {
-  _$GInboxData? _$v;
+class GInboxFeedDataBuilder
+    implements Builder<GInboxFeedData, GInboxFeedDataBuilder> {
+  _$GInboxFeedData? _$v;
 
   String? _G__typename;
   String? get G__typename => _$this._G__typename;
   set G__typename(String? G__typename) => _$this._G__typename = G__typename;
 
-  ListBuilder<GInboxData_inbox>? _inbox;
-  ListBuilder<GInboxData_inbox> get inbox =>
-      _$this._inbox ??= ListBuilder<GInboxData_inbox>();
-  set inbox(ListBuilder<GInboxData_inbox>? inbox) => _$this._inbox = inbox;
+  GInboxFeedData_inboxFeedBuilder? _inboxFeed;
+  GInboxFeedData_inboxFeedBuilder get inboxFeed =>
+      _$this._inboxFeed ??= GInboxFeedData_inboxFeedBuilder();
+  set inboxFeed(GInboxFeedData_inboxFeedBuilder? inboxFeed) =>
+      _$this._inboxFeed = inboxFeed;
 
-  GInboxDataBuilder() {
-    GInboxData._initializeBuilder(this);
+  GInboxFeedDataBuilder() {
+    GInboxFeedData._initializeBuilder(this);
   }
 
-  GInboxDataBuilder get _$this {
+  GInboxFeedDataBuilder get _$this {
     final $v = _$v;
     if ($v != null) {
       _G__typename = $v.G__typename;
-      _inbox = $v.inbox.toBuilder();
+      _inboxFeed = $v.inboxFeed.toBuilder();
       _$v = null;
     }
     return this;
   }
 
   @override
-  void replace(GInboxData other) {
-    _$v = other as _$GInboxData;
+  void replace(GInboxFeedData other) {
+    _$v = other as _$GInboxFeedData;
   }
 
   @override
-  void update(void Function(GInboxDataBuilder)? updates) {
+  void update(void Function(GInboxFeedDataBuilder)? updates) {
     if (updates != null) updates(this);
   }
 
   @override
-  GInboxData build() => _build();
+  GInboxFeedData build() => _build();
 
-  _$GInboxData _build() {
-    _$GInboxData _$result;
+  _$GInboxFeedData _build() {
+    _$GInboxFeedData _$result;
     try {
       _$result = _$v ??
-          _$GInboxData._(
+          _$GInboxFeedData._(
             G__typename: BuiltValueNullFieldError.checkNotNull(
-                G__typename, r'GInboxData', 'G__typename'),
-            inbox: inbox.build(),
+                G__typename, r'GInboxFeedData', 'G__typename'),
+            inboxFeed: inboxFeed.build(),
           );
     } catch (_) {
       late String _$failedField;
       try {
-        _$failedField = 'inbox';
-        inbox.build();
+        _$failedField = 'inboxFeed';
+        inboxFeed.build();
       } catch (e) {
         throw BuiltValueNestedFieldError(
-            r'GInboxData', _$failedField, e.toString());
+            r'GInboxFeedData', _$failedField, e.toString());
       }
       rethrow;
     }
@@ -719,28 +1040,328 @@ class GInboxDataBuilder implements Builder<GInboxData, GInboxDataBuilder> {
   }
 }
 
-class _$GInboxData_inbox__base extends GInboxData_inbox__base {
+class _$GInboxFeedData_inboxFeed extends GInboxFeedData_inboxFeed {
   @override
   final String G__typename;
-
-  factory _$GInboxData_inbox__base(
-          [void Function(GInboxData_inbox__baseBuilder)? updates]) =>
-      (GInboxData_inbox__baseBuilder()..update(updates))._build();
-
-  _$GInboxData_inbox__base._({required this.G__typename}) : super._();
   @override
-  GInboxData_inbox__base rebuild(
-          void Function(GInboxData_inbox__baseBuilder) updates) =>
+  final String? nextCursor;
+  @override
+  final BuiltList<GInboxFeedData_inboxFeed_entries> entries;
+
+  factory _$GInboxFeedData_inboxFeed(
+          [void Function(GInboxFeedData_inboxFeedBuilder)? updates]) =>
+      (GInboxFeedData_inboxFeedBuilder()..update(updates))._build();
+
+  _$GInboxFeedData_inboxFeed._(
+      {required this.G__typename, this.nextCursor, required this.entries})
+      : super._();
+  @override
+  GInboxFeedData_inboxFeed rebuild(
+          void Function(GInboxFeedData_inboxFeedBuilder) updates) =>
       (toBuilder()..update(updates)).build();
 
   @override
-  GInboxData_inbox__baseBuilder toBuilder() =>
-      GInboxData_inbox__baseBuilder()..replace(this);
+  GInboxFeedData_inboxFeedBuilder toBuilder() =>
+      GInboxFeedData_inboxFeedBuilder()..replace(this);
 
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is GInboxData_inbox__base && G__typename == other.G__typename;
+    return other is GInboxFeedData_inboxFeed &&
+        G__typename == other.G__typename &&
+        nextCursor == other.nextCursor &&
+        entries == other.entries;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, nextCursor.hashCode);
+    _$hash = $jc(_$hash, entries.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(r'GInboxFeedData_inboxFeed')
+          ..add('G__typename', G__typename)
+          ..add('nextCursor', nextCursor)
+          ..add('entries', entries))
+        .toString();
+  }
+}
+
+class GInboxFeedData_inboxFeedBuilder
+    implements
+        Builder<GInboxFeedData_inboxFeed, GInboxFeedData_inboxFeedBuilder> {
+  _$GInboxFeedData_inboxFeed? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  String? _nextCursor;
+  String? get nextCursor => _$this._nextCursor;
+  set nextCursor(String? nextCursor) => _$this._nextCursor = nextCursor;
+
+  ListBuilder<GInboxFeedData_inboxFeed_entries>? _entries;
+  ListBuilder<GInboxFeedData_inboxFeed_entries> get entries =>
+      _$this._entries ??= ListBuilder<GInboxFeedData_inboxFeed_entries>();
+  set entries(ListBuilder<GInboxFeedData_inboxFeed_entries>? entries) =>
+      _$this._entries = entries;
+
+  GInboxFeedData_inboxFeedBuilder() {
+    GInboxFeedData_inboxFeed._initializeBuilder(this);
+  }
+
+  GInboxFeedData_inboxFeedBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _nextCursor = $v.nextCursor;
+      _entries = $v.entries.toBuilder();
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(GInboxFeedData_inboxFeed other) {
+    _$v = other as _$GInboxFeedData_inboxFeed;
+  }
+
+  @override
+  void update(void Function(GInboxFeedData_inboxFeedBuilder)? updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GInboxFeedData_inboxFeed build() => _build();
+
+  _$GInboxFeedData_inboxFeed _build() {
+    _$GInboxFeedData_inboxFeed _$result;
+    try {
+      _$result = _$v ??
+          _$GInboxFeedData_inboxFeed._(
+            G__typename: BuiltValueNullFieldError.checkNotNull(
+                G__typename, r'GInboxFeedData_inboxFeed', 'G__typename'),
+            nextCursor: nextCursor,
+            entries: entries.build(),
+          );
+    } catch (_) {
+      late String _$failedField;
+      try {
+        _$failedField = 'entries';
+        entries.build();
+      } catch (e) {
+        throw BuiltValueNestedFieldError(
+            r'GInboxFeedData_inboxFeed', _$failedField, e.toString());
+      }
+      rethrow;
+    }
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GInboxFeedData_inboxFeed_entries
+    extends GInboxFeedData_inboxFeed_entries {
+  @override
+  final String G__typename;
+  @override
+  final String id;
+  @override
+  final String kind;
+  @override
+  final double urgency;
+  @override
+  final _i2.GTime createdAt;
+  @override
+  final GInboxFeedData_inboxFeed_entries_item item;
+
+  factory _$GInboxFeedData_inboxFeed_entries(
+          [void Function(GInboxFeedData_inboxFeed_entriesBuilder)? updates]) =>
+      (GInboxFeedData_inboxFeed_entriesBuilder()..update(updates))._build();
+
+  _$GInboxFeedData_inboxFeed_entries._(
+      {required this.G__typename,
+      required this.id,
+      required this.kind,
+      required this.urgency,
+      required this.createdAt,
+      required this.item})
+      : super._();
+  @override
+  GInboxFeedData_inboxFeed_entries rebuild(
+          void Function(GInboxFeedData_inboxFeed_entriesBuilder) updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GInboxFeedData_inboxFeed_entriesBuilder toBuilder() =>
+      GInboxFeedData_inboxFeed_entriesBuilder()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GInboxFeedData_inboxFeed_entries &&
+        G__typename == other.G__typename &&
+        id == other.id &&
+        kind == other.kind &&
+        urgency == other.urgency &&
+        createdAt == other.createdAt &&
+        item == other.item;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, kind.hashCode);
+    _$hash = $jc(_$hash, urgency.hashCode);
+    _$hash = $jc(_$hash, createdAt.hashCode);
+    _$hash = $jc(_$hash, item.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(r'GInboxFeedData_inboxFeed_entries')
+          ..add('G__typename', G__typename)
+          ..add('id', id)
+          ..add('kind', kind)
+          ..add('urgency', urgency)
+          ..add('createdAt', createdAt)
+          ..add('item', item))
+        .toString();
+  }
+}
+
+class GInboxFeedData_inboxFeed_entriesBuilder
+    implements
+        Builder<GInboxFeedData_inboxFeed_entries,
+            GInboxFeedData_inboxFeed_entriesBuilder> {
+  _$GInboxFeedData_inboxFeed_entries? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  String? _id;
+  String? get id => _$this._id;
+  set id(String? id) => _$this._id = id;
+
+  String? _kind;
+  String? get kind => _$this._kind;
+  set kind(String? kind) => _$this._kind = kind;
+
+  double? _urgency;
+  double? get urgency => _$this._urgency;
+  set urgency(double? urgency) => _$this._urgency = urgency;
+
+  _i2.GTimeBuilder? _createdAt;
+  _i2.GTimeBuilder get createdAt => _$this._createdAt ??= _i2.GTimeBuilder();
+  set createdAt(_i2.GTimeBuilder? createdAt) => _$this._createdAt = createdAt;
+
+  GInboxFeedData_inboxFeed_entries_item? _item;
+  GInboxFeedData_inboxFeed_entries_item? get item => _$this._item;
+  set item(GInboxFeedData_inboxFeed_entries_item? item) => _$this._item = item;
+
+  GInboxFeedData_inboxFeed_entriesBuilder() {
+    GInboxFeedData_inboxFeed_entries._initializeBuilder(this);
+  }
+
+  GInboxFeedData_inboxFeed_entriesBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _id = $v.id;
+      _kind = $v.kind;
+      _urgency = $v.urgency;
+      _createdAt = $v.createdAt.toBuilder();
+      _item = $v.item;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(GInboxFeedData_inboxFeed_entries other) {
+    _$v = other as _$GInboxFeedData_inboxFeed_entries;
+  }
+
+  @override
+  void update(void Function(GInboxFeedData_inboxFeed_entriesBuilder)? updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GInboxFeedData_inboxFeed_entries build() => _build();
+
+  _$GInboxFeedData_inboxFeed_entries _build() {
+    _$GInboxFeedData_inboxFeed_entries _$result;
+    try {
+      _$result = _$v ??
+          _$GInboxFeedData_inboxFeed_entries._(
+            G__typename: BuiltValueNullFieldError.checkNotNull(G__typename,
+                r'GInboxFeedData_inboxFeed_entries', 'G__typename'),
+            id: BuiltValueNullFieldError.checkNotNull(
+                id, r'GInboxFeedData_inboxFeed_entries', 'id'),
+            kind: BuiltValueNullFieldError.checkNotNull(
+                kind, r'GInboxFeedData_inboxFeed_entries', 'kind'),
+            urgency: BuiltValueNullFieldError.checkNotNull(
+                urgency, r'GInboxFeedData_inboxFeed_entries', 'urgency'),
+            createdAt: createdAt.build(),
+            item: BuiltValueNullFieldError.checkNotNull(
+                item, r'GInboxFeedData_inboxFeed_entries', 'item'),
+          );
+    } catch (_) {
+      late String _$failedField;
+      try {
+        _$failedField = 'createdAt';
+        createdAt.build();
+      } catch (e) {
+        throw BuiltValueNestedFieldError(
+            r'GInboxFeedData_inboxFeed_entries', _$failedField, e.toString());
+      }
+      rethrow;
+    }
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GInboxFeedData_inboxFeed_entries_item__base
+    extends GInboxFeedData_inboxFeed_entries_item__base {
+  @override
+  final String G__typename;
+
+  factory _$GInboxFeedData_inboxFeed_entries_item__base(
+          [void Function(GInboxFeedData_inboxFeed_entries_item__baseBuilder)?
+              updates]) =>
+      (GInboxFeedData_inboxFeed_entries_item__baseBuilder()..update(updates))
+          ._build();
+
+  _$GInboxFeedData_inboxFeed_entries_item__base._({required this.G__typename})
+      : super._();
+  @override
+  GInboxFeedData_inboxFeed_entries_item__base rebuild(
+          void Function(GInboxFeedData_inboxFeed_entries_item__baseBuilder)
+              updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GInboxFeedData_inboxFeed_entries_item__baseBuilder toBuilder() =>
+      GInboxFeedData_inboxFeed_entries_item__baseBuilder()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GInboxFeedData_inboxFeed_entries_item__base &&
+        G__typename == other.G__typename;
   }
 
   @override
@@ -753,25 +1374,28 @@ class _$GInboxData_inbox__base extends GInboxData_inbox__base {
 
   @override
   String toString() {
-    return (newBuiltValueToStringHelper(r'GInboxData_inbox__base')
+    return (newBuiltValueToStringHelper(
+            r'GInboxFeedData_inboxFeed_entries_item__base')
           ..add('G__typename', G__typename))
         .toString();
   }
 }
 
-class GInboxData_inbox__baseBuilder
-    implements Builder<GInboxData_inbox__base, GInboxData_inbox__baseBuilder> {
-  _$GInboxData_inbox__base? _$v;
+class GInboxFeedData_inboxFeed_entries_item__baseBuilder
+    implements
+        Builder<GInboxFeedData_inboxFeed_entries_item__base,
+            GInboxFeedData_inboxFeed_entries_item__baseBuilder> {
+  _$GInboxFeedData_inboxFeed_entries_item__base? _$v;
 
   String? _G__typename;
   String? get G__typename => _$this._G__typename;
   set G__typename(String? G__typename) => _$this._G__typename = G__typename;
 
-  GInboxData_inbox__baseBuilder() {
-    GInboxData_inbox__base._initializeBuilder(this);
+  GInboxFeedData_inboxFeed_entries_item__baseBuilder() {
+    GInboxFeedData_inboxFeed_entries_item__base._initializeBuilder(this);
   }
 
-  GInboxData_inbox__baseBuilder get _$this {
+  GInboxFeedData_inboxFeed_entries_item__baseBuilder get _$this {
     final $v = _$v;
     if ($v != null) {
       _G__typename = $v.G__typename;
@@ -781,75 +1405,443 @@ class GInboxData_inbox__baseBuilder
   }
 
   @override
-  void replace(GInboxData_inbox__base other) {
-    _$v = other as _$GInboxData_inbox__base;
+  void replace(GInboxFeedData_inboxFeed_entries_item__base other) {
+    _$v = other as _$GInboxFeedData_inboxFeed_entries_item__base;
   }
 
   @override
-  void update(void Function(GInboxData_inbox__baseBuilder)? updates) {
+  void update(
+      void Function(GInboxFeedData_inboxFeed_entries_item__baseBuilder)?
+          updates) {
     if (updates != null) updates(this);
   }
 
   @override
-  GInboxData_inbox__base build() => _build();
+  GInboxFeedData_inboxFeed_entries_item__base build() => _build();
 
-  _$GInboxData_inbox__base _build() {
+  _$GInboxFeedData_inboxFeed_entries_item__base _build() {
     final _$result = _$v ??
-        _$GInboxData_inbox__base._(
-          G__typename: BuiltValueNullFieldError.checkNotNull(
-              G__typename, r'GInboxData_inbox__base', 'G__typename'),
+        _$GInboxFeedData_inboxFeed_entries_item__base._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(G__typename,
+              r'GInboxFeedData_inboxFeed_entries_item__base', 'G__typename'),
         );
     replace(_$result);
     return _$result;
   }
 }
 
-class _$GInboxData_inbox__asAgentAssignment
-    extends GInboxData_inbox__asAgentAssignment {
+class _$GInboxFeedData_inboxFeed_entries_item__asActionableTask
+    extends GInboxFeedData_inboxFeed_entries_item__asActionableTask {
   @override
   final String G__typename;
   @override
   final String id;
   @override
-  final _i3.GChainStage stage;
-  @override
-  final String ask;
-  @override
-  final _i3.GTime createdAt;
-  @override
-  final GInboxData_inbox__asAgentAssignment_task task;
+  final GInboxFeedData_inboxFeed_entries_item__asActionableTask_task task;
 
-  factory _$GInboxData_inbox__asAgentAssignment(
-          [void Function(GInboxData_inbox__asAgentAssignmentBuilder)?
+  factory _$GInboxFeedData_inboxFeed_entries_item__asActionableTask(
+          [void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asActionableTaskBuilder)?
               updates]) =>
-      (GInboxData_inbox__asAgentAssignmentBuilder()..update(updates))._build();
+      (GInboxFeedData_inboxFeed_entries_item__asActionableTaskBuilder()
+            ..update(updates))
+          ._build();
 
-  _$GInboxData_inbox__asAgentAssignment._(
-      {required this.G__typename,
-      required this.id,
-      required this.stage,
-      required this.ask,
-      required this.createdAt,
-      required this.task})
+  _$GInboxFeedData_inboxFeed_entries_item__asActionableTask._(
+      {required this.G__typename, required this.id, required this.task})
       : super._();
   @override
-  GInboxData_inbox__asAgentAssignment rebuild(
-          void Function(GInboxData_inbox__asAgentAssignmentBuilder) updates) =>
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask rebuild(
+          void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asActionableTaskBuilder)
+              updates) =>
       (toBuilder()..update(updates)).build();
 
   @override
-  GInboxData_inbox__asAgentAssignmentBuilder toBuilder() =>
-      GInboxData_inbox__asAgentAssignmentBuilder()..replace(this);
+  GInboxFeedData_inboxFeed_entries_item__asActionableTaskBuilder toBuilder() =>
+      GInboxFeedData_inboxFeed_entries_item__asActionableTaskBuilder()
+        ..replace(this);
 
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is GInboxData_inbox__asAgentAssignment &&
+    return other is GInboxFeedData_inboxFeed_entries_item__asActionableTask &&
+        G__typename == other.G__typename &&
+        id == other.id &&
+        task == other.task;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, task.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(
+            r'GInboxFeedData_inboxFeed_entries_item__asActionableTask')
+          ..add('G__typename', G__typename)
+          ..add('id', id)
+          ..add('task', task))
+        .toString();
+  }
+}
+
+class GInboxFeedData_inboxFeed_entries_item__asActionableTaskBuilder
+    implements
+        Builder<GInboxFeedData_inboxFeed_entries_item__asActionableTask,
+            GInboxFeedData_inboxFeed_entries_item__asActionableTaskBuilder> {
+  _$GInboxFeedData_inboxFeed_entries_item__asActionableTask? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  String? _id;
+  String? get id => _$this._id;
+  set id(String? id) => _$this._id = id;
+
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder? _task;
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder
+      get task => _$this._task ??=
+          GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder();
+  set task(
+          GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder?
+              task) =>
+      _$this._task = task;
+
+  GInboxFeedData_inboxFeed_entries_item__asActionableTaskBuilder() {
+    GInboxFeedData_inboxFeed_entries_item__asActionableTask._initializeBuilder(
+        this);
+  }
+
+  GInboxFeedData_inboxFeed_entries_item__asActionableTaskBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _id = $v.id;
+      _task = $v.task.toBuilder();
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(GInboxFeedData_inboxFeed_entries_item__asActionableTask other) {
+    _$v = other as _$GInboxFeedData_inboxFeed_entries_item__asActionableTask;
+  }
+
+  @override
+  void update(
+      void Function(
+              GInboxFeedData_inboxFeed_entries_item__asActionableTaskBuilder)?
+          updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask build() => _build();
+
+  _$GInboxFeedData_inboxFeed_entries_item__asActionableTask _build() {
+    _$GInboxFeedData_inboxFeed_entries_item__asActionableTask _$result;
+    try {
+      _$result = _$v ??
+          _$GInboxFeedData_inboxFeed_entries_item__asActionableTask._(
+            G__typename: BuiltValueNullFieldError.checkNotNull(
+                G__typename,
+                r'GInboxFeedData_inboxFeed_entries_item__asActionableTask',
+                'G__typename'),
+            id: BuiltValueNullFieldError.checkNotNull(
+                id,
+                r'GInboxFeedData_inboxFeed_entries_item__asActionableTask',
+                'id'),
+            task: task.build(),
+          );
+    } catch (_) {
+      late String _$failedField;
+      try {
+        _$failedField = 'task';
+        task.build();
+      } catch (e) {
+        throw BuiltValueNestedFieldError(
+            r'GInboxFeedData_inboxFeed_entries_item__asActionableTask',
+            _$failedField,
+            e.toString());
+      }
+      rethrow;
+    }
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task
+    extends GInboxFeedData_inboxFeed_entries_item__asActionableTask_task {
+  @override
+  final String G__typename;
+  @override
+  final String id;
+  @override
+  final String title;
+  @override
+  final _i2.GTaskState state;
+  @override
+  final _i2.GTaskPriority priority;
+  @override
+  final _i2.GTime? dueAt;
+  @override
+  final _i2.GChainStage currentStage;
+
+  factory _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task(
+          [void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder)?
+              updates]) =>
+      (GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder()
+            ..update(updates))
+          ._build();
+
+  _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task._(
+      {required this.G__typename,
+      required this.id,
+      required this.title,
+      required this.state,
+      required this.priority,
+      this.dueAt,
+      required this.currentStage})
+      : super._();
+  @override
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask_task rebuild(
+          void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder)
+              updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder
+      toBuilder() =>
+          GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder()
+            ..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other
+            is GInboxFeedData_inboxFeed_entries_item__asActionableTask_task &&
+        G__typename == other.G__typename &&
+        id == other.id &&
+        title == other.title &&
+        state == other.state &&
+        priority == other.priority &&
+        dueAt == other.dueAt &&
+        currentStage == other.currentStage;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, title.hashCode);
+    _$hash = $jc(_$hash, state.hashCode);
+    _$hash = $jc(_$hash, priority.hashCode);
+    _$hash = $jc(_$hash, dueAt.hashCode);
+    _$hash = $jc(_$hash, currentStage.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(
+            r'GInboxFeedData_inboxFeed_entries_item__asActionableTask_task')
+          ..add('G__typename', G__typename)
+          ..add('id', id)
+          ..add('title', title)
+          ..add('state', state)
+          ..add('priority', priority)
+          ..add('dueAt', dueAt)
+          ..add('currentStage', currentStage))
+        .toString();
+  }
+}
+
+class GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder
+    implements
+        Builder<GInboxFeedData_inboxFeed_entries_item__asActionableTask_task,
+            GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder> {
+  _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  String? _id;
+  String? get id => _$this._id;
+  set id(String? id) => _$this._id = id;
+
+  String? _title;
+  String? get title => _$this._title;
+  set title(String? title) => _$this._title = title;
+
+  _i2.GTaskState? _state;
+  _i2.GTaskState? get state => _$this._state;
+  set state(_i2.GTaskState? state) => _$this._state = state;
+
+  _i2.GTaskPriority? _priority;
+  _i2.GTaskPriority? get priority => _$this._priority;
+  set priority(_i2.GTaskPriority? priority) => _$this._priority = priority;
+
+  _i2.GTimeBuilder? _dueAt;
+  _i2.GTimeBuilder get dueAt => _$this._dueAt ??= _i2.GTimeBuilder();
+  set dueAt(_i2.GTimeBuilder? dueAt) => _$this._dueAt = dueAt;
+
+  _i2.GChainStage? _currentStage;
+  _i2.GChainStage? get currentStage => _$this._currentStage;
+  set currentStage(_i2.GChainStage? currentStage) =>
+      _$this._currentStage = currentStage;
+
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder() {
+    GInboxFeedData_inboxFeed_entries_item__asActionableTask_task
+        ._initializeBuilder(this);
+  }
+
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder
+      get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _id = $v.id;
+      _title = $v.title;
+      _state = $v.state;
+      _priority = $v.priority;
+      _dueAt = $v.dueAt?.toBuilder();
+      _currentStage = $v.currentStage;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(
+      GInboxFeedData_inboxFeed_entries_item__asActionableTask_task other) {
+    _$v =
+        other as _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task;
+  }
+
+  @override
+  void update(
+      void Function(
+              GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder)?
+          updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask_task build() =>
+      _build();
+
+  _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task _build() {
+    _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task _$result;
+    try {
+      _$result = _$v ??
+          _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task._(
+            G__typename: BuiltValueNullFieldError.checkNotNull(
+                G__typename,
+                r'GInboxFeedData_inboxFeed_entries_item__asActionableTask_task',
+                'G__typename'),
+            id: BuiltValueNullFieldError.checkNotNull(
+                id,
+                r'GInboxFeedData_inboxFeed_entries_item__asActionableTask_task',
+                'id'),
+            title: BuiltValueNullFieldError.checkNotNull(
+                title,
+                r'GInboxFeedData_inboxFeed_entries_item__asActionableTask_task',
+                'title'),
+            state: BuiltValueNullFieldError.checkNotNull(
+                state,
+                r'GInboxFeedData_inboxFeed_entries_item__asActionableTask_task',
+                'state'),
+            priority: BuiltValueNullFieldError.checkNotNull(
+                priority,
+                r'GInboxFeedData_inboxFeed_entries_item__asActionableTask_task',
+                'priority'),
+            dueAt: _dueAt?.build(),
+            currentStage: BuiltValueNullFieldError.checkNotNull(
+                currentStage,
+                r'GInboxFeedData_inboxFeed_entries_item__asActionableTask_task',
+                'currentStage'),
+          );
+    } catch (_) {
+      late String _$failedField;
+      try {
+        _$failedField = 'dueAt';
+        _dueAt?.build();
+      } catch (e) {
+        throw BuiltValueNestedFieldError(
+            r'GInboxFeedData_inboxFeed_entries_item__asActionableTask_task',
+            _$failedField,
+            e.toString());
+      }
+      rethrow;
+    }
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment
+    extends GInboxFeedData_inboxFeed_entries_item__asAgentAssignment {
+  @override
+  final String G__typename;
+  @override
+  final String id;
+  @override
+  final _i2.GChainStage stage;
+  @override
+  final String ask;
+  @override
+  final GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task task;
+
+  factory _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment(
+          [void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentBuilder)?
+              updates]) =>
+      (GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentBuilder()
+            ..update(updates))
+          ._build();
+
+  _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment._(
+      {required this.G__typename,
+      required this.id,
+      required this.stage,
+      required this.ask,
+      required this.task})
+      : super._();
+  @override
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment rebuild(
+          void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentBuilder)
+              updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentBuilder toBuilder() =>
+      GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentBuilder()
+        ..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GInboxFeedData_inboxFeed_entries_item__asAgentAssignment &&
         G__typename == other.G__typename &&
         id == other.id &&
         stage == other.stage &&
         ask == other.ask &&
-        createdAt == other.createdAt &&
         task == other.task;
   }
 
@@ -860,7 +1852,6 @@ class _$GInboxData_inbox__asAgentAssignment
     _$hash = $jc(_$hash, id.hashCode);
     _$hash = $jc(_$hash, stage.hashCode);
     _$hash = $jc(_$hash, ask.hashCode);
-    _$hash = $jc(_$hash, createdAt.hashCode);
     _$hash = $jc(_$hash, task.hashCode);
     _$hash = $jf(_$hash);
     return _$hash;
@@ -868,22 +1859,22 @@ class _$GInboxData_inbox__asAgentAssignment
 
   @override
   String toString() {
-    return (newBuiltValueToStringHelper(r'GInboxData_inbox__asAgentAssignment')
+    return (newBuiltValueToStringHelper(
+            r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment')
           ..add('G__typename', G__typename)
           ..add('id', id)
           ..add('stage', stage)
           ..add('ask', ask)
-          ..add('createdAt', createdAt)
           ..add('task', task))
         .toString();
   }
 }
 
-class GInboxData_inbox__asAgentAssignmentBuilder
+class GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentBuilder
     implements
-        Builder<GInboxData_inbox__asAgentAssignment,
-            GInboxData_inbox__asAgentAssignmentBuilder> {
-  _$GInboxData_inbox__asAgentAssignment? _$v;
+        Builder<GInboxFeedData_inboxFeed_entries_item__asAgentAssignment,
+            GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentBuilder> {
+  _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment? _$v;
 
   String? _G__typename;
   String? get G__typename => _$this._G__typename;
@@ -893,36 +1884,35 @@ class GInboxData_inbox__asAgentAssignmentBuilder
   String? get id => _$this._id;
   set id(String? id) => _$this._id = id;
 
-  _i3.GChainStage? _stage;
-  _i3.GChainStage? get stage => _$this._stage;
-  set stage(_i3.GChainStage? stage) => _$this._stage = stage;
+  _i2.GChainStage? _stage;
+  _i2.GChainStage? get stage => _$this._stage;
+  set stage(_i2.GChainStage? stage) => _$this._stage = stage;
 
   String? _ask;
   String? get ask => _$this._ask;
   set ask(String? ask) => _$this._ask = ask;
 
-  _i3.GTimeBuilder? _createdAt;
-  _i3.GTimeBuilder get createdAt => _$this._createdAt ??= _i3.GTimeBuilder();
-  set createdAt(_i3.GTimeBuilder? createdAt) => _$this._createdAt = createdAt;
-
-  GInboxData_inbox__asAgentAssignment_taskBuilder? _task;
-  GInboxData_inbox__asAgentAssignment_taskBuilder get task =>
-      _$this._task ??= GInboxData_inbox__asAgentAssignment_taskBuilder();
-  set task(GInboxData_inbox__asAgentAssignment_taskBuilder? task) =>
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder? _task;
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder
+      get task => _$this._task ??=
+          GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder();
+  set task(
+          GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder?
+              task) =>
       _$this._task = task;
 
-  GInboxData_inbox__asAgentAssignmentBuilder() {
-    GInboxData_inbox__asAgentAssignment._initializeBuilder(this);
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentBuilder() {
+    GInboxFeedData_inboxFeed_entries_item__asAgentAssignment._initializeBuilder(
+        this);
   }
 
-  GInboxData_inbox__asAgentAssignmentBuilder get _$this {
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentBuilder get _$this {
     final $v = _$v;
     if ($v != null) {
       _G__typename = $v.G__typename;
       _id = $v.id;
       _stage = $v.stage;
       _ask = $v.ask;
-      _createdAt = $v.createdAt.toBuilder();
       _task = $v.task.toBuilder();
       _$v = null;
     }
@@ -930,45 +1920,54 @@ class GInboxData_inbox__asAgentAssignmentBuilder
   }
 
   @override
-  void replace(GInboxData_inbox__asAgentAssignment other) {
-    _$v = other as _$GInboxData_inbox__asAgentAssignment;
+  void replace(GInboxFeedData_inboxFeed_entries_item__asAgentAssignment other) {
+    _$v = other as _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment;
   }
 
   @override
   void update(
-      void Function(GInboxData_inbox__asAgentAssignmentBuilder)? updates) {
+      void Function(
+              GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentBuilder)?
+          updates) {
     if (updates != null) updates(this);
   }
 
   @override
-  GInboxData_inbox__asAgentAssignment build() => _build();
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment build() => _build();
 
-  _$GInboxData_inbox__asAgentAssignment _build() {
-    _$GInboxData_inbox__asAgentAssignment _$result;
+  _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment _build() {
+    _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment _$result;
     try {
       _$result = _$v ??
-          _$GInboxData_inbox__asAgentAssignment._(
-            G__typename: BuiltValueNullFieldError.checkNotNull(G__typename,
-                r'GInboxData_inbox__asAgentAssignment', 'G__typename'),
+          _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment._(
+            G__typename: BuiltValueNullFieldError.checkNotNull(
+                G__typename,
+                r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment',
+                'G__typename'),
             id: BuiltValueNullFieldError.checkNotNull(
-                id, r'GInboxData_inbox__asAgentAssignment', 'id'),
+                id,
+                r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment',
+                'id'),
             stage: BuiltValueNullFieldError.checkNotNull(
-                stage, r'GInboxData_inbox__asAgentAssignment', 'stage'),
+                stage,
+                r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment',
+                'stage'),
             ask: BuiltValueNullFieldError.checkNotNull(
-                ask, r'GInboxData_inbox__asAgentAssignment', 'ask'),
-            createdAt: createdAt.build(),
+                ask,
+                r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment',
+                'ask'),
             task: task.build(),
           );
     } catch (_) {
       late String _$failedField;
       try {
-        _$failedField = 'createdAt';
-        createdAt.build();
         _$failedField = 'task';
         task.build();
       } catch (e) {
-        throw BuiltValueNestedFieldError(r'GInboxData_inbox__asAgentAssignment',
-            _$failedField, e.toString());
+        throw BuiltValueNestedFieldError(
+            r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment',
+            _$failedField,
+            e.toString());
       }
       rethrow;
     }
@@ -977,8 +1976,8 @@ class GInboxData_inbox__asAgentAssignmentBuilder
   }
 }
 
-class _$GInboxData_inbox__asAgentAssignment_task
-    extends GInboxData_inbox__asAgentAssignment_task {
+class _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task
+    extends GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task {
   @override
   final String G__typename;
   @override
@@ -986,17 +1985,19 @@ class _$GInboxData_inbox__asAgentAssignment_task
   @override
   final String title;
   @override
-  final _i3.GTaskState state;
+  final _i2.GTaskState state;
   @override
-  final _i3.GChainStage currentStage;
+  final _i2.GChainStage currentStage;
 
-  factory _$GInboxData_inbox__asAgentAssignment_task(
-          [void Function(GInboxData_inbox__asAgentAssignment_taskBuilder)?
+  factory _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task(
+          [void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder)?
               updates]) =>
-      (GInboxData_inbox__asAgentAssignment_taskBuilder()..update(updates))
+      (GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder()
+            ..update(updates))
           ._build();
 
-  _$GInboxData_inbox__asAgentAssignment_task._(
+  _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task._(
       {required this.G__typename,
       required this.id,
       required this.title,
@@ -1004,19 +2005,23 @@ class _$GInboxData_inbox__asAgentAssignment_task
       required this.currentStage})
       : super._();
   @override
-  GInboxData_inbox__asAgentAssignment_task rebuild(
-          void Function(GInboxData_inbox__asAgentAssignment_taskBuilder)
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task rebuild(
+          void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder)
               updates) =>
       (toBuilder()..update(updates)).build();
 
   @override
-  GInboxData_inbox__asAgentAssignment_taskBuilder toBuilder() =>
-      GInboxData_inbox__asAgentAssignment_taskBuilder()..replace(this);
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder
+      toBuilder() =>
+          GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder()
+            ..replace(this);
 
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is GInboxData_inbox__asAgentAssignment_task &&
+    return other
+            is GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task &&
         G__typename == other.G__typename &&
         id == other.id &&
         title == other.title &&
@@ -1039,7 +2044,7 @@ class _$GInboxData_inbox__asAgentAssignment_task
   @override
   String toString() {
     return (newBuiltValueToStringHelper(
-            r'GInboxData_inbox__asAgentAssignment_task')
+            r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task')
           ..add('G__typename', G__typename)
           ..add('id', id)
           ..add('title', title)
@@ -1049,11 +2054,11 @@ class _$GInboxData_inbox__asAgentAssignment_task
   }
 }
 
-class GInboxData_inbox__asAgentAssignment_taskBuilder
+class GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder
     implements
-        Builder<GInboxData_inbox__asAgentAssignment_task,
-            GInboxData_inbox__asAgentAssignment_taskBuilder> {
-  _$GInboxData_inbox__asAgentAssignment_task? _$v;
+        Builder<GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task,
+            GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder> {
+  _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task? _$v;
 
   String? _G__typename;
   String? get G__typename => _$this._G__typename;
@@ -1067,20 +2072,22 @@ class GInboxData_inbox__asAgentAssignment_taskBuilder
   String? get title => _$this._title;
   set title(String? title) => _$this._title = title;
 
-  _i3.GTaskState? _state;
-  _i3.GTaskState? get state => _$this._state;
-  set state(_i3.GTaskState? state) => _$this._state = state;
+  _i2.GTaskState? _state;
+  _i2.GTaskState? get state => _$this._state;
+  set state(_i2.GTaskState? state) => _$this._state = state;
 
-  _i3.GChainStage? _currentStage;
-  _i3.GChainStage? get currentStage => _$this._currentStage;
-  set currentStage(_i3.GChainStage? currentStage) =>
+  _i2.GChainStage? _currentStage;
+  _i2.GChainStage? get currentStage => _$this._currentStage;
+  set currentStage(_i2.GChainStage? currentStage) =>
       _$this._currentStage = currentStage;
 
-  GInboxData_inbox__asAgentAssignment_taskBuilder() {
-    GInboxData_inbox__asAgentAssignment_task._initializeBuilder(this);
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder() {
+    GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task
+        ._initializeBuilder(this);
   }
 
-  GInboxData_inbox__asAgentAssignment_taskBuilder get _$this {
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder
+      get _$this {
     final $v = _$v;
     if ($v != null) {
       _G__typename = $v.G__typename;
@@ -1094,71 +2101,89 @@ class GInboxData_inbox__asAgentAssignment_taskBuilder
   }
 
   @override
-  void replace(GInboxData_inbox__asAgentAssignment_task other) {
-    _$v = other as _$GInboxData_inbox__asAgentAssignment_task;
+  void replace(
+      GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task other) {
+    _$v = other
+        as _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task;
   }
 
   @override
   void update(
-      void Function(GInboxData_inbox__asAgentAssignment_taskBuilder)? updates) {
+      void Function(
+              GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder)?
+          updates) {
     if (updates != null) updates(this);
   }
 
   @override
-  GInboxData_inbox__asAgentAssignment_task build() => _build();
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task build() =>
+      _build();
 
-  _$GInboxData_inbox__asAgentAssignment_task _build() {
+  _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task _build() {
     final _$result = _$v ??
-        _$GInboxData_inbox__asAgentAssignment_task._(
-          G__typename: BuiltValueNullFieldError.checkNotNull(G__typename,
-              r'GInboxData_inbox__asAgentAssignment_task', 'G__typename'),
+        _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(
+              G__typename,
+              r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task',
+              'G__typename'),
           id: BuiltValueNullFieldError.checkNotNull(
-              id, r'GInboxData_inbox__asAgentAssignment_task', 'id'),
+              id,
+              r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task',
+              'id'),
           title: BuiltValueNullFieldError.checkNotNull(
-              title, r'GInboxData_inbox__asAgentAssignment_task', 'title'),
+              title,
+              r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task',
+              'title'),
           state: BuiltValueNullFieldError.checkNotNull(
-              state, r'GInboxData_inbox__asAgentAssignment_task', 'state'),
-          currentStage: BuiltValueNullFieldError.checkNotNull(currentStage,
-              r'GInboxData_inbox__asAgentAssignment_task', 'currentStage'),
+              state,
+              r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task',
+              'state'),
+          currentStage: BuiltValueNullFieldError.checkNotNull(
+              currentStage,
+              r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task',
+              'currentStage'),
         );
     replace(_$result);
     return _$result;
   }
 }
 
-class _$GInboxData_inbox__asApprovalRequest
-    extends GInboxData_inbox__asApprovalRequest {
+class _$GInboxFeedData_inboxFeed_entries_item__asApprovalRequest
+    extends GInboxFeedData_inboxFeed_entries_item__asApprovalRequest {
   @override
   final String G__typename;
   @override
   final String id;
-  @override
-  final _i3.GTime createdAt;
 
-  factory _$GInboxData_inbox__asApprovalRequest(
-          [void Function(GInboxData_inbox__asApprovalRequestBuilder)?
+  factory _$GInboxFeedData_inboxFeed_entries_item__asApprovalRequest(
+          [void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asApprovalRequestBuilder)?
               updates]) =>
-      (GInboxData_inbox__asApprovalRequestBuilder()..update(updates))._build();
+      (GInboxFeedData_inboxFeed_entries_item__asApprovalRequestBuilder()
+            ..update(updates))
+          ._build();
 
-  _$GInboxData_inbox__asApprovalRequest._(
-      {required this.G__typename, required this.id, required this.createdAt})
+  _$GInboxFeedData_inboxFeed_entries_item__asApprovalRequest._(
+      {required this.G__typename, required this.id})
       : super._();
   @override
-  GInboxData_inbox__asApprovalRequest rebuild(
-          void Function(GInboxData_inbox__asApprovalRequestBuilder) updates) =>
+  GInboxFeedData_inboxFeed_entries_item__asApprovalRequest rebuild(
+          void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asApprovalRequestBuilder)
+              updates) =>
       (toBuilder()..update(updates)).build();
 
   @override
-  GInboxData_inbox__asApprovalRequestBuilder toBuilder() =>
-      GInboxData_inbox__asApprovalRequestBuilder()..replace(this);
+  GInboxFeedData_inboxFeed_entries_item__asApprovalRequestBuilder toBuilder() =>
+      GInboxFeedData_inboxFeed_entries_item__asApprovalRequestBuilder()
+        ..replace(this);
 
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is GInboxData_inbox__asApprovalRequest &&
+    return other is GInboxFeedData_inboxFeed_entries_item__asApprovalRequest &&
         G__typename == other.G__typename &&
-        id == other.id &&
-        createdAt == other.createdAt;
+        id == other.id;
   }
 
   @override
@@ -1166,26 +2191,25 @@ class _$GInboxData_inbox__asApprovalRequest
     var _$hash = 0;
     _$hash = $jc(_$hash, G__typename.hashCode);
     _$hash = $jc(_$hash, id.hashCode);
-    _$hash = $jc(_$hash, createdAt.hashCode);
     _$hash = $jf(_$hash);
     return _$hash;
   }
 
   @override
   String toString() {
-    return (newBuiltValueToStringHelper(r'GInboxData_inbox__asApprovalRequest')
+    return (newBuiltValueToStringHelper(
+            r'GInboxFeedData_inboxFeed_entries_item__asApprovalRequest')
           ..add('G__typename', G__typename)
-          ..add('id', id)
-          ..add('createdAt', createdAt))
+          ..add('id', id))
         .toString();
   }
 }
 
-class GInboxData_inbox__asApprovalRequestBuilder
+class GInboxFeedData_inboxFeed_entries_item__asApprovalRequestBuilder
     implements
-        Builder<GInboxData_inbox__asApprovalRequest,
-            GInboxData_inbox__asApprovalRequestBuilder> {
-  _$GInboxData_inbox__asApprovalRequest? _$v;
+        Builder<GInboxFeedData_inboxFeed_entries_item__asApprovalRequest,
+            GInboxFeedData_inboxFeed_entries_item__asApprovalRequestBuilder> {
+  _$GInboxFeedData_inboxFeed_entries_item__asApprovalRequest? _$v;
 
   String? _G__typename;
   String? get G__typename => _$this._G__typename;
@@ -1195,103 +2219,92 @@ class GInboxData_inbox__asApprovalRequestBuilder
   String? get id => _$this._id;
   set id(String? id) => _$this._id = id;
 
-  _i3.GTimeBuilder? _createdAt;
-  _i3.GTimeBuilder get createdAt => _$this._createdAt ??= _i3.GTimeBuilder();
-  set createdAt(_i3.GTimeBuilder? createdAt) => _$this._createdAt = createdAt;
-
-  GInboxData_inbox__asApprovalRequestBuilder() {
-    GInboxData_inbox__asApprovalRequest._initializeBuilder(this);
+  GInboxFeedData_inboxFeed_entries_item__asApprovalRequestBuilder() {
+    GInboxFeedData_inboxFeed_entries_item__asApprovalRequest._initializeBuilder(
+        this);
   }
 
-  GInboxData_inbox__asApprovalRequestBuilder get _$this {
+  GInboxFeedData_inboxFeed_entries_item__asApprovalRequestBuilder get _$this {
     final $v = _$v;
     if ($v != null) {
       _G__typename = $v.G__typename;
       _id = $v.id;
-      _createdAt = $v.createdAt.toBuilder();
       _$v = null;
     }
     return this;
   }
 
   @override
-  void replace(GInboxData_inbox__asApprovalRequest other) {
-    _$v = other as _$GInboxData_inbox__asApprovalRequest;
+  void replace(GInboxFeedData_inboxFeed_entries_item__asApprovalRequest other) {
+    _$v = other as _$GInboxFeedData_inboxFeed_entries_item__asApprovalRequest;
   }
 
   @override
   void update(
-      void Function(GInboxData_inbox__asApprovalRequestBuilder)? updates) {
+      void Function(
+              GInboxFeedData_inboxFeed_entries_item__asApprovalRequestBuilder)?
+          updates) {
     if (updates != null) updates(this);
   }
 
   @override
-  GInboxData_inbox__asApprovalRequest build() => _build();
+  GInboxFeedData_inboxFeed_entries_item__asApprovalRequest build() => _build();
 
-  _$GInboxData_inbox__asApprovalRequest _build() {
-    _$GInboxData_inbox__asApprovalRequest _$result;
-    try {
-      _$result = _$v ??
-          _$GInboxData_inbox__asApprovalRequest._(
-            G__typename: BuiltValueNullFieldError.checkNotNull(G__typename,
-                r'GInboxData_inbox__asApprovalRequest', 'G__typename'),
-            id: BuiltValueNullFieldError.checkNotNull(
-                id, r'GInboxData_inbox__asApprovalRequest', 'id'),
-            createdAt: createdAt.build(),
-          );
-    } catch (_) {
-      late String _$failedField;
-      try {
-        _$failedField = 'createdAt';
-        createdAt.build();
-      } catch (e) {
-        throw BuiltValueNestedFieldError(r'GInboxData_inbox__asApprovalRequest',
-            _$failedField, e.toString());
-      }
-      rethrow;
-    }
+  _$GInboxFeedData_inboxFeed_entries_item__asApprovalRequest _build() {
+    final _$result = _$v ??
+        _$GInboxFeedData_inboxFeed_entries_item__asApprovalRequest._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(
+              G__typename,
+              r'GInboxFeedData_inboxFeed_entries_item__asApprovalRequest',
+              'G__typename'),
+          id: BuiltValueNullFieldError.checkNotNull(
+              id,
+              r'GInboxFeedData_inboxFeed_entries_item__asApprovalRequest',
+              'id'),
+        );
     replace(_$result);
     return _$result;
   }
 }
 
-class _$GInboxData_inbox__asAgentQuestion
-    extends GInboxData_inbox__asAgentQuestion {
+class _$GInboxFeedData_inboxFeed_entries_item__asAgentQuestion
+    extends GInboxFeedData_inboxFeed_entries_item__asAgentQuestion {
   @override
   final String G__typename;
   @override
   final String id;
   @override
-  final _i3.GTime createdAt;
-  @override
   final String question;
 
-  factory _$GInboxData_inbox__asAgentQuestion(
-          [void Function(GInboxData_inbox__asAgentQuestionBuilder)? updates]) =>
-      (GInboxData_inbox__asAgentQuestionBuilder()..update(updates))._build();
+  factory _$GInboxFeedData_inboxFeed_entries_item__asAgentQuestion(
+          [void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asAgentQuestionBuilder)?
+              updates]) =>
+      (GInboxFeedData_inboxFeed_entries_item__asAgentQuestionBuilder()
+            ..update(updates))
+          ._build();
 
-  _$GInboxData_inbox__asAgentQuestion._(
-      {required this.G__typename,
-      required this.id,
-      required this.createdAt,
-      required this.question})
+  _$GInboxFeedData_inboxFeed_entries_item__asAgentQuestion._(
+      {required this.G__typename, required this.id, required this.question})
       : super._();
   @override
-  GInboxData_inbox__asAgentQuestion rebuild(
-          void Function(GInboxData_inbox__asAgentQuestionBuilder) updates) =>
+  GInboxFeedData_inboxFeed_entries_item__asAgentQuestion rebuild(
+          void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asAgentQuestionBuilder)
+              updates) =>
       (toBuilder()..update(updates)).build();
 
   @override
-  GInboxData_inbox__asAgentQuestionBuilder toBuilder() =>
-      GInboxData_inbox__asAgentQuestionBuilder()..replace(this);
+  GInboxFeedData_inboxFeed_entries_item__asAgentQuestionBuilder toBuilder() =>
+      GInboxFeedData_inboxFeed_entries_item__asAgentQuestionBuilder()
+        ..replace(this);
 
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is GInboxData_inbox__asAgentQuestion &&
+    return other is GInboxFeedData_inboxFeed_entries_item__asAgentQuestion &&
         G__typename == other.G__typename &&
         id == other.id &&
-        createdAt == other.createdAt &&
         question == other.question;
   }
 
@@ -1300,7 +2313,6 @@ class _$GInboxData_inbox__asAgentQuestion
     var _$hash = 0;
     _$hash = $jc(_$hash, G__typename.hashCode);
     _$hash = $jc(_$hash, id.hashCode);
-    _$hash = $jc(_$hash, createdAt.hashCode);
     _$hash = $jc(_$hash, question.hashCode);
     _$hash = $jf(_$hash);
     return _$hash;
@@ -1308,20 +2320,20 @@ class _$GInboxData_inbox__asAgentQuestion
 
   @override
   String toString() {
-    return (newBuiltValueToStringHelper(r'GInboxData_inbox__asAgentQuestion')
+    return (newBuiltValueToStringHelper(
+            r'GInboxFeedData_inboxFeed_entries_item__asAgentQuestion')
           ..add('G__typename', G__typename)
           ..add('id', id)
-          ..add('createdAt', createdAt)
           ..add('question', question))
         .toString();
   }
 }
 
-class GInboxData_inbox__asAgentQuestionBuilder
+class GInboxFeedData_inboxFeed_entries_item__asAgentQuestionBuilder
     implements
-        Builder<GInboxData_inbox__asAgentQuestion,
-            GInboxData_inbox__asAgentQuestionBuilder> {
-  _$GInboxData_inbox__asAgentQuestion? _$v;
+        Builder<GInboxFeedData_inboxFeed_entries_item__asAgentQuestion,
+            GInboxFeedData_inboxFeed_entries_item__asAgentQuestionBuilder> {
+  _$GInboxFeedData_inboxFeed_entries_item__asAgentQuestion? _$v;
 
   String? _G__typename;
   String? get G__typename => _$this._G__typename;
@@ -1331,24 +2343,20 @@ class GInboxData_inbox__asAgentQuestionBuilder
   String? get id => _$this._id;
   set id(String? id) => _$this._id = id;
 
-  _i3.GTimeBuilder? _createdAt;
-  _i3.GTimeBuilder get createdAt => _$this._createdAt ??= _i3.GTimeBuilder();
-  set createdAt(_i3.GTimeBuilder? createdAt) => _$this._createdAt = createdAt;
-
   String? _question;
   String? get question => _$this._question;
   set question(String? question) => _$this._question = question;
 
-  GInboxData_inbox__asAgentQuestionBuilder() {
-    GInboxData_inbox__asAgentQuestion._initializeBuilder(this);
+  GInboxFeedData_inboxFeed_entries_item__asAgentQuestionBuilder() {
+    GInboxFeedData_inboxFeed_entries_item__asAgentQuestion._initializeBuilder(
+        this);
   }
 
-  GInboxData_inbox__asAgentQuestionBuilder get _$this {
+  GInboxFeedData_inboxFeed_entries_item__asAgentQuestionBuilder get _$this {
     final $v = _$v;
     if ($v != null) {
       _G__typename = $v.G__typename;
       _id = $v.id;
-      _createdAt = $v.createdAt.toBuilder();
       _question = $v.question;
       _$v = null;
     }
@@ -1356,91 +2364,85 @@ class GInboxData_inbox__asAgentQuestionBuilder
   }
 
   @override
-  void replace(GInboxData_inbox__asAgentQuestion other) {
-    _$v = other as _$GInboxData_inbox__asAgentQuestion;
+  void replace(GInboxFeedData_inboxFeed_entries_item__asAgentQuestion other) {
+    _$v = other as _$GInboxFeedData_inboxFeed_entries_item__asAgentQuestion;
   }
 
   @override
   void update(
-      void Function(GInboxData_inbox__asAgentQuestionBuilder)? updates) {
+      void Function(
+              GInboxFeedData_inboxFeed_entries_item__asAgentQuestionBuilder)?
+          updates) {
     if (updates != null) updates(this);
   }
 
   @override
-  GInboxData_inbox__asAgentQuestion build() => _build();
+  GInboxFeedData_inboxFeed_entries_item__asAgentQuestion build() => _build();
 
-  _$GInboxData_inbox__asAgentQuestion _build() {
-    _$GInboxData_inbox__asAgentQuestion _$result;
-    try {
-      _$result = _$v ??
-          _$GInboxData_inbox__asAgentQuestion._(
-            G__typename: BuiltValueNullFieldError.checkNotNull(G__typename,
-                r'GInboxData_inbox__asAgentQuestion', 'G__typename'),
-            id: BuiltValueNullFieldError.checkNotNull(
-                id, r'GInboxData_inbox__asAgentQuestion', 'id'),
-            createdAt: createdAt.build(),
-            question: BuiltValueNullFieldError.checkNotNull(
-                question, r'GInboxData_inbox__asAgentQuestion', 'question'),
-          );
-    } catch (_) {
-      late String _$failedField;
-      try {
-        _$failedField = 'createdAt';
-        createdAt.build();
-      } catch (e) {
-        throw BuiltValueNestedFieldError(
-            r'GInboxData_inbox__asAgentQuestion', _$failedField, e.toString());
-      }
-      rethrow;
-    }
+  _$GInboxFeedData_inboxFeed_entries_item__asAgentQuestion _build() {
+    final _$result = _$v ??
+        _$GInboxFeedData_inboxFeed_entries_item__asAgentQuestion._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(
+              G__typename,
+              r'GInboxFeedData_inboxFeed_entries_item__asAgentQuestion',
+              'G__typename'),
+          id: BuiltValueNullFieldError.checkNotNull(id,
+              r'GInboxFeedData_inboxFeed_entries_item__asAgentQuestion', 'id'),
+          question: BuiltValueNullFieldError.checkNotNull(
+              question,
+              r'GInboxFeedData_inboxFeed_entries_item__asAgentQuestion',
+              'question'),
+        );
     replace(_$result);
     return _$result;
   }
 }
 
-class _$GInboxData_inbox__asPromotionProposal
-    extends GInboxData_inbox__asPromotionProposal {
+class _$GInboxFeedData_inboxFeed_entries_item__asPromotionProposal
+    extends GInboxFeedData_inboxFeed_entries_item__asPromotionProposal {
   @override
   final String G__typename;
   @override
   final String id;
   @override
-  final _i3.GTime createdAt;
+  final _i2.GAutonomyLevel fromLevel;
   @override
-  final _i3.GAutonomyLevel fromLevel;
-  @override
-  final _i3.GAutonomyLevel toLevel;
+  final _i2.GAutonomyLevel toLevel;
 
-  factory _$GInboxData_inbox__asPromotionProposal(
-          [void Function(GInboxData_inbox__asPromotionProposalBuilder)?
+  factory _$GInboxFeedData_inboxFeed_entries_item__asPromotionProposal(
+          [void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asPromotionProposalBuilder)?
               updates]) =>
-      (GInboxData_inbox__asPromotionProposalBuilder()..update(updates))
+      (GInboxFeedData_inboxFeed_entries_item__asPromotionProposalBuilder()
+            ..update(updates))
           ._build();
 
-  _$GInboxData_inbox__asPromotionProposal._(
+  _$GInboxFeedData_inboxFeed_entries_item__asPromotionProposal._(
       {required this.G__typename,
       required this.id,
-      required this.createdAt,
       required this.fromLevel,
       required this.toLevel})
       : super._();
   @override
-  GInboxData_inbox__asPromotionProposal rebuild(
-          void Function(GInboxData_inbox__asPromotionProposalBuilder)
+  GInboxFeedData_inboxFeed_entries_item__asPromotionProposal rebuild(
+          void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asPromotionProposalBuilder)
               updates) =>
       (toBuilder()..update(updates)).build();
 
   @override
-  GInboxData_inbox__asPromotionProposalBuilder toBuilder() =>
-      GInboxData_inbox__asPromotionProposalBuilder()..replace(this);
+  GInboxFeedData_inboxFeed_entries_item__asPromotionProposalBuilder
+      toBuilder() =>
+          GInboxFeedData_inboxFeed_entries_item__asPromotionProposalBuilder()
+            ..replace(this);
 
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is GInboxData_inbox__asPromotionProposal &&
+    return other
+            is GInboxFeedData_inboxFeed_entries_item__asPromotionProposal &&
         G__typename == other.G__typename &&
         id == other.id &&
-        createdAt == other.createdAt &&
         fromLevel == other.fromLevel &&
         toLevel == other.toLevel;
   }
@@ -1450,7 +2452,6 @@ class _$GInboxData_inbox__asPromotionProposal
     var _$hash = 0;
     _$hash = $jc(_$hash, G__typename.hashCode);
     _$hash = $jc(_$hash, id.hashCode);
-    _$hash = $jc(_$hash, createdAt.hashCode);
     _$hash = $jc(_$hash, fromLevel.hashCode);
     _$hash = $jc(_$hash, toLevel.hashCode);
     _$hash = $jf(_$hash);
@@ -1460,21 +2461,20 @@ class _$GInboxData_inbox__asPromotionProposal
   @override
   String toString() {
     return (newBuiltValueToStringHelper(
-            r'GInboxData_inbox__asPromotionProposal')
+            r'GInboxFeedData_inboxFeed_entries_item__asPromotionProposal')
           ..add('G__typename', G__typename)
           ..add('id', id)
-          ..add('createdAt', createdAt)
           ..add('fromLevel', fromLevel)
           ..add('toLevel', toLevel))
         .toString();
   }
 }
 
-class GInboxData_inbox__asPromotionProposalBuilder
+class GInboxFeedData_inboxFeed_entries_item__asPromotionProposalBuilder
     implements
-        Builder<GInboxData_inbox__asPromotionProposal,
-            GInboxData_inbox__asPromotionProposalBuilder> {
-  _$GInboxData_inbox__asPromotionProposal? _$v;
+        Builder<GInboxFeedData_inboxFeed_entries_item__asPromotionProposal,
+            GInboxFeedData_inboxFeed_entries_item__asPromotionProposalBuilder> {
+  _$GInboxFeedData_inboxFeed_entries_item__asPromotionProposal? _$v;
 
   String? _G__typename;
   String? get G__typename => _$this._G__typename;
@@ -1484,28 +2484,24 @@ class GInboxData_inbox__asPromotionProposalBuilder
   String? get id => _$this._id;
   set id(String? id) => _$this._id = id;
 
-  _i3.GTimeBuilder? _createdAt;
-  _i3.GTimeBuilder get createdAt => _$this._createdAt ??= _i3.GTimeBuilder();
-  set createdAt(_i3.GTimeBuilder? createdAt) => _$this._createdAt = createdAt;
+  _i2.GAutonomyLevel? _fromLevel;
+  _i2.GAutonomyLevel? get fromLevel => _$this._fromLevel;
+  set fromLevel(_i2.GAutonomyLevel? fromLevel) => _$this._fromLevel = fromLevel;
 
-  _i3.GAutonomyLevel? _fromLevel;
-  _i3.GAutonomyLevel? get fromLevel => _$this._fromLevel;
-  set fromLevel(_i3.GAutonomyLevel? fromLevel) => _$this._fromLevel = fromLevel;
+  _i2.GAutonomyLevel? _toLevel;
+  _i2.GAutonomyLevel? get toLevel => _$this._toLevel;
+  set toLevel(_i2.GAutonomyLevel? toLevel) => _$this._toLevel = toLevel;
 
-  _i3.GAutonomyLevel? _toLevel;
-  _i3.GAutonomyLevel? get toLevel => _$this._toLevel;
-  set toLevel(_i3.GAutonomyLevel? toLevel) => _$this._toLevel = toLevel;
-
-  GInboxData_inbox__asPromotionProposalBuilder() {
-    GInboxData_inbox__asPromotionProposal._initializeBuilder(this);
+  GInboxFeedData_inboxFeed_entries_item__asPromotionProposalBuilder() {
+    GInboxFeedData_inboxFeed_entries_item__asPromotionProposal
+        ._initializeBuilder(this);
   }
 
-  GInboxData_inbox__asPromotionProposalBuilder get _$this {
+  GInboxFeedData_inboxFeed_entries_item__asPromotionProposalBuilder get _$this {
     final $v = _$v;
     if ($v != null) {
       _G__typename = $v.G__typename;
       _id = $v.id;
-      _createdAt = $v.createdAt.toBuilder();
       _fromLevel = $v.fromLevel;
       _toLevel = $v.toLevel;
       _$v = null;
@@ -1514,42 +2510,188 @@ class GInboxData_inbox__asPromotionProposalBuilder
   }
 
   @override
-  void replace(GInboxData_inbox__asPromotionProposal other) {
-    _$v = other as _$GInboxData_inbox__asPromotionProposal;
+  void replace(
+      GInboxFeedData_inboxFeed_entries_item__asPromotionProposal other) {
+    _$v = other as _$GInboxFeedData_inboxFeed_entries_item__asPromotionProposal;
   }
 
   @override
   void update(
-      void Function(GInboxData_inbox__asPromotionProposalBuilder)? updates) {
+      void Function(
+              GInboxFeedData_inboxFeed_entries_item__asPromotionProposalBuilder)?
+          updates) {
     if (updates != null) updates(this);
   }
 
   @override
-  GInboxData_inbox__asPromotionProposal build() => _build();
+  GInboxFeedData_inboxFeed_entries_item__asPromotionProposal build() =>
+      _build();
 
-  _$GInboxData_inbox__asPromotionProposal _build() {
-    _$GInboxData_inbox__asPromotionProposal _$result;
+  _$GInboxFeedData_inboxFeed_entries_item__asPromotionProposal _build() {
+    final _$result = _$v ??
+        _$GInboxFeedData_inboxFeed_entries_item__asPromotionProposal._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(
+              G__typename,
+              r'GInboxFeedData_inboxFeed_entries_item__asPromotionProposal',
+              'G__typename'),
+          id: BuiltValueNullFieldError.checkNotNull(
+              id,
+              r'GInboxFeedData_inboxFeed_entries_item__asPromotionProposal',
+              'id'),
+          fromLevel: BuiltValueNullFieldError.checkNotNull(
+              fromLevel,
+              r'GInboxFeedData_inboxFeed_entries_item__asPromotionProposal',
+              'fromLevel'),
+          toLevel: BuiltValueNullFieldError.checkNotNull(
+              toLevel,
+              r'GInboxFeedData_inboxFeed_entries_item__asPromotionProposal',
+              'toLevel'),
+        );
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest
+    extends GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest {
+  @override
+  final String G__typename;
+  @override
+  final String id;
+  @override
+  final GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task task;
+
+  factory _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest(
+          [void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestBuilder)?
+              updates]) =>
+      (GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestBuilder()
+            ..update(updates))
+          ._build();
+
+  _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest._(
+      {required this.G__typename, required this.id, required this.task})
+      : super._();
+  @override
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest rebuild(
+          void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestBuilder)
+              updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestBuilder toBuilder() =>
+      GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestBuilder()
+        ..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest &&
+        G__typename == other.G__typename &&
+        id == other.id &&
+        task == other.task;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, task.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(
+            r'GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest')
+          ..add('G__typename', G__typename)
+          ..add('id', id)
+          ..add('task', task))
+        .toString();
+  }
+}
+
+class GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestBuilder
+    implements
+        Builder<GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest,
+            GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestBuilder> {
+  _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  String? _id;
+  String? get id => _$this._id;
+  set id(String? id) => _$this._id = id;
+
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder? _task;
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder
+      get task => _$this._task ??=
+          GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder();
+  set task(
+          GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder?
+              task) =>
+      _$this._task = task;
+
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestBuilder() {
+    GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest._initializeBuilder(
+        this);
+  }
+
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _id = $v.id;
+      _task = $v.task.toBuilder();
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest other) {
+    _$v = other as _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest;
+  }
+
+  @override
+  void update(
+      void Function(
+              GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestBuilder)?
+          updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest build() => _build();
+
+  _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest _build() {
+    _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest _$result;
     try {
       _$result = _$v ??
-          _$GInboxData_inbox__asPromotionProposal._(
-            G__typename: BuiltValueNullFieldError.checkNotNull(G__typename,
-                r'GInboxData_inbox__asPromotionProposal', 'G__typename'),
+          _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest._(
+            G__typename: BuiltValueNullFieldError.checkNotNull(
+                G__typename,
+                r'GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest',
+                'G__typename'),
             id: BuiltValueNullFieldError.checkNotNull(
-                id, r'GInboxData_inbox__asPromotionProposal', 'id'),
-            createdAt: createdAt.build(),
-            fromLevel: BuiltValueNullFieldError.checkNotNull(fromLevel,
-                r'GInboxData_inbox__asPromotionProposal', 'fromLevel'),
-            toLevel: BuiltValueNullFieldError.checkNotNull(
-                toLevel, r'GInboxData_inbox__asPromotionProposal', 'toLevel'),
+                id,
+                r'GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest',
+                'id'),
+            task: task.build(),
           );
     } catch (_) {
       late String _$failedField;
       try {
-        _$failedField = 'createdAt';
-        createdAt.build();
+        _$failedField = 'task';
+        task.build();
       } catch (e) {
         throw BuiltValueNestedFieldError(
-            r'GInboxData_inbox__asPromotionProposal',
+            r'GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest',
             _$failedField,
             e.toString());
       }
@@ -1560,155 +2702,8 @@ class GInboxData_inbox__asPromotionProposalBuilder
   }
 }
 
-class _$GInboxData_inbox__asFeedbackRequest
-    extends GInboxData_inbox__asFeedbackRequest {
-  @override
-  final String G__typename;
-  @override
-  final String id;
-  @override
-  final _i3.GTime createdAt;
-  @override
-  final GInboxData_inbox__asFeedbackRequest_task task;
-
-  factory _$GInboxData_inbox__asFeedbackRequest(
-          [void Function(GInboxData_inbox__asFeedbackRequestBuilder)?
-              updates]) =>
-      (GInboxData_inbox__asFeedbackRequestBuilder()..update(updates))._build();
-
-  _$GInboxData_inbox__asFeedbackRequest._(
-      {required this.G__typename,
-      required this.id,
-      required this.createdAt,
-      required this.task})
-      : super._();
-  @override
-  GInboxData_inbox__asFeedbackRequest rebuild(
-          void Function(GInboxData_inbox__asFeedbackRequestBuilder) updates) =>
-      (toBuilder()..update(updates)).build();
-
-  @override
-  GInboxData_inbox__asFeedbackRequestBuilder toBuilder() =>
-      GInboxData_inbox__asFeedbackRequestBuilder()..replace(this);
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(other, this)) return true;
-    return other is GInboxData_inbox__asFeedbackRequest &&
-        G__typename == other.G__typename &&
-        id == other.id &&
-        createdAt == other.createdAt &&
-        task == other.task;
-  }
-
-  @override
-  int get hashCode {
-    var _$hash = 0;
-    _$hash = $jc(_$hash, G__typename.hashCode);
-    _$hash = $jc(_$hash, id.hashCode);
-    _$hash = $jc(_$hash, createdAt.hashCode);
-    _$hash = $jc(_$hash, task.hashCode);
-    _$hash = $jf(_$hash);
-    return _$hash;
-  }
-
-  @override
-  String toString() {
-    return (newBuiltValueToStringHelper(r'GInboxData_inbox__asFeedbackRequest')
-          ..add('G__typename', G__typename)
-          ..add('id', id)
-          ..add('createdAt', createdAt)
-          ..add('task', task))
-        .toString();
-  }
-}
-
-class GInboxData_inbox__asFeedbackRequestBuilder
-    implements
-        Builder<GInboxData_inbox__asFeedbackRequest,
-            GInboxData_inbox__asFeedbackRequestBuilder> {
-  _$GInboxData_inbox__asFeedbackRequest? _$v;
-
-  String? _G__typename;
-  String? get G__typename => _$this._G__typename;
-  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
-
-  String? _id;
-  String? get id => _$this._id;
-  set id(String? id) => _$this._id = id;
-
-  _i3.GTimeBuilder? _createdAt;
-  _i3.GTimeBuilder get createdAt => _$this._createdAt ??= _i3.GTimeBuilder();
-  set createdAt(_i3.GTimeBuilder? createdAt) => _$this._createdAt = createdAt;
-
-  GInboxData_inbox__asFeedbackRequest_taskBuilder? _task;
-  GInboxData_inbox__asFeedbackRequest_taskBuilder get task =>
-      _$this._task ??= GInboxData_inbox__asFeedbackRequest_taskBuilder();
-  set task(GInboxData_inbox__asFeedbackRequest_taskBuilder? task) =>
-      _$this._task = task;
-
-  GInboxData_inbox__asFeedbackRequestBuilder() {
-    GInboxData_inbox__asFeedbackRequest._initializeBuilder(this);
-  }
-
-  GInboxData_inbox__asFeedbackRequestBuilder get _$this {
-    final $v = _$v;
-    if ($v != null) {
-      _G__typename = $v.G__typename;
-      _id = $v.id;
-      _createdAt = $v.createdAt.toBuilder();
-      _task = $v.task.toBuilder();
-      _$v = null;
-    }
-    return this;
-  }
-
-  @override
-  void replace(GInboxData_inbox__asFeedbackRequest other) {
-    _$v = other as _$GInboxData_inbox__asFeedbackRequest;
-  }
-
-  @override
-  void update(
-      void Function(GInboxData_inbox__asFeedbackRequestBuilder)? updates) {
-    if (updates != null) updates(this);
-  }
-
-  @override
-  GInboxData_inbox__asFeedbackRequest build() => _build();
-
-  _$GInboxData_inbox__asFeedbackRequest _build() {
-    _$GInboxData_inbox__asFeedbackRequest _$result;
-    try {
-      _$result = _$v ??
-          _$GInboxData_inbox__asFeedbackRequest._(
-            G__typename: BuiltValueNullFieldError.checkNotNull(G__typename,
-                r'GInboxData_inbox__asFeedbackRequest', 'G__typename'),
-            id: BuiltValueNullFieldError.checkNotNull(
-                id, r'GInboxData_inbox__asFeedbackRequest', 'id'),
-            createdAt: createdAt.build(),
-            task: task.build(),
-          );
-    } catch (_) {
-      late String _$failedField;
-      try {
-        _$failedField = 'createdAt';
-        createdAt.build();
-        _$failedField = 'task';
-        task.build();
-      } catch (e) {
-        throw BuiltValueNestedFieldError(r'GInboxData_inbox__asFeedbackRequest',
-            _$failedField, e.toString());
-      }
-      rethrow;
-    }
-    replace(_$result);
-    return _$result;
-  }
-}
-
-class _$GInboxData_inbox__asFeedbackRequest_task
-    extends GInboxData_inbox__asFeedbackRequest_task {
+class _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task
+    extends GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task {
   @override
   final String G__typename;
   @override
@@ -1716,29 +2711,35 @@ class _$GInboxData_inbox__asFeedbackRequest_task
   @override
   final String title;
 
-  factory _$GInboxData_inbox__asFeedbackRequest_task(
-          [void Function(GInboxData_inbox__asFeedbackRequest_taskBuilder)?
+  factory _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task(
+          [void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder)?
               updates]) =>
-      (GInboxData_inbox__asFeedbackRequest_taskBuilder()..update(updates))
+      (GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder()
+            ..update(updates))
           ._build();
 
-  _$GInboxData_inbox__asFeedbackRequest_task._(
+  _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task._(
       {required this.G__typename, required this.id, required this.title})
       : super._();
   @override
-  GInboxData_inbox__asFeedbackRequest_task rebuild(
-          void Function(GInboxData_inbox__asFeedbackRequest_taskBuilder)
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task rebuild(
+          void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder)
               updates) =>
       (toBuilder()..update(updates)).build();
 
   @override
-  GInboxData_inbox__asFeedbackRequest_taskBuilder toBuilder() =>
-      GInboxData_inbox__asFeedbackRequest_taskBuilder()..replace(this);
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder
+      toBuilder() =>
+          GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder()
+            ..replace(this);
 
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is GInboxData_inbox__asFeedbackRequest_task &&
+    return other
+            is GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task &&
         G__typename == other.G__typename &&
         id == other.id &&
         title == other.title;
@@ -1757,7 +2758,7 @@ class _$GInboxData_inbox__asFeedbackRequest_task
   @override
   String toString() {
     return (newBuiltValueToStringHelper(
-            r'GInboxData_inbox__asFeedbackRequest_task')
+            r'GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task')
           ..add('G__typename', G__typename)
           ..add('id', id)
           ..add('title', title))
@@ -1765,11 +2766,11 @@ class _$GInboxData_inbox__asFeedbackRequest_task
   }
 }
 
-class GInboxData_inbox__asFeedbackRequest_taskBuilder
+class GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder
     implements
-        Builder<GInboxData_inbox__asFeedbackRequest_task,
-            GInboxData_inbox__asFeedbackRequest_taskBuilder> {
-  _$GInboxData_inbox__asFeedbackRequest_task? _$v;
+        Builder<GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task,
+            GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder> {
+  _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task? _$v;
 
   String? _G__typename;
   String? get G__typename => _$this._G__typename;
@@ -1783,11 +2784,13 @@ class GInboxData_inbox__asFeedbackRequest_taskBuilder
   String? get title => _$this._title;
   set title(String? title) => _$this._title = title;
 
-  GInboxData_inbox__asFeedbackRequest_taskBuilder() {
-    GInboxData_inbox__asFeedbackRequest_task._initializeBuilder(this);
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder() {
+    GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task
+        ._initializeBuilder(this);
   }
 
-  GInboxData_inbox__asFeedbackRequest_taskBuilder get _$this {
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder
+      get _$this {
     final $v = _$v;
     if ($v != null) {
       _G__typename = $v.G__typename;
@@ -1799,28 +2802,39 @@ class GInboxData_inbox__asFeedbackRequest_taskBuilder
   }
 
   @override
-  void replace(GInboxData_inbox__asFeedbackRequest_task other) {
-    _$v = other as _$GInboxData_inbox__asFeedbackRequest_task;
+  void replace(
+      GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task other) {
+    _$v = other
+        as _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task;
   }
 
   @override
   void update(
-      void Function(GInboxData_inbox__asFeedbackRequest_taskBuilder)? updates) {
+      void Function(
+              GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder)?
+          updates) {
     if (updates != null) updates(this);
   }
 
   @override
-  GInboxData_inbox__asFeedbackRequest_task build() => _build();
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task build() =>
+      _build();
 
-  _$GInboxData_inbox__asFeedbackRequest_task _build() {
+  _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task _build() {
     final _$result = _$v ??
-        _$GInboxData_inbox__asFeedbackRequest_task._(
-          G__typename: BuiltValueNullFieldError.checkNotNull(G__typename,
-              r'GInboxData_inbox__asFeedbackRequest_task', 'G__typename'),
+        _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(
+              G__typename,
+              r'GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task',
+              'G__typename'),
           id: BuiltValueNullFieldError.checkNotNull(
-              id, r'GInboxData_inbox__asFeedbackRequest_task', 'id'),
+              id,
+              r'GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task',
+              'id'),
           title: BuiltValueNullFieldError.checkNotNull(
-              title, r'GInboxData_inbox__asFeedbackRequest_task', 'title'),
+              title,
+              r'GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task',
+              'title'),
         );
     replace(_$result);
     return _$result;

@@ -15,9 +15,20 @@ class CreateTaskPage extends ConsumerStatefulWidget {
   ConsumerState<CreateTaskPage> createState() => _CreateTaskPageState();
 }
 
+// The owner-set priorities, in ascending order. NORMAL is the default.
+const _priorities = ['LOW', 'NORMAL', 'HIGH', 'URGENT'];
+
+// Date-only display, e.g. "2026-06-09" (the picker captures a day, not a time).
+String _formatDate(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-'
+    '${d.month.toString().padLeft(2, '0')}-'
+    '${d.day.toString().padLeft(2, '0')}';
+
 class _CreateTaskPageState extends ConsumerState<CreateTaskPage> {
   final _title = TextEditingController();
   final _description = TextEditingController();
+  String _priority = 'NORMAL';
+  DateTime? _dueAt;
   String? _error;
   bool _submitting = false;
 
@@ -26,6 +37,17 @@ class _CreateTaskPageState extends ConsumerState<CreateTaskPage> {
     _title.dispose();
     _description.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDueDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dueAt ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (picked != null) setState(() => _dueAt = picked);
   }
 
   Future<void> _submit() async {
@@ -44,6 +66,8 @@ class _CreateTaskPageState extends ConsumerState<CreateTaskPage> {
       await create(
         title: title,
         description: description.isEmpty ? null : description,
+        priority: _priority,
+        dueAt: _dueAt,
       );
       if (mounted) context.go('/inbox');
     } catch (e) {
@@ -79,6 +103,36 @@ class _CreateTaskPageState extends ConsumerState<CreateTaskPage> {
               minLines: 3,
               maxLines: 6,
               keyboardType: TextInputType.multiline,
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _priority,
+              decoration: const InputDecoration(labelText: 'Priority'),
+              items: [
+                for (final p in _priorities)
+                  DropdownMenuItem(value: p, child: Text(p)),
+              ],
+              onChanged: (v) => setState(() => _priority = v ?? 'NORMAL'),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.event),
+              title: const Text('Due date'),
+              subtitle: Text(_dueAt == null
+                  ? 'Optional — no deadline'
+                  : _formatDate(_dueAt!)),
+              trailing: _dueAt == null
+                  ? TextButton(
+                      onPressed: _pickDueDate,
+                      child: const Text('Set'),
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.clear),
+                      tooltip: 'Clear due date',
+                      onPressed: () => setState(() => _dueAt = null),
+                    ),
+              onTap: _pickDueDate,
             ),
             const SizedBox(height: 16),
             if (_error != null)

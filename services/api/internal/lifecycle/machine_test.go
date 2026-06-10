@@ -37,6 +37,7 @@ func seedTask(t *testing.T, ctx context.Context, q *db.Queries, state lifecycle.
 		Title:        "test",
 		State:        state,
 		CurrentStage: lifecycle.StageCreation,
+		Priority:     db.TaskPriorityNormal,
 	})
 	require.NoError(t, err)
 	return row

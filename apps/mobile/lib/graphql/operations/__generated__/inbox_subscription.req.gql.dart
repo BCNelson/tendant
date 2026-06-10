@@ -16,26 +16,26 @@ import 'package:tendant/graphql/operations/__generated__/inbox_subscription.var.
 
 part 'inbox_subscription.req.gql.g.dart';
 
-abstract class GInboxItemArrivedReq
+abstract class GInboxEntryArrivedReq
     implements
-        Built<GInboxItemArrivedReq, GInboxItemArrivedReqBuilder>,
-        _i1.OperationRequest<_i2.GInboxItemArrivedData,
-            _i3.GInboxItemArrivedVars> {
-  GInboxItemArrivedReq._();
+        Built<GInboxEntryArrivedReq, GInboxEntryArrivedReqBuilder>,
+        _i1.OperationRequest<_i2.GInboxEntryArrivedData,
+            _i3.GInboxEntryArrivedVars> {
+  GInboxEntryArrivedReq._();
 
-  factory GInboxItemArrivedReq(
-          [void Function(GInboxItemArrivedReqBuilder b) updates]) =
-      _$GInboxItemArrivedReq;
+  factory GInboxEntryArrivedReq(
+          [void Function(GInboxEntryArrivedReqBuilder b) updates]) =
+      _$GInboxEntryArrivedReq;
 
-  static void _initializeBuilder(GInboxItemArrivedReqBuilder b) => b
+  static void _initializeBuilder(GInboxEntryArrivedReqBuilder b) => b
     ..operation = _i4.Operation(
       document: _i5.document,
-      operationName: 'InboxItemArrived',
+      operationName: 'InboxEntryArrived',
     )
     ..executeOnListen = true;
 
   @override
-  _i3.GInboxItemArrivedVars get vars;
+  _i3.GInboxEntryArrivedVars get vars;
   @override
   _i4.Operation get operation;
   @override
@@ -49,12 +49,12 @@ abstract class GInboxItemArrivedReq
   String? get requestId;
   @override
   @BuiltValueField(serialize: false)
-  _i2.GInboxItemArrivedData? Function(
-    _i2.GInboxItemArrivedData?,
-    _i2.GInboxItemArrivedData?,
+  _i2.GInboxEntryArrivedData? Function(
+    _i2.GInboxEntryArrivedData?,
+    _i2.GInboxEntryArrivedData?,
   )? get updateResult;
   @override
-  _i2.GInboxItemArrivedData? get optimisticResponse;
+  _i2.GInboxEntryArrivedData? get optimisticResponse;
   @override
   String? get updateCacheHandlerKey;
   @override
@@ -67,32 +67,32 @@ abstract class GInboxItemArrivedReq
   @BuiltValueField(serialize: false)
   _i4.Context? get context;
   @override
-  _i2.GInboxItemArrivedData? parseData(Map<String, dynamic> json) =>
-      _i2.GInboxItemArrivedData.fromJson(json);
+  _i2.GInboxEntryArrivedData? parseData(Map<String, dynamic> json) =>
+      _i2.GInboxEntryArrivedData.fromJson(json);
 
   @override
   Map<String, dynamic> varsToJson() => vars.toJson();
 
   @override
-  Map<String, dynamic> dataToJson(_i2.GInboxItemArrivedData data) =>
+  Map<String, dynamic> dataToJson(_i2.GInboxEntryArrivedData data) =>
       data.toJson();
 
   @override
-  _i1.OperationRequest<_i2.GInboxItemArrivedData, _i3.GInboxItemArrivedVars>
+  _i1.OperationRequest<_i2.GInboxEntryArrivedData, _i3.GInboxEntryArrivedVars>
       transformOperation(_i4.Operation Function(_i4.Operation) transform) =>
           this.rebuild((b) => b..operation = transform(operation));
 
-  static Serializer<GInboxItemArrivedReq> get serializer =>
-      _$gInboxItemArrivedReqSerializer;
+  static Serializer<GInboxEntryArrivedReq> get serializer =>
+      _$gInboxEntryArrivedReqSerializer;
 
   Map<String, dynamic> toJson() => (_i6.serializers.serializeWith(
-        GInboxItemArrivedReq.serializer,
+        GInboxEntryArrivedReq.serializer,
         this,
       ) as Map<String, dynamic>);
 
-  static GInboxItemArrivedReq? fromJson(Map<String, dynamic> json) =>
+  static GInboxEntryArrivedReq? fromJson(Map<String, dynamic> json) =>
       _i6.serializers.deserializeWith(
-        GInboxItemArrivedReq.serializer,
+        GInboxEntryArrivedReq.serializer,
         json,
       );
 }

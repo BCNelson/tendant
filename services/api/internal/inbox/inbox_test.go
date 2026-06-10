@@ -38,6 +38,7 @@ func createTask(t *testing.T, q *db.Queries) uuid.UUID {
 		Title:        "t",
 		State:        db.TaskStateAccepted,
 		CurrentStage: db.ChainStageCreation,
+		Priority:     db.TaskPriorityNormal,
 	})
 	require.NoError(t, err)
 	return id

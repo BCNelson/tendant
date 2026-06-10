@@ -68,6 +68,7 @@ func insertTaskAndAssignment(t *testing.T, q *db.Queries, ownerGlobalURI string)
 		Title:        "test",
 		State:        db.TaskStateAccepted,
 		CurrentStage: db.ChainStageCreation,
+		Priority:     db.TaskPriorityNormal,
 	})
 	require.NoError(t, err)
 	asn, err := q.InsertAgentAssignment(ctx, db.InsertAgentAssignmentParams{
@@ -100,12 +101,22 @@ func TestDispatcherFanOutToMatchingSubscribers(t *testing.T) {
 
 	_, asnID := insertTaskAndAssignment(t, q, owner.GlobalUri)
 
-	select {
-	case env := <-all.Out:
-		require.Equal(t, "assignment", env.Topic)
-		require.Equal(t, asnID.String(), env.ID)
-	case <-time.After(3 * time.Second):
-		t.Fatal("inbox subscriber did not receive the assignment event")
+	// insertTaskAndAssignment fires several envelopes (the task INSERT notify
+	// from migration 00009, the assignment INSERT, and the recipient UPDATE).
+	// The all-matching inbox subscriber receives every one; assert the
+	// assignment envelope is delivered (order across topics is not guaranteed).
+	deadline := time.After(3 * time.Second)
+	var gotAssignment bool
+	for !gotAssignment {
+		select {
+		case env := <-all.Out:
+			if env.Topic == "assignment" {
+				require.Equal(t, asnID.String(), env.ID)
+				gotAssignment = true
+			}
+		case <-deadline:
+			t.Fatal("inbox subscriber did not receive the assignment event")
+		}
 	}
 
 	select {
@@ -131,11 +142,22 @@ func TestDispatcherAuthRevocationMidStream(t *testing.T) {
 
 	_, _ = insertTaskAndAssignment(t, q, owner.GlobalUri)
 
+	// Drain every envelope produced while still allowed (the insert fires a
+	// task + assignment + recipient-update notify). Wait for the first, then
+	// keep draining until the channel goes quiet so no authorized leftover
+	// bleeds past the revocation below.
 	select {
 	case <-sub.Out:
 		// expected — auth still allowed.
 	case <-time.After(3 * time.Second):
 		t.Fatal("first event did not arrive while allowed")
+	}
+	for draining := true; draining; {
+		select {
+		case <-sub.Out:
+		case <-time.After(500 * time.Millisecond):
+			draining = false
+		}
 	}
 
 	// "Revoke" the subscriber by flipping the canFn to deny.

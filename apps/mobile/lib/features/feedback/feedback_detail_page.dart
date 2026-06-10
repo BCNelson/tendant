@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../inbox/inbox_page.dart' show inboxItemsProvider;
+import '../inbox/inbox_provider.dart' show inboxFeedProvider;
 import '../routing/routing_provider.dart' show agentConfigsProvider;
 import 'feedback_models.dart';
 import 'feedback_provider.dart';
@@ -97,7 +97,7 @@ class _FeedbackDetailPageState extends ConsumerState<FeedbackDetailPage> {
 
   void _finish(FeedbackSubmitResult res, String okMessage) {
     if (res == FeedbackSubmitResult.ok) {
-      ref.invalidate(inboxItemsProvider);
+      ref.invalidate(inboxFeedProvider);
       _toast(okMessage);
       if (context.canPop()) context.pop();
     } else {

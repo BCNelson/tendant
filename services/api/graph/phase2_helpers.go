@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
@@ -106,6 +108,19 @@ func mapInboxItem(it inbox.AssembledItem) (model.InboxItem, error) {
 			return nil, nil
 		}
 		return *a, nil
+	case "task":
+		if it.Task == nil {
+			return nil, nil
+		}
+		t, err := mapTask(it.Task)
+		if err != nil {
+			return nil, err
+		}
+		return &model.ActionableTask{
+			ID:        it.Task.ID.String(),
+			Task:      t,
+			CreatedAt: it.Task.CreatedAt,
+		}, nil
 	}
 	return nil, fmt.Errorf("unknown inbox kind: %s", it.Kind)
 }
@@ -213,6 +228,34 @@ func (r *Resolver) streamInboxEvents(ctx context.Context, sub *realtime.Subscrib
 	}
 }
 
+// streamInboxEntries is the ranked sibling of streamInboxEvents — it pumps the
+// dispatcher channel into the resolver-returned channel as InboxEntry envelopes.
+func (r *Resolver) streamInboxEntries(ctx context.Context, sub *realtime.Subscriber, out chan<- *model.InboxEntry, dereg func()) {
+	defer func() {
+		dereg()
+		close(out)
+	}()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case env, ok := <-sub.Out:
+			if !ok {
+				return
+			}
+			entry, err := r.loadInboxEntryForEnvelope(ctx, env)
+			if err != nil || entry == nil {
+				continue
+			}
+			select {
+			case out <- entry:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
+}
+
 func (r *Resolver) streamTaskEvents(ctx context.Context, sub *realtime.Subscriber, out chan<- *model.Task, dereg func()) {
 	defer func() {
 		dereg()
@@ -287,8 +330,85 @@ func (r *Resolver) loadInboxItemForEnvelope(ctx context.Context, env realtime.Ev
 			return nil, err
 		}
 		return pendingDecisionToInboxItem(pd)
+	case "task":
+		// A task only belongs in the inbox while it is the owner's action item
+		// (PROPOSED → accept/dismiss). Once it leaves PROPOSED it drops from the
+		// live stream — returning nil here is the drop.
+		row, err := r.Queries.GetTask(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if row.State != db.TaskStateProposed {
+			return nil, nil
+		}
+		mt, err := mapTask(&row)
+		if err != nil {
+			return nil, err
+		}
+		return &model.ActionableTask{ID: row.ID.String(), Task: mt, CreatedAt: row.CreatedAt}, nil
 	}
 	return nil, nil
+}
+
+// loadInboxEntryForEnvelope wraps loadInboxItemForEnvelope in the ranked
+// InboxEntry envelope for the inboxEntryArrived subscription. The urgency is a
+// best-effort BlendedUrgency over the item's task (authoritative ranking comes
+// from a fresh inboxFeed fetch, which clients trigger on arrival); intake
+// stakes are omitted here to avoid an extra round-trip.
+func (r *Resolver) loadInboxEntryForEnvelope(ctx context.Context, env realtime.EventEnvelope) (*model.InboxEntry, error) {
+	item, err := r.loadInboxItemForEnvelope(ctx, env)
+	if err != nil || item == nil {
+		return nil, err
+	}
+	createdAt := inboxItemCreatedAt(item)
+	urgency := 0.0
+	if task, terr := r.loadTaskForEnvelope(ctx, env); terr == nil && task != nil {
+		urgency = inbox.BlendedUrgency(
+			strings.ToLower(string(task.Priority)), task.DueAt, 0, createdAt, time.Now(),
+		)
+	}
+	return &model.InboxEntry{
+		ID:        env.ID,
+		Kind:      inboxKindForTopic(env.Topic),
+		CreatedAt: createdAt,
+		Urgency:   urgency,
+		Item:      item,
+	}, nil
+}
+
+// inboxKindForTopic maps a realtime topic to the feed's kind discriminator so
+// the subscription envelope matches the inboxFeed `kind` vocabulary.
+func inboxKindForTopic(topic string) string {
+	switch topic {
+	case "decision":
+		return "pending_decision"
+	case "assignment":
+		return "agent_assignment"
+	case "task":
+		return "task"
+	}
+	return topic
+}
+
+// inboxItemCreatedAt extracts the createdAt from any InboxItem union member.
+func inboxItemCreatedAt(item model.InboxItem) time.Time {
+	switch v := item.(type) {
+	case *model.ApprovalRequest:
+		return v.CreatedAt
+	case *model.AgentQuestion:
+		return v.CreatedAt
+	case *model.PromotionProposal:
+		return v.CreatedAt
+	case *model.FeedbackRequest:
+		return v.CreatedAt
+	case model.AgentAssignment:
+		return v.CreatedAt
+	case *model.AgentAssignment:
+		return v.CreatedAt
+	case *model.ActionableTask:
+		return v.CreatedAt
+	}
+	return time.Time{}
 }
 
 func (r *Resolver) loadTaskForEnvelope(ctx context.Context, env realtime.EventEnvelope) (*model.Task, error) {

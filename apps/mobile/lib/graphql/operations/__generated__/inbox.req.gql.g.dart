@@ -6,21 +6,22 @@ part of 'inbox.req.gql.dart';
 // BuiltValueGenerator
 // **************************************************************************
 
-Serializer<GInboxReq> _$gInboxReqSerializer = _$GInboxReqSerializer();
+Serializer<GInboxFeedReq> _$gInboxFeedReqSerializer =
+    _$GInboxFeedReqSerializer();
 
-class _$GInboxReqSerializer implements StructuredSerializer<GInboxReq> {
+class _$GInboxFeedReqSerializer implements StructuredSerializer<GInboxFeedReq> {
   @override
-  final Iterable<Type> types = const [GInboxReq, _$GInboxReq];
+  final Iterable<Type> types = const [GInboxFeedReq, _$GInboxFeedReq];
   @override
-  final String wireName = 'GInboxReq';
+  final String wireName = 'GInboxFeedReq';
 
   @override
-  Iterable<Object?> serialize(Serializers serializers, GInboxReq object,
+  Iterable<Object?> serialize(Serializers serializers, GInboxFeedReq object,
       {FullType specifiedType = FullType.unspecified}) {
     final result = <Object?>[
       'vars',
       serializers.serialize(object.vars,
-          specifiedType: const FullType(_i3.GInboxVars)),
+          specifiedType: const FullType(_i3.GInboxFeedVars)),
       'operation',
       serializers.serialize(object.operation,
           specifiedType: const FullType(_i4.Operation)),
@@ -41,7 +42,7 @@ class _$GInboxReqSerializer implements StructuredSerializer<GInboxReq> {
       result
         ..add('optimisticResponse')
         ..add(serializers.serialize(value,
-            specifiedType: const FullType(_i2.GInboxData)));
+            specifiedType: const FullType(_i2.GInboxFeedData)));
     }
     value = object.updateCacheHandlerKey;
     if (value != null) {
@@ -69,9 +70,10 @@ class _$GInboxReqSerializer implements StructuredSerializer<GInboxReq> {
   }
 
   @override
-  GInboxReq deserialize(Serializers serializers, Iterable<Object?> serialized,
+  GInboxFeedReq deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
       {FullType specifiedType = FullType.unspecified}) {
-    final result = GInboxReqBuilder();
+    final result = GInboxFeedReqBuilder();
 
     final iterator = serialized.iterator;
     while (iterator.moveNext()) {
@@ -81,8 +83,8 @@ class _$GInboxReqSerializer implements StructuredSerializer<GInboxReq> {
       switch (key) {
         case 'vars':
           result.vars.replace(serializers.deserialize(value,
-                  specifiedType: const FullType(_i3.GInboxVars))!
-              as _i3.GInboxVars);
+                  specifiedType: const FullType(_i3.GInboxFeedVars))!
+              as _i3.GInboxFeedVars);
           break;
         case 'operation':
           result.operation = serializers.deserialize(value,
@@ -94,8 +96,8 @@ class _$GInboxReqSerializer implements StructuredSerializer<GInboxReq> {
           break;
         case 'optimisticResponse':
           result.optimisticResponse.replace(serializers.deserialize(value,
-                  specifiedType: const FullType(_i2.GInboxData))!
-              as _i2.GInboxData);
+                  specifiedType: const FullType(_i2.GInboxFeedData))!
+              as _i2.GInboxFeedData);
           break;
         case 'updateCacheHandlerKey':
           result.updateCacheHandlerKey = serializers.deserialize(value,
@@ -124,18 +126,18 @@ class _$GInboxReqSerializer implements StructuredSerializer<GInboxReq> {
   }
 }
 
-class _$GInboxReq extends GInboxReq {
+class _$GInboxFeedReq extends GInboxFeedReq {
   @override
-  final _i3.GInboxVars vars;
+  final _i3.GInboxFeedVars vars;
   @override
   final _i4.Operation operation;
   @override
   final String? requestId;
   @override
-  final _i2.GInboxData? Function(_i2.GInboxData?, _i2.GInboxData?)?
+  final _i2.GInboxFeedData? Function(_i2.GInboxFeedData?, _i2.GInboxFeedData?)?
       updateResult;
   @override
-  final _i2.GInboxData? optimisticResponse;
+  final _i2.GInboxFeedData? optimisticResponse;
   @override
   final String? updateCacheHandlerKey;
   @override
@@ -147,10 +149,10 @@ class _$GInboxReq extends GInboxReq {
   @override
   final _i4.Context? context;
 
-  factory _$GInboxReq([void Function(GInboxReqBuilder)? updates]) =>
-      (GInboxReqBuilder()..update(updates))._build();
+  factory _$GInboxFeedReq([void Function(GInboxFeedReqBuilder)? updates]) =>
+      (GInboxFeedReqBuilder()..update(updates))._build();
 
-  _$GInboxReq._(
+  _$GInboxFeedReq._(
       {required this.vars,
       required this.operation,
       this.requestId,
@@ -163,16 +165,16 @@ class _$GInboxReq extends GInboxReq {
       this.context})
       : super._();
   @override
-  GInboxReq rebuild(void Function(GInboxReqBuilder) updates) =>
+  GInboxFeedReq rebuild(void Function(GInboxFeedReqBuilder) updates) =>
       (toBuilder()..update(updates)).build();
 
   @override
-  GInboxReqBuilder toBuilder() => GInboxReqBuilder()..replace(this);
+  GInboxFeedReqBuilder toBuilder() => GInboxFeedReqBuilder()..replace(this);
 
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is GInboxReq &&
+    return other is GInboxFeedReq &&
         vars == other.vars &&
         operation == other.operation &&
         requestId == other.requestId &&
@@ -204,7 +206,7 @@ class _$GInboxReq extends GInboxReq {
 
   @override
   String toString() {
-    return (newBuiltValueToStringHelper(r'GInboxReq')
+    return (newBuiltValueToStringHelper(r'GInboxFeedReq')
           ..add('vars', vars)
           ..add('operation', operation)
           ..add('requestId', requestId)
@@ -219,12 +221,14 @@ class _$GInboxReq extends GInboxReq {
   }
 }
 
-class GInboxReqBuilder implements Builder<GInboxReq, GInboxReqBuilder> {
-  _$GInboxReq? _$v;
+class GInboxFeedReqBuilder
+    implements Builder<GInboxFeedReq, GInboxFeedReqBuilder> {
+  _$GInboxFeedReq? _$v;
 
-  _i3.GInboxVarsBuilder? _vars;
-  _i3.GInboxVarsBuilder get vars => _$this._vars ??= _i3.GInboxVarsBuilder();
-  set vars(_i3.GInboxVarsBuilder? vars) => _$this._vars = vars;
+  _i3.GInboxFeedVarsBuilder? _vars;
+  _i3.GInboxFeedVarsBuilder get vars =>
+      _$this._vars ??= _i3.GInboxFeedVarsBuilder();
+  set vars(_i3.GInboxFeedVarsBuilder? vars) => _$this._vars = vars;
 
   _i4.Operation? _operation;
   _i4.Operation? get operation => _$this._operation;
@@ -234,18 +238,20 @@ class GInboxReqBuilder implements Builder<GInboxReq, GInboxReqBuilder> {
   String? get requestId => _$this._requestId;
   set requestId(String? requestId) => _$this._requestId = requestId;
 
-  _i2.GInboxData? Function(_i2.GInboxData?, _i2.GInboxData?)? _updateResult;
-  _i2.GInboxData? Function(_i2.GInboxData?, _i2.GInboxData?)?
+  _i2.GInboxFeedData? Function(_i2.GInboxFeedData?, _i2.GInboxFeedData?)?
+      _updateResult;
+  _i2.GInboxFeedData? Function(_i2.GInboxFeedData?, _i2.GInboxFeedData?)?
       get updateResult => _$this._updateResult;
   set updateResult(
-          _i2.GInboxData? Function(_i2.GInboxData?, _i2.GInboxData?)?
+          _i2.GInboxFeedData? Function(
+                  _i2.GInboxFeedData?, _i2.GInboxFeedData?)?
               updateResult) =>
       _$this._updateResult = updateResult;
 
-  _i2.GInboxDataBuilder? _optimisticResponse;
-  _i2.GInboxDataBuilder get optimisticResponse =>
-      _$this._optimisticResponse ??= _i2.GInboxDataBuilder();
-  set optimisticResponse(_i2.GInboxDataBuilder? optimisticResponse) =>
+  _i2.GInboxFeedDataBuilder? _optimisticResponse;
+  _i2.GInboxFeedDataBuilder get optimisticResponse =>
+      _$this._optimisticResponse ??= _i2.GInboxFeedDataBuilder();
+  set optimisticResponse(_i2.GInboxFeedDataBuilder? optimisticResponse) =>
       _$this._optimisticResponse = optimisticResponse;
 
   String? _updateCacheHandlerKey;
@@ -274,11 +280,11 @@ class GInboxReqBuilder implements Builder<GInboxReq, GInboxReqBuilder> {
   _i4.Context? get context => _$this._context;
   set context(_i4.Context? context) => _$this._context = context;
 
-  GInboxReqBuilder() {
-    GInboxReq._initializeBuilder(this);
+  GInboxFeedReqBuilder() {
+    GInboxFeedReq._initializeBuilder(this);
   }
 
-  GInboxReqBuilder get _$this {
+  GInboxFeedReqBuilder get _$this {
     final $v = _$v;
     if ($v != null) {
       _vars = $v.vars.toBuilder();
@@ -297,26 +303,26 @@ class GInboxReqBuilder implements Builder<GInboxReq, GInboxReqBuilder> {
   }
 
   @override
-  void replace(GInboxReq other) {
-    _$v = other as _$GInboxReq;
+  void replace(GInboxFeedReq other) {
+    _$v = other as _$GInboxFeedReq;
   }
 
   @override
-  void update(void Function(GInboxReqBuilder)? updates) {
+  void update(void Function(GInboxFeedReqBuilder)? updates) {
     if (updates != null) updates(this);
   }
 
   @override
-  GInboxReq build() => _build();
+  GInboxFeedReq build() => _build();
 
-  _$GInboxReq _build() {
-    _$GInboxReq _$result;
+  _$GInboxFeedReq _build() {
+    _$GInboxFeedReq _$result;
     try {
       _$result = _$v ??
-          _$GInboxReq._(
+          _$GInboxFeedReq._(
             vars: vars.build(),
             operation: BuiltValueNullFieldError.checkNotNull(
-                operation, r'GInboxReq', 'operation'),
+                operation, r'GInboxFeedReq', 'operation'),
             requestId: requestId,
             updateResult: updateResult,
             optimisticResponse: _optimisticResponse?.build(),
@@ -324,7 +330,7 @@ class GInboxReqBuilder implements Builder<GInboxReq, GInboxReqBuilder> {
             updateCacheHandlerContext: updateCacheHandlerContext,
             fetchPolicy: fetchPolicy,
             executeOnListen: BuiltValueNullFieldError.checkNotNull(
-                executeOnListen, r'GInboxReq', 'executeOnListen'),
+                executeOnListen, r'GInboxFeedReq', 'executeOnListen'),
             context: context,
           );
     } catch (_) {
@@ -337,7 +343,7 @@ class GInboxReqBuilder implements Builder<GInboxReq, GInboxReqBuilder> {
         _optimisticResponse?.build();
       } catch (e) {
         throw BuiltValueNestedFieldError(
-            r'GInboxReq', _$failedField, e.toString());
+            r'GInboxFeedReq', _$failedField, e.toString());
       }
       rethrow;
     }

@@ -4,103 +4,47 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:gql/ast.dart' as _i1;
 
-const InboxItemArrived = _i1.OperationDefinitionNode(
+const InboxEntryArrived = _i1.OperationDefinitionNode(
   type: _i1.OperationType.subscription,
-  name: _i1.NameNode(value: 'InboxItemArrived'),
+  name: _i1.NameNode(value: 'InboxEntryArrived'),
   variableDefinitions: [],
   directives: [],
   selectionSet: _i1.SelectionSetNode(selections: [
     _i1.FieldNode(
-      name: _i1.NameNode(value: 'inboxItemArrived'),
+      name: _i1.NameNode(value: 'inboxEntryArrived'),
       alias: null,
       arguments: [],
       directives: [],
       selectionSet: _i1.SelectionSetNode(selections: [
         _i1.FieldNode(
-          name: _i1.NameNode(value: '__typename'),
+          name: _i1.NameNode(value: 'id'),
           alias: null,
           arguments: [],
           directives: [],
           selectionSet: null,
         ),
-        _i1.InlineFragmentNode(
-          typeCondition: _i1.TypeConditionNode(
-              on: _i1.NamedTypeNode(
-            name: _i1.NameNode(value: 'AgentAssignment'),
-            isNonNull: false,
-          )),
+        _i1.FieldNode(
+          name: _i1.NameNode(value: 'kind'),
+          alias: null,
+          arguments: [],
           directives: [],
-          selectionSet: _i1.SelectionSetNode(selections: [
-            _i1.FieldNode(
-              name: _i1.NameNode(value: 'id'),
-              alias: null,
-              arguments: [],
-              directives: [],
-              selectionSet: null,
-            )
-          ]),
+          selectionSet: null,
         ),
-        _i1.InlineFragmentNode(
-          typeCondition: _i1.TypeConditionNode(
-              on: _i1.NamedTypeNode(
-            name: _i1.NameNode(value: 'ApprovalRequest'),
-            isNonNull: false,
-          )),
+        _i1.FieldNode(
+          name: _i1.NameNode(value: 'urgency'),
+          alias: null,
+          arguments: [],
           directives: [],
-          selectionSet: _i1.SelectionSetNode(selections: [
-            _i1.FieldNode(
-              name: _i1.NameNode(value: 'id'),
-              alias: null,
-              arguments: [],
-              directives: [],
-              selectionSet: null,
-            )
-          ]),
+          selectionSet: null,
         ),
-        _i1.InlineFragmentNode(
-          typeCondition: _i1.TypeConditionNode(
-              on: _i1.NamedTypeNode(
-            name: _i1.NameNode(value: 'AgentQuestion'),
-            isNonNull: false,
-          )),
+        _i1.FieldNode(
+          name: _i1.NameNode(value: 'item'),
+          alias: null,
+          arguments: [],
           directives: [],
           selectionSet: _i1.SelectionSetNode(selections: [
             _i1.FieldNode(
-              name: _i1.NameNode(value: 'id'),
-              alias: null,
-              arguments: [],
-              directives: [],
-              selectionSet: null,
-            )
-          ]),
-        ),
-        _i1.InlineFragmentNode(
-          typeCondition: _i1.TypeConditionNode(
-              on: _i1.NamedTypeNode(
-            name: _i1.NameNode(value: 'PromotionProposal'),
-            isNonNull: false,
-          )),
-          directives: [],
-          selectionSet: _i1.SelectionSetNode(selections: [
-            _i1.FieldNode(
-              name: _i1.NameNode(value: 'id'),
-              alias: null,
-              arguments: [],
-              directives: [],
-              selectionSet: null,
-            )
-          ]),
-        ),
-        _i1.InlineFragmentNode(
-          typeCondition: _i1.TypeConditionNode(
-              on: _i1.NamedTypeNode(
-            name: _i1.NameNode(value: 'FeedbackRequest'),
-            isNonNull: false,
-          )),
-          directives: [],
-          selectionSet: _i1.SelectionSetNode(selections: [
-            _i1.FieldNode(
-              name: _i1.NameNode(value: 'id'),
+              name: _i1.NameNode(value: '__typename'),
               alias: null,
               arguments: [],
               directives: [],
@@ -112,4 +56,4 @@ const InboxItemArrived = _i1.OperationDefinitionNode(
     )
   ]),
 );
-const document = _i1.DocumentNode(definitions: [InboxItemArrived]);
+const document = _i1.DocumentNode(definitions: [InboxEntryArrived]);

@@ -3,10 +3,12 @@ package core
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/dbos-inc/dbos-transact-golang/dbos"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/bcnelson/tendant/services/api/internal/chain"
@@ -25,23 +27,45 @@ type CreatedTask struct {
 // current_stage='creation', then attaches a chain workflow that immediately
 // advances to TRIAGE and opens the first human slot.
 //
-// dctx may be nil — in that case the task is inserted but no chain workflow
-// is attached. Used by the legacy seed CLI / Phase-0 tests that don't yet
-// drive the chain.
+// It is the default-metadata wrapper around CreateTaskWithMeta: priority
+// 'normal' and no deadline. dctx may be nil — in that case the task is
+// inserted but no chain workflow is attached. Used by the legacy seed CLI /
+// Phase-0 tests that don't yet drive the chain.
 func CreateTask(
 	ctx context.Context,
 	pool *pgxpool.Pool,
 	dctx dbos.DBOSContext,
 	title, description string,
 ) (CreatedTask, error) {
+	return CreateTaskWithMeta(ctx, pool, dctx, title, description, db.TaskPriorityNormal, nil)
+}
+
+// CreateTaskWithMeta is CreateTask plus the owner-set metadata composed on the
+// create screen: a coarse priority dial and an optional due date. priority must
+// be one of the db.TaskPriority* values; dueAt may be nil (no deadline).
+func CreateTaskWithMeta(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	dctx dbos.DBOSContext,
+	title, description string,
+	priority db.TaskPriority,
+	dueAt *time.Time,
+) (CreatedTask, error) {
 	if title == "" {
 		return CreatedTask{}, fmt.Errorf("title is required")
+	}
+	if priority == "" {
+		priority = db.TaskPriorityNormal
 	}
 	id := uuid.New()
 	var descPtr *string
 	if description != "" {
 		d := description
 		descPtr = &d
+	}
+	var due pgtype.Timestamptz
+	if dueAt != nil {
+		due = pgtype.Timestamptz{Time: *dueAt, Valid: true}
 	}
 
 	q := db.New(pool)
@@ -52,6 +76,8 @@ func CreateTask(
 		Description:  descPtr,
 		State:        lifecycle.StateAccepted,
 		CurrentStage: lifecycle.StageCreation,
+		Priority:     priority,
+		DueAt:        due,
 	})
 	if err != nil {
 		return CreatedTask{}, fmt.Errorf("create task: %w", err)

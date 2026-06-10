@@ -127,6 +127,8 @@ class TaskDetail {
   final String state;
   final String currentStage;
   final String autonomy;
+  final String priority; // TaskPriority, e.g. NORMAL
+  final DateTime? dueAt; // optional deadline (local time)
   final Map<String, dynamic> findings;
   final List<TaskStageOccupancy> stageSlots;
   final List<ActivityEventRef> activity;
@@ -138,6 +140,8 @@ class TaskDetail {
     required this.state,
     required this.currentStage,
     required this.autonomy,
+    this.priority = 'NORMAL',
+    this.dueAt,
     required this.findings,
     required this.stageSlots,
     required this.activity,

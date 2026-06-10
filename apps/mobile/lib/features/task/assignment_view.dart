@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../inbox/inbox_page.dart' show inboxItemsProvider;
+import '../inbox/inbox_provider.dart' show inboxFeedProvider;
 
 /// AssignmentDetail is the shape the page consumes — populated by the
 /// generated Ferry AgentAssignment query in T065.
@@ -59,7 +59,7 @@ class _AssignmentViewState extends ConsumerState<AssignmentView> {
       // Drop this just-completed assignment from the cached inbox so it
       // doesn't reappear when we navigate back. The backend closes the
       // assignment synchronously, so the refetch will exclude it.
-      ref.invalidate(inboxItemsProvider);
+      ref.invalidate(inboxFeedProvider);
       if (mounted) context.go('/inbox');
     } catch (e) {
       setState(() => _error = e.toString());

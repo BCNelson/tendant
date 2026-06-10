@@ -24,3 +24,22 @@ final taskDetailProvider =
     FutureProvider.family<TaskDetail?, String>((ref, id) async {
   return null;
 });
+
+/// UpdateTaskMetadataFn edits a task's owner-set metadata after creation.
+/// `priority` is one of LOW/NORMAL/HIGH/URGENT; `dueAt` null clears any
+/// existing deadline ("replace" semantics, matching the server mutation).
+typedef UpdateTaskMetadataFn = Future<void> Function(
+  String taskId, {
+  required String priority,
+  DateTime? dueAt,
+});
+
+/// updateTaskMetadataProvider exposes the `updateTaskMetadata` mutation.
+/// Stubbed here; the bootstrap layer overrides it against the Ferry op.
+final updateTaskMetadataProvider = FutureProvider<UpdateTaskMetadataFn>(
+  (ref) async => (_, {required String priority, DateTime? dueAt}) async {
+    throw UnimplementedError(
+      'updateTaskMetadataProvider not wired — override in core/bootstrap.dart',
+    );
+  },
+);

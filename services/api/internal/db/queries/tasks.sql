@@ -1,22 +1,26 @@
 -- name: CreateTask :one
 -- The app generates id + global_uri (local://task/<uuid>) and passes both,
 -- plus the explicit state + current_stage so the owner-authored path can
--- write 'accepted','creation' regardless of column defaults.
-INSERT INTO tasks (id, global_uri, title, description, state, current_stage)
-VALUES ($1, $2, $3, $4, sqlc.arg('state')::task_state, sqlc.arg('current_stage')::chain_stage)
+-- write 'accepted','creation' regardless of column defaults. priority defaults
+-- to 'normal' (owner-set at compose time); due_at is an optional deadline.
+INSERT INTO tasks (id, global_uri, title, description, state, current_stage, priority, due_at)
+VALUES ($1, $2, $3, $4, sqlc.arg('state')::task_state, sqlc.arg('current_stage')::chain_stage,
+        sqlc.arg('priority')::task_priority, sqlc.narg('due_at')::timestamptz)
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
-          created_at, edited_at;
+          created_at, edited_at, priority, due_at;
 
 -- name: CreateIntakeTask :one
 -- Intake-origin task (Phase 7): carries provenance (copied from the signal) and
 -- intake_signal_id (the back-link AND the marker that a task is intake-origin).
+-- priority/due_at take column defaults ('normal' / NULL) — intake tasks are not
+-- owner-composed, so the owner sets these later if at all.
 INSERT INTO tasks (id, global_uri, title, description, state, current_stage, provenance, intake_signal_id)
 VALUES ($1, $2, $3, $4, sqlc.arg('state')::task_state, sqlc.arg('current_stage')::chain_stage,
         $5, sqlc.arg('intake_signal_id')::uuid)
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
-          created_at, edited_at;
+          created_at, edited_at, priority, due_at;
 
 -- name: GetTaskByIntakeSignal :one
 -- Idempotency guard for the poll's dispose step: returns the task already
@@ -24,7 +28,7 @@ RETURNING id, global_uri, title, description, state, current_stage,
 -- mark-processed never yields a duplicate task on replay.
 SELECT id, global_uri, title, description, state, current_stage,
        provenance, context_refs, findings, intake_signal_id,
-       created_at, edited_at
+       created_at, edited_at, priority, due_at
 FROM tasks
 WHERE intake_signal_id = $1
 LIMIT 1;
@@ -32,7 +36,7 @@ LIMIT 1;
 -- name: GetTask :one
 SELECT id, global_uri, title, description, state, current_stage,
        provenance, context_refs, findings, intake_signal_id,
-       created_at, edited_at
+       created_at, edited_at, priority, due_at
 FROM tasks
 WHERE id = $1;
 
@@ -40,7 +44,7 @@ WHERE id = $1;
 -- Row-locks the task for an in-tx transition. Callers MUST have opened a tx.
 SELECT id, global_uri, title, description, state, current_stage,
        provenance, context_refs, findings, intake_signal_id,
-       created_at, edited_at
+       created_at, edited_at, priority, due_at
 FROM tasks
 WHERE id = $1
 FOR UPDATE;
@@ -53,7 +57,7 @@ SET state = sqlc.arg('state')::task_state,
 WHERE id = sqlc.arg('id')::uuid
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
-          created_at, edited_at;
+          created_at, edited_at, priority, due_at;
 
 -- name: UpdateTaskStage :one
 -- Set the task's current_stage + edited_at. Returns the updated row.
@@ -63,7 +67,20 @@ SET current_stage = sqlc.arg('current_stage')::chain_stage,
 WHERE id = sqlc.arg('id')::uuid
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
-          created_at, edited_at;
+          created_at, edited_at, priority, due_at;
+
+-- name: UpdateTaskMetadata :one
+-- Replace the owner-set metadata (priority + due date) and bump edited_at.
+-- "Replace" semantics: priority always has a value; a NULL due_at clears any
+-- existing deadline (the edit form sends the desired final state).
+UPDATE tasks
+SET priority = sqlc.arg('priority')::task_priority,
+    due_at = sqlc.narg('due_at')::timestamptz,
+    edited_at = now()
+WHERE id = sqlc.arg('id')::uuid
+RETURNING id, global_uri, title, description, state, current_stage,
+          provenance, context_refs, findings, intake_signal_id,
+          created_at, edited_at, priority, due_at;
 
 -- name: ListTasks :many
 -- Keyset pagination, ordered by created_at DESC, id DESC. Caller fetches
@@ -71,7 +88,7 @@ RETURNING id, global_uri, title, description, state, current_stage,
 -- (after_created_at, after_id) encoded by the resolver.
 SELECT id, global_uri, title, description, state, current_stage,
        provenance, context_refs, findings, intake_signal_id,
-       created_at, edited_at
+       created_at, edited_at, priority, due_at
 FROM tasks
 WHERE (sqlc.narg('state_filter')::task_state IS NULL OR state = sqlc.narg('state_filter')::task_state)
   AND (

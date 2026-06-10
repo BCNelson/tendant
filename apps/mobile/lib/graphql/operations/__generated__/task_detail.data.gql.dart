@@ -58,6 +58,8 @@ abstract class GTaskDetailData_task
   _i2.GTaskState get state;
   _i2.GChainStage get currentStage;
   _i2.GAutonomyLevel get autonomy;
+  _i2.GTaskPriority get priority;
+  _i2.GTime? get dueAt;
   _i3.JsonObject? get findings;
   BuiltList<GTaskDetailData_task_stageSlots> get stageSlots;
   BuiltList<GTaskDetailData_task_activity> get activity;

@@ -4,7 +4,8 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'package:built_value/built_value.dart';
 import 'package:built_value/serializer.dart';
-import 'package:tendant/graphql/__generated__/serializers.gql.dart' as _i1;
+import 'package:tendant/graphql/__generated__/schema.schema.gql.dart' as _i1;
+import 'package:tendant/graphql/__generated__/serializers.gql.dart' as _i2;
 
 part 'create_task.var.gql.g.dart';
 
@@ -17,16 +18,18 @@ abstract class GCreateTaskVars
 
   String get title;
   String? get description;
+  _i1.GTaskPriority? get priority;
+  _i1.GTime? get dueAt;
   static Serializer<GCreateTaskVars> get serializer =>
       _$gCreateTaskVarsSerializer;
 
-  Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
+  Map<String, dynamic> toJson() => (_i2.serializers.serializeWith(
         GCreateTaskVars.serializer,
         this,
       ) as Map<String, dynamic>);
 
   static GCreateTaskVars? fromJson(Map<String, dynamic> json) =>
-      _i1.serializers.deserializeWith(
+      _i2.serializers.deserializeWith(
         GCreateTaskVars.serializer,
         json,
       );

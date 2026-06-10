@@ -106,6 +106,9 @@ class _$GTaskDetailData_taskSerializer
       'autonomy',
       serializers.serialize(object.autonomy,
           specifiedType: const FullType(_i2.GAutonomyLevel)),
+      'priority',
+      serializers.serialize(object.priority,
+          specifiedType: const FullType(_i2.GTaskPriority)),
       'stageSlots',
       serializers.serialize(object.stageSlots,
           specifiedType: const FullType(BuiltList,
@@ -122,6 +125,13 @@ class _$GTaskDetailData_taskSerializer
         ..add('description')
         ..add(serializers.serialize(value,
             specifiedType: const FullType(String)));
+    }
+    value = object.dueAt;
+    if (value != null) {
+      result
+        ..add('dueAt')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(_i2.GTime)));
     }
     value = object.findings;
     if (value != null) {
@@ -174,6 +184,15 @@ class _$GTaskDetailData_taskSerializer
           result.autonomy = serializers.deserialize(value,
                   specifiedType: const FullType(_i2.GAutonomyLevel))!
               as _i2.GAutonomyLevel;
+          break;
+        case 'priority':
+          result.priority = serializers.deserialize(value,
+                  specifiedType: const FullType(_i2.GTaskPriority))!
+              as _i2.GTaskPriority;
+          break;
+        case 'dueAt':
+          result.dueAt.replace(serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTime))! as _i2.GTime);
           break;
         case 'findings':
           result.findings = serializers.deserialize(value,
@@ -560,6 +579,10 @@ class _$GTaskDetailData_task extends GTaskDetailData_task {
   @override
   final _i2.GAutonomyLevel autonomy;
   @override
+  final _i2.GTaskPriority priority;
+  @override
+  final _i2.GTime? dueAt;
+  @override
   final _i3.JsonObject? findings;
   @override
   final BuiltList<GTaskDetailData_task_stageSlots> stageSlots;
@@ -578,6 +601,8 @@ class _$GTaskDetailData_task extends GTaskDetailData_task {
       required this.state,
       required this.currentStage,
       required this.autonomy,
+      required this.priority,
+      this.dueAt,
       this.findings,
       required this.stageSlots,
       required this.activity})
@@ -602,6 +627,8 @@ class _$GTaskDetailData_task extends GTaskDetailData_task {
         state == other.state &&
         currentStage == other.currentStage &&
         autonomy == other.autonomy &&
+        priority == other.priority &&
+        dueAt == other.dueAt &&
         findings == other.findings &&
         stageSlots == other.stageSlots &&
         activity == other.activity;
@@ -617,6 +644,8 @@ class _$GTaskDetailData_task extends GTaskDetailData_task {
     _$hash = $jc(_$hash, state.hashCode);
     _$hash = $jc(_$hash, currentStage.hashCode);
     _$hash = $jc(_$hash, autonomy.hashCode);
+    _$hash = $jc(_$hash, priority.hashCode);
+    _$hash = $jc(_$hash, dueAt.hashCode);
     _$hash = $jc(_$hash, findings.hashCode);
     _$hash = $jc(_$hash, stageSlots.hashCode);
     _$hash = $jc(_$hash, activity.hashCode);
@@ -634,6 +663,8 @@ class _$GTaskDetailData_task extends GTaskDetailData_task {
           ..add('state', state)
           ..add('currentStage', currentStage)
           ..add('autonomy', autonomy)
+          ..add('priority', priority)
+          ..add('dueAt', dueAt)
           ..add('findings', findings)
           ..add('stageSlots', stageSlots)
           ..add('activity', activity))
@@ -674,6 +705,14 @@ class GTaskDetailData_taskBuilder
   _i2.GAutonomyLevel? get autonomy => _$this._autonomy;
   set autonomy(_i2.GAutonomyLevel? autonomy) => _$this._autonomy = autonomy;
 
+  _i2.GTaskPriority? _priority;
+  _i2.GTaskPriority? get priority => _$this._priority;
+  set priority(_i2.GTaskPriority? priority) => _$this._priority = priority;
+
+  _i2.GTimeBuilder? _dueAt;
+  _i2.GTimeBuilder get dueAt => _$this._dueAt ??= _i2.GTimeBuilder();
+  set dueAt(_i2.GTimeBuilder? dueAt) => _$this._dueAt = dueAt;
+
   _i3.JsonObject? _findings;
   _i3.JsonObject? get findings => _$this._findings;
   set findings(_i3.JsonObject? findings) => _$this._findings = findings;
@@ -704,6 +743,8 @@ class GTaskDetailData_taskBuilder
       _state = $v.state;
       _currentStage = $v.currentStage;
       _autonomy = $v.autonomy;
+      _priority = $v.priority;
+      _dueAt = $v.dueAt?.toBuilder();
       _findings = $v.findings;
       _stageSlots = $v.stageSlots.toBuilder();
       _activity = $v.activity.toBuilder();
@@ -743,6 +784,9 @@ class GTaskDetailData_taskBuilder
                 currentStage, r'GTaskDetailData_task', 'currentStage'),
             autonomy: BuiltValueNullFieldError.checkNotNull(
                 autonomy, r'GTaskDetailData_task', 'autonomy'),
+            priority: BuiltValueNullFieldError.checkNotNull(
+                priority, r'GTaskDetailData_task', 'priority'),
+            dueAt: _dueAt?.build(),
             findings: findings,
             stageSlots: stageSlots.build(),
             activity: activity.build(),
@@ -750,6 +794,9 @@ class GTaskDetailData_taskBuilder
     } catch (_) {
       late String _$failedField;
       try {
+        _$failedField = 'dueAt';
+        _dueAt?.build();
+
         _$failedField = 'stageSlots';
         stageSlots.build();
         _$failedField = 'activity';

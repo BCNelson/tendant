@@ -19,6 +19,7 @@ import 'package:tendant/graphql/__generated__/schema.schema.gql.dart'
         GGateScriptTier,
         GGuidanceScope,
         GSetTaskCategoryInput,
+        GTaskPriority,
         GTaskState,
         GTime;
 import 'package:tendant/graphql/operations/__generated__/agent_assignment.data.gql.dart'
@@ -104,34 +105,33 @@ import 'package:tendant/graphql/operations/__generated__/feedback.var.gql.dart'
         GSendFeedbackMessageVars;
 import 'package:tendant/graphql/operations/__generated__/inbox.data.gql.dart'
     show
-        GInboxData_inbox,
-        GInboxData,
-        GInboxData_inbox__asAgentAssignment,
-        GInboxData_inbox__asAgentAssignment_task,
-        GInboxData_inbox__asAgentQuestion,
-        GInboxData_inbox__asApprovalRequest,
-        GInboxData_inbox__asFeedbackRequest,
-        GInboxData_inbox__asFeedbackRequest_task,
-        GInboxData_inbox__asPromotionProposal,
-        GInboxData_inbox__base;
+        GInboxFeedData_inboxFeed_entries_item,
+        GInboxFeedData,
+        GInboxFeedData_inboxFeed,
+        GInboxFeedData_inboxFeed_entries,
+        GInboxFeedData_inboxFeed_entries_item__asActionableTask,
+        GInboxFeedData_inboxFeed_entries_item__asActionableTask_task,
+        GInboxFeedData_inboxFeed_entries_item__asAgentAssignment,
+        GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task,
+        GInboxFeedData_inboxFeed_entries_item__asAgentQuestion,
+        GInboxFeedData_inboxFeed_entries_item__asApprovalRequest,
+        GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest,
+        GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task,
+        GInboxFeedData_inboxFeed_entries_item__asPromotionProposal,
+        GInboxFeedData_inboxFeed_entries_item__base;
 import 'package:tendant/graphql/operations/__generated__/inbox.req.gql.dart'
-    show GInboxReq;
+    show GInboxFeedReq;
 import 'package:tendant/graphql/operations/__generated__/inbox.var.gql.dart'
-    show GInboxVars;
+    show GInboxFeedVars;
 import 'package:tendant/graphql/operations/__generated__/inbox_subscription.data.gql.dart'
     show
-        GInboxItemArrivedData_inboxItemArrived,
-        GInboxItemArrivedData,
-        GInboxItemArrivedData_inboxItemArrived__asAgentAssignment,
-        GInboxItemArrivedData_inboxItemArrived__asAgentQuestion,
-        GInboxItemArrivedData_inboxItemArrived__asApprovalRequest,
-        GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest,
-        GInboxItemArrivedData_inboxItemArrived__asPromotionProposal,
-        GInboxItemArrivedData_inboxItemArrived__base;
+        GInboxEntryArrivedData,
+        GInboxEntryArrivedData_inboxEntryArrived,
+        GInboxEntryArrivedData_inboxEntryArrived_item;
 import 'package:tendant/graphql/operations/__generated__/inbox_subscription.req.gql.dart'
-    show GInboxItemArrivedReq;
+    show GInboxEntryArrivedReq;
 import 'package:tendant/graphql/operations/__generated__/inbox_subscription.var.gql.dart'
-    show GInboxItemArrivedVars;
+    show GInboxEntryArrivedVars;
 import 'package:tendant/graphql/operations/__generated__/pair_device.data.gql.dart'
     show
         GPairDeviceData,
@@ -141,6 +141,16 @@ import 'package:tendant/graphql/operations/__generated__/pair_device.req.gql.dar
     show GPairDeviceReq;
 import 'package:tendant/graphql/operations/__generated__/pair_device.var.gql.dart'
     show GPairDeviceVars;
+import 'package:tendant/graphql/operations/__generated__/proposed_task.data.gql.dart'
+    show
+        GAcceptProposedTaskData,
+        GAcceptProposedTaskData_acceptProposedTask,
+        GDismissProposedTaskData,
+        GDismissProposedTaskData_dismissProposedTask;
+import 'package:tendant/graphql/operations/__generated__/proposed_task.req.gql.dart'
+    show GAcceptProposedTaskReq, GDismissProposedTaskReq;
+import 'package:tendant/graphql/operations/__generated__/proposed_task.var.gql.dart'
+    show GAcceptProposedTaskVars, GDismissProposedTaskVars;
 import 'package:tendant/graphql/operations/__generated__/register_device_token.data.gql.dart'
     show GRegisterDeviceTokenData, GUnregisterDeviceTokenData;
 import 'package:tendant/graphql/operations/__generated__/register_device_token.req.gql.dart'
@@ -190,6 +200,12 @@ import 'package:tendant/graphql/operations/__generated__/tasks.req.gql.dart'
     show GTasksReq;
 import 'package:tendant/graphql/operations/__generated__/tasks.var.gql.dart'
     show GTasksVars;
+import 'package:tendant/graphql/operations/__generated__/update_task_metadata.data.gql.dart'
+    show GUpdateTaskMetadataData, GUpdateTaskMetadataData_updateTaskMetadata;
+import 'package:tendant/graphql/operations/__generated__/update_task_metadata.req.gql.dart'
+    show GUpdateTaskMetadataReq;
+import 'package:tendant/graphql/operations/__generated__/update_task_metadata.var.gql.dart'
+    show GUpdateTaskMetadataVars;
 import 'package:tendant/graphql/queries/__generated__/categories.data.gql.dart'
     show
         GCategoriesData,
@@ -231,8 +247,7 @@ part 'serializers.gql.g.dart';
 final SerializersBuilder _serializersBuilder = _$serializers.toBuilder()
   ..add(OperationSerializer())
   ..add(GFeedbackRequestData_pendingDecision.serializer)
-  ..add(GInboxData_inbox.serializer)
-  ..add(GInboxItemArrivedData_inboxItemArrived.serializer)
+  ..add(GInboxFeedData_inboxFeed_entries_item.serializer)
   ..add(GPendingDecisionData_pendingDecision.serializer)
   ..add(GPendingDecisionData_pendingDecision__asApprovalRequest_payload
       .serializer)
@@ -242,6 +257,10 @@ final SerializersBuilder _serializersBuilder = _$serializers.toBuilder()
   GAcceptFeedbackGuidanceData_acceptFeedbackGuidance,
   GAcceptFeedbackGuidanceReq,
   GAcceptFeedbackGuidanceVars,
+  GAcceptProposedTaskData,
+  GAcceptProposedTaskData_acceptProposedTask,
+  GAcceptProposedTaskReq,
+  GAcceptProposedTaskVars,
   GAgentAssignmentData,
   GAgentAssignmentData_agentAssignment,
   GAgentAssignmentData_agentAssignment_task,
@@ -295,6 +314,10 @@ final SerializersBuilder _serializersBuilder = _$serializers.toBuilder()
   GDismissFeedbackData_dismissFeedback,
   GDismissFeedbackReq,
   GDismissFeedbackVars,
+  GDismissProposedTaskData,
+  GDismissProposedTaskData_dismissProposedTask,
+  GDismissProposedTaskReq,
+  GDismissProposedTaskVars,
   GEnableConnectorData,
   GEnableConnectorData_enableConnector,
   GEnableConnectorReq,
@@ -309,26 +332,26 @@ final SerializersBuilder _serializersBuilder = _$serializers.toBuilder()
   GGateScriptStatus,
   GGateScriptTier,
   GGuidanceScope,
-  GInboxData,
-  GInboxData_inbox__asAgentAssignment,
-  GInboxData_inbox__asAgentAssignment_task,
-  GInboxData_inbox__asAgentQuestion,
-  GInboxData_inbox__asApprovalRequest,
-  GInboxData_inbox__asFeedbackRequest,
-  GInboxData_inbox__asFeedbackRequest_task,
-  GInboxData_inbox__asPromotionProposal,
-  GInboxData_inbox__base,
-  GInboxItemArrivedData,
-  GInboxItemArrivedData_inboxItemArrived__asAgentAssignment,
-  GInboxItemArrivedData_inboxItemArrived__asAgentQuestion,
-  GInboxItemArrivedData_inboxItemArrived__asApprovalRequest,
-  GInboxItemArrivedData_inboxItemArrived__asFeedbackRequest,
-  GInboxItemArrivedData_inboxItemArrived__asPromotionProposal,
-  GInboxItemArrivedData_inboxItemArrived__base,
-  GInboxItemArrivedReq,
-  GInboxItemArrivedVars,
-  GInboxReq,
-  GInboxVars,
+  GInboxEntryArrivedData,
+  GInboxEntryArrivedData_inboxEntryArrived,
+  GInboxEntryArrivedData_inboxEntryArrived_item,
+  GInboxEntryArrivedReq,
+  GInboxEntryArrivedVars,
+  GInboxFeedData,
+  GInboxFeedData_inboxFeed,
+  GInboxFeedData_inboxFeed_entries,
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask,
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask_task,
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment,
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task,
+  GInboxFeedData_inboxFeed_entries_item__asAgentQuestion,
+  GInboxFeedData_inboxFeed_entries_item__asApprovalRequest,
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest,
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task,
+  GInboxFeedData_inboxFeed_entries_item__asPromotionProposal,
+  GInboxFeedData_inboxFeed_entries_item__base,
+  GInboxFeedReq,
+  GInboxFeedVars,
   GPairDeviceData,
   GPairDeviceData_pairDevice,
   GPairDeviceData_pairDevice_session,
@@ -383,6 +406,7 @@ final SerializersBuilder _serializersBuilder = _$serializers.toBuilder()
   GTaskDetailData_task_stageSlots_occupant,
   GTaskDetailReq,
   GTaskDetailVars,
+  GTaskPriority,
   GTaskStageSlotsData,
   GTaskStageSlotsData_task,
   GTaskStageSlotsData_task_stageSlots,
@@ -404,5 +428,9 @@ final SerializersBuilder _serializersBuilder = _$serializers.toBuilder()
   GUnregisterDeviceTokenData,
   GUnregisterDeviceTokenReq,
   GUnregisterDeviceTokenVars,
+  GUpdateTaskMetadataData,
+  GUpdateTaskMetadataData_updateTaskMetadata,
+  GUpdateTaskMetadataReq,
+  GUpdateTaskMetadataVars,
 ])
 final Serializers serializers = _serializersBuilder.build();

@@ -8,24 +8,26 @@ import 'package:tendant/graphql/__generated__/serializers.gql.dart' as _i1;
 
 part 'inbox.var.gql.g.dart';
 
-abstract class GInboxVars implements Built<GInboxVars, GInboxVarsBuilder> {
-  GInboxVars._();
+abstract class GInboxFeedVars
+    implements Built<GInboxFeedVars, GInboxFeedVarsBuilder> {
+  GInboxFeedVars._();
 
-  factory GInboxVars([void Function(GInboxVarsBuilder b) updates]) =
-      _$GInboxVars;
+  factory GInboxFeedVars([void Function(GInboxFeedVarsBuilder b) updates]) =
+      _$GInboxFeedVars;
 
   int? get first;
   String? get after;
-  static Serializer<GInboxVars> get serializer => _$gInboxVarsSerializer;
+  static Serializer<GInboxFeedVars> get serializer =>
+      _$gInboxFeedVarsSerializer;
 
   Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
-        GInboxVars.serializer,
+        GInboxFeedVars.serializer,
         this,
       ) as Map<String, dynamic>);
 
-  static GInboxVars? fromJson(Map<String, dynamic> json) =>
+  static GInboxFeedVars? fromJson(Map<String, dynamic> json) =>
       _i1.serializers.deserializeWith(
-        GInboxVars.serializer,
+        GInboxFeedVars.serializer,
         json,
       );
 }

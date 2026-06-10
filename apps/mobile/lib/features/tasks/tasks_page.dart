@@ -51,6 +51,7 @@ class _TasksPageState extends ConsumerState<TasksPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'tasks-fab',
         tooltip: 'New task',
         onPressed: () => context.push('/create-task'),
         child: const Icon(Icons.add),

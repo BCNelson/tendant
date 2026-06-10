@@ -6,87 +6,87 @@ part of 'inbox_subscription.var.gql.dart';
 // BuiltValueGenerator
 // **************************************************************************
 
-Serializer<GInboxItemArrivedVars> _$gInboxItemArrivedVarsSerializer =
-    _$GInboxItemArrivedVarsSerializer();
+Serializer<GInboxEntryArrivedVars> _$gInboxEntryArrivedVarsSerializer =
+    _$GInboxEntryArrivedVarsSerializer();
 
-class _$GInboxItemArrivedVarsSerializer
-    implements StructuredSerializer<GInboxItemArrivedVars> {
+class _$GInboxEntryArrivedVarsSerializer
+    implements StructuredSerializer<GInboxEntryArrivedVars> {
   @override
   final Iterable<Type> types = const [
-    GInboxItemArrivedVars,
-    _$GInboxItemArrivedVars
+    GInboxEntryArrivedVars,
+    _$GInboxEntryArrivedVars
   ];
   @override
-  final String wireName = 'GInboxItemArrivedVars';
+  final String wireName = 'GInboxEntryArrivedVars';
 
   @override
   Iterable<Object?> serialize(
-      Serializers serializers, GInboxItemArrivedVars object,
+      Serializers serializers, GInboxEntryArrivedVars object,
       {FullType specifiedType = FullType.unspecified}) {
     return <Object?>[];
   }
 
   @override
-  GInboxItemArrivedVars deserialize(
+  GInboxEntryArrivedVars deserialize(
       Serializers serializers, Iterable<Object?> serialized,
       {FullType specifiedType = FullType.unspecified}) {
-    return GInboxItemArrivedVarsBuilder().build();
+    return GInboxEntryArrivedVarsBuilder().build();
   }
 }
 
-class _$GInboxItemArrivedVars extends GInboxItemArrivedVars {
-  factory _$GInboxItemArrivedVars(
-          [void Function(GInboxItemArrivedVarsBuilder)? updates]) =>
-      (GInboxItemArrivedVarsBuilder()..update(updates))._build();
+class _$GInboxEntryArrivedVars extends GInboxEntryArrivedVars {
+  factory _$GInboxEntryArrivedVars(
+          [void Function(GInboxEntryArrivedVarsBuilder)? updates]) =>
+      (GInboxEntryArrivedVarsBuilder()..update(updates))._build();
 
-  _$GInboxItemArrivedVars._() : super._();
+  _$GInboxEntryArrivedVars._() : super._();
   @override
-  GInboxItemArrivedVars rebuild(
-          void Function(GInboxItemArrivedVarsBuilder) updates) =>
+  GInboxEntryArrivedVars rebuild(
+          void Function(GInboxEntryArrivedVarsBuilder) updates) =>
       (toBuilder()..update(updates)).build();
 
   @override
-  GInboxItemArrivedVarsBuilder toBuilder() =>
-      GInboxItemArrivedVarsBuilder()..replace(this);
+  GInboxEntryArrivedVarsBuilder toBuilder() =>
+      GInboxEntryArrivedVarsBuilder()..replace(this);
 
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is GInboxItemArrivedVars;
+    return other is GInboxEntryArrivedVars;
   }
 
   @override
   int get hashCode {
-    return 274288232;
+    return 234691524;
   }
 
   @override
   String toString() {
-    return newBuiltValueToStringHelper(r'GInboxItemArrivedVars').toString();
+    return newBuiltValueToStringHelper(r'GInboxEntryArrivedVars').toString();
   }
 }
 
-class GInboxItemArrivedVarsBuilder
-    implements Builder<GInboxItemArrivedVars, GInboxItemArrivedVarsBuilder> {
-  _$GInboxItemArrivedVars? _$v;
+class GInboxEntryArrivedVarsBuilder
+    implements Builder<GInboxEntryArrivedVars, GInboxEntryArrivedVarsBuilder> {
+  _$GInboxEntryArrivedVars? _$v;
 
-  GInboxItemArrivedVarsBuilder();
+  GInboxEntryArrivedVarsBuilder();
 
   @override
-  void replace(GInboxItemArrivedVars other) {
-    _$v = other as _$GInboxItemArrivedVars;
+  void replace(GInboxEntryArrivedVars other) {
+    _$v = other as _$GInboxEntryArrivedVars;
   }
 
   @override
-  void update(void Function(GInboxItemArrivedVarsBuilder)? updates) {
+  void update(void Function(GInboxEntryArrivedVarsBuilder)? updates) {
     if (updates != null) updates(this);
   }
 
   @override
-  GInboxItemArrivedVars build() => _build();
+  GInboxEntryArrivedVars build() => _build();
 
-  _$GInboxItemArrivedVars _build() {
-    final _$result = _$v ?? _$GInboxItemArrivedVars._();
+  _$GInboxEntryArrivedVars _build() {
+    final _$result = _$v ?? _$GInboxEntryArrivedVars._();
     replace(_$result);
     return _$result;
   }

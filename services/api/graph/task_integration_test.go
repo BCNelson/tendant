@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -162,4 +163,79 @@ func TestTaskCreateAndReadOverGraphQL(t *testing.T) {
 	require.False(t, tasksData.Tasks.PageInfo.HasNextPage)
 	require.NotNil(t, tasksData.Tasks.PageInfo.EndCursor)
 	require.Equal(t, edge.Cursor, *tasksData.Tasks.PageInfo.EndCursor)
+}
+
+// TestTaskMetadataOverGraphQL exercises the owner-set priority + due-date
+// metadata: create a task carrying both (via core, since the createTask
+// mutation needs a live DBOS), read them back, then updateTaskMetadata to
+// change priority and clear the deadline.
+//
+// Not parallel: it shares the package-level testBearer with the other
+// integration test, so it runs in the sequential phase to avoid a race.
+func TestTaskMetadataOverGraphQL(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.TestDB(t)
+	dsn := pool.Config().ConnConfig.ConnString()
+
+	require.NoError(t, db.Migrate(ctx, dsn))
+	q := db.New(pool)
+	require.NoError(t, core.SeedOwner(ctx, q))
+
+	due := time.Date(2030, 1, 2, 15, 4, 5, 0, time.UTC)
+	created, err := core.CreateTaskWithMeta(ctx, pool, nil, "with-meta", "", db.TaskPriorityHigh, &due)
+	require.NoError(t, err)
+	id := created.ID.String()
+
+	owner, err := q.GetViewer(ctx)
+	require.NoError(t, err)
+	_, raw, err := auth.IssueSession(ctx, q, owner.ID, "task_metadata_integration")
+	require.NoError(t, err)
+	prevBearer := testBearer
+	testBearer = raw
+	t.Cleanup(func() { testBearer = prevBearer })
+
+	handler := server.New(pool, nil, server.Options{})
+
+	type taskMeta struct {
+		ID       string  `json:"id"`
+		Priority string  `json:"priority"`
+		DueAt    *string `json:"dueAt"`
+	}
+
+	// 1. Read back the created metadata: HIGH priority + a deadline.
+	initResp := graphqlRequest(t, handler,
+		`query($id:ID!){ task(id:$id){ id priority dueAt } }`,
+		map[string]any{"id": id},
+	)
+	var initData struct {
+		Task taskMeta `json:"task"`
+	}
+	require.NoError(t, json.Unmarshal(initResp.Data, &initData))
+	require.Equal(t, "HIGH", initData.Task.Priority)
+	require.NotNil(t, initData.Task.DueAt, "deadline should be set")
+
+	// 2. updateTaskMetadata → LOW, clear the deadline (dueAt omitted = null).
+	updateResp := graphqlRequest(t, handler,
+		`mutation($id:ID!,$p:TaskPriority!){ updateTaskMetadata(taskId:$id, priority:$p){ id priority dueAt } }`,
+		map[string]any{"id": id, "p": "LOW"},
+	)
+	var updateData struct {
+		UpdateTaskMetadata taskMeta `json:"updateTaskMetadata"`
+	}
+	require.NoError(t, json.Unmarshal(updateResp.Data, &updateData))
+	require.Equal(t, id, updateData.UpdateTaskMetadata.ID)
+	require.Equal(t, "LOW", updateData.UpdateTaskMetadata.Priority)
+	require.Nil(t, updateData.UpdateTaskMetadata.DueAt, "deadline should be cleared")
+
+	// 3. Read it back to confirm the update persisted.
+	readResp := graphqlRequest(t, handler,
+		`query($id:ID!){ task(id:$id){ id priority dueAt } }`,
+		map[string]any{"id": id},
+	)
+	var readData struct {
+		Task taskMeta `json:"task"`
+	}
+	require.NoError(t, json.Unmarshal(readResp.Data, &readData))
+	require.Equal(t, "LOW", readData.Task.Priority)
+	require.Nil(t, readData.Task.DueAt)
 }

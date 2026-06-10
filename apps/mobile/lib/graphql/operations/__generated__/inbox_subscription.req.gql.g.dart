@@ -6,27 +6,27 @@ part of 'inbox_subscription.req.gql.dart';
 // BuiltValueGenerator
 // **************************************************************************
 
-Serializer<GInboxItemArrivedReq> _$gInboxItemArrivedReqSerializer =
-    _$GInboxItemArrivedReqSerializer();
+Serializer<GInboxEntryArrivedReq> _$gInboxEntryArrivedReqSerializer =
+    _$GInboxEntryArrivedReqSerializer();
 
-class _$GInboxItemArrivedReqSerializer
-    implements StructuredSerializer<GInboxItemArrivedReq> {
+class _$GInboxEntryArrivedReqSerializer
+    implements StructuredSerializer<GInboxEntryArrivedReq> {
   @override
   final Iterable<Type> types = const [
-    GInboxItemArrivedReq,
-    _$GInboxItemArrivedReq
+    GInboxEntryArrivedReq,
+    _$GInboxEntryArrivedReq
   ];
   @override
-  final String wireName = 'GInboxItemArrivedReq';
+  final String wireName = 'GInboxEntryArrivedReq';
 
   @override
   Iterable<Object?> serialize(
-      Serializers serializers, GInboxItemArrivedReq object,
+      Serializers serializers, GInboxEntryArrivedReq object,
       {FullType specifiedType = FullType.unspecified}) {
     final result = <Object?>[
       'vars',
       serializers.serialize(object.vars,
-          specifiedType: const FullType(_i3.GInboxItemArrivedVars)),
+          specifiedType: const FullType(_i3.GInboxEntryArrivedVars)),
       'operation',
       serializers.serialize(object.operation,
           specifiedType: const FullType(_i4.Operation)),
@@ -47,7 +47,7 @@ class _$GInboxItemArrivedReqSerializer
       result
         ..add('optimisticResponse')
         ..add(serializers.serialize(value,
-            specifiedType: const FullType(_i2.GInboxItemArrivedData)));
+            specifiedType: const FullType(_i2.GInboxEntryArrivedData)));
     }
     value = object.updateCacheHandlerKey;
     if (value != null) {
@@ -75,10 +75,10 @@ class _$GInboxItemArrivedReqSerializer
   }
 
   @override
-  GInboxItemArrivedReq deserialize(
+  GInboxEntryArrivedReq deserialize(
       Serializers serializers, Iterable<Object?> serialized,
       {FullType specifiedType = FullType.unspecified}) {
-    final result = GInboxItemArrivedReqBuilder();
+    final result = GInboxEntryArrivedReqBuilder();
 
     final iterator = serialized.iterator;
     while (iterator.moveNext()) {
@@ -88,8 +88,8 @@ class _$GInboxItemArrivedReqSerializer
       switch (key) {
         case 'vars':
           result.vars.replace(serializers.deserialize(value,
-                  specifiedType: const FullType(_i3.GInboxItemArrivedVars))!
-              as _i3.GInboxItemArrivedVars);
+                  specifiedType: const FullType(_i3.GInboxEntryArrivedVars))!
+              as _i3.GInboxEntryArrivedVars);
           break;
         case 'operation':
           result.operation = serializers.deserialize(value,
@@ -101,8 +101,8 @@ class _$GInboxItemArrivedReqSerializer
           break;
         case 'optimisticResponse':
           result.optimisticResponse.replace(serializers.deserialize(value,
-                  specifiedType: const FullType(_i2.GInboxItemArrivedData))!
-              as _i2.GInboxItemArrivedData);
+                  specifiedType: const FullType(_i2.GInboxEntryArrivedData))!
+              as _i2.GInboxEntryArrivedData);
           break;
         case 'updateCacheHandlerKey':
           result.updateCacheHandlerKey = serializers.deserialize(value,
@@ -131,18 +131,18 @@ class _$GInboxItemArrivedReqSerializer
   }
 }
 
-class _$GInboxItemArrivedReq extends GInboxItemArrivedReq {
+class _$GInboxEntryArrivedReq extends GInboxEntryArrivedReq {
   @override
-  final _i3.GInboxItemArrivedVars vars;
+  final _i3.GInboxEntryArrivedVars vars;
   @override
   final _i4.Operation operation;
   @override
   final String? requestId;
   @override
-  final _i2.GInboxItemArrivedData? Function(
-      _i2.GInboxItemArrivedData?, _i2.GInboxItemArrivedData?)? updateResult;
+  final _i2.GInboxEntryArrivedData? Function(
+      _i2.GInboxEntryArrivedData?, _i2.GInboxEntryArrivedData?)? updateResult;
   @override
-  final _i2.GInboxItemArrivedData? optimisticResponse;
+  final _i2.GInboxEntryArrivedData? optimisticResponse;
   @override
   final String? updateCacheHandlerKey;
   @override
@@ -154,11 +154,11 @@ class _$GInboxItemArrivedReq extends GInboxItemArrivedReq {
   @override
   final _i4.Context? context;
 
-  factory _$GInboxItemArrivedReq(
-          [void Function(GInboxItemArrivedReqBuilder)? updates]) =>
-      (GInboxItemArrivedReqBuilder()..update(updates))._build();
+  factory _$GInboxEntryArrivedReq(
+          [void Function(GInboxEntryArrivedReqBuilder)? updates]) =>
+      (GInboxEntryArrivedReqBuilder()..update(updates))._build();
 
-  _$GInboxItemArrivedReq._(
+  _$GInboxEntryArrivedReq._(
       {required this.vars,
       required this.operation,
       this.requestId,
@@ -171,18 +171,18 @@ class _$GInboxItemArrivedReq extends GInboxItemArrivedReq {
       this.context})
       : super._();
   @override
-  GInboxItemArrivedReq rebuild(
-          void Function(GInboxItemArrivedReqBuilder) updates) =>
+  GInboxEntryArrivedReq rebuild(
+          void Function(GInboxEntryArrivedReqBuilder) updates) =>
       (toBuilder()..update(updates)).build();
 
   @override
-  GInboxItemArrivedReqBuilder toBuilder() =>
-      GInboxItemArrivedReqBuilder()..replace(this);
+  GInboxEntryArrivedReqBuilder toBuilder() =>
+      GInboxEntryArrivedReqBuilder()..replace(this);
 
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is GInboxItemArrivedReq &&
+    return other is GInboxEntryArrivedReq &&
         vars == other.vars &&
         operation == other.operation &&
         requestId == other.requestId &&
@@ -214,7 +214,7 @@ class _$GInboxItemArrivedReq extends GInboxItemArrivedReq {
 
   @override
   String toString() {
-    return (newBuiltValueToStringHelper(r'GInboxItemArrivedReq')
+    return (newBuiltValueToStringHelper(r'GInboxEntryArrivedReq')
           ..add('vars', vars)
           ..add('operation', operation)
           ..add('requestId', requestId)
@@ -229,14 +229,14 @@ class _$GInboxItemArrivedReq extends GInboxItemArrivedReq {
   }
 }
 
-class GInboxItemArrivedReqBuilder
-    implements Builder<GInboxItemArrivedReq, GInboxItemArrivedReqBuilder> {
-  _$GInboxItemArrivedReq? _$v;
+class GInboxEntryArrivedReqBuilder
+    implements Builder<GInboxEntryArrivedReq, GInboxEntryArrivedReqBuilder> {
+  _$GInboxEntryArrivedReq? _$v;
 
-  _i3.GInboxItemArrivedVarsBuilder? _vars;
-  _i3.GInboxItemArrivedVarsBuilder get vars =>
-      _$this._vars ??= _i3.GInboxItemArrivedVarsBuilder();
-  set vars(_i3.GInboxItemArrivedVarsBuilder? vars) => _$this._vars = vars;
+  _i3.GInboxEntryArrivedVarsBuilder? _vars;
+  _i3.GInboxEntryArrivedVarsBuilder get vars =>
+      _$this._vars ??= _i3.GInboxEntryArrivedVarsBuilder();
+  set vars(_i3.GInboxEntryArrivedVarsBuilder? vars) => _$this._vars = vars;
 
   _i4.Operation? _operation;
   _i4.Operation? get operation => _$this._operation;
@@ -246,22 +246,22 @@ class GInboxItemArrivedReqBuilder
   String? get requestId => _$this._requestId;
   set requestId(String? requestId) => _$this._requestId = requestId;
 
-  _i2.GInboxItemArrivedData? Function(
-      _i2.GInboxItemArrivedData?, _i2.GInboxItemArrivedData?)? _updateResult;
-  _i2.GInboxItemArrivedData? Function(
-          _i2.GInboxItemArrivedData?, _i2.GInboxItemArrivedData?)?
+  _i2.GInboxEntryArrivedData? Function(
+      _i2.GInboxEntryArrivedData?, _i2.GInboxEntryArrivedData?)? _updateResult;
+  _i2.GInboxEntryArrivedData? Function(
+          _i2.GInboxEntryArrivedData?, _i2.GInboxEntryArrivedData?)?
       get updateResult => _$this._updateResult;
   set updateResult(
-          _i2.GInboxItemArrivedData? Function(
-                  _i2.GInboxItemArrivedData?, _i2.GInboxItemArrivedData?)?
+          _i2.GInboxEntryArrivedData? Function(
+                  _i2.GInboxEntryArrivedData?, _i2.GInboxEntryArrivedData?)?
               updateResult) =>
       _$this._updateResult = updateResult;
 
-  _i2.GInboxItemArrivedDataBuilder? _optimisticResponse;
-  _i2.GInboxItemArrivedDataBuilder get optimisticResponse =>
-      _$this._optimisticResponse ??= _i2.GInboxItemArrivedDataBuilder();
+  _i2.GInboxEntryArrivedDataBuilder? _optimisticResponse;
+  _i2.GInboxEntryArrivedDataBuilder get optimisticResponse =>
+      _$this._optimisticResponse ??= _i2.GInboxEntryArrivedDataBuilder();
   set optimisticResponse(
-          _i2.GInboxItemArrivedDataBuilder? optimisticResponse) =>
+          _i2.GInboxEntryArrivedDataBuilder? optimisticResponse) =>
       _$this._optimisticResponse = optimisticResponse;
 
   String? _updateCacheHandlerKey;
@@ -290,11 +290,11 @@ class GInboxItemArrivedReqBuilder
   _i4.Context? get context => _$this._context;
   set context(_i4.Context? context) => _$this._context = context;
 
-  GInboxItemArrivedReqBuilder() {
-    GInboxItemArrivedReq._initializeBuilder(this);
+  GInboxEntryArrivedReqBuilder() {
+    GInboxEntryArrivedReq._initializeBuilder(this);
   }
 
-  GInboxItemArrivedReqBuilder get _$this {
+  GInboxEntryArrivedReqBuilder get _$this {
     final $v = _$v;
     if ($v != null) {
       _vars = $v.vars.toBuilder();
@@ -313,26 +313,26 @@ class GInboxItemArrivedReqBuilder
   }
 
   @override
-  void replace(GInboxItemArrivedReq other) {
-    _$v = other as _$GInboxItemArrivedReq;
+  void replace(GInboxEntryArrivedReq other) {
+    _$v = other as _$GInboxEntryArrivedReq;
   }
 
   @override
-  void update(void Function(GInboxItemArrivedReqBuilder)? updates) {
+  void update(void Function(GInboxEntryArrivedReqBuilder)? updates) {
     if (updates != null) updates(this);
   }
 
   @override
-  GInboxItemArrivedReq build() => _build();
+  GInboxEntryArrivedReq build() => _build();
 
-  _$GInboxItemArrivedReq _build() {
-    _$GInboxItemArrivedReq _$result;
+  _$GInboxEntryArrivedReq _build() {
+    _$GInboxEntryArrivedReq _$result;
     try {
       _$result = _$v ??
-          _$GInboxItemArrivedReq._(
+          _$GInboxEntryArrivedReq._(
             vars: vars.build(),
             operation: BuiltValueNullFieldError.checkNotNull(
-                operation, r'GInboxItemArrivedReq', 'operation'),
+                operation, r'GInboxEntryArrivedReq', 'operation'),
             requestId: requestId,
             updateResult: updateResult,
             optimisticResponse: _optimisticResponse?.build(),
@@ -340,7 +340,7 @@ class GInboxItemArrivedReqBuilder
             updateCacheHandlerContext: updateCacheHandlerContext,
             fetchPolicy: fetchPolicy,
             executeOnListen: BuiltValueNullFieldError.checkNotNull(
-                executeOnListen, r'GInboxItemArrivedReq', 'executeOnListen'),
+                executeOnListen, r'GInboxEntryArrivedReq', 'executeOnListen'),
             context: context,
           );
     } catch (_) {
@@ -353,7 +353,7 @@ class GInboxItemArrivedReqBuilder
         _optimisticResponse?.build();
       } catch (e) {
         throw BuiltValueNestedFieldError(
-            r'GInboxItemArrivedReq', _$failedField, e.toString());
+            r'GInboxEntryArrivedReq', _$failedField, e.toString());
       }
       rethrow;
     }

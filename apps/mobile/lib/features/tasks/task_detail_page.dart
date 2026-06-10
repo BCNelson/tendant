@@ -23,10 +23,18 @@ class TaskDetailPage extends ConsumerWidget {
     });
 
     final detail = ref.watch(taskDetailProvider(taskId));
+    final task = detail.value;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Task'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            tooltip: 'Edit priority & due date',
+            onPressed: task == null
+                ? null
+                : () => _showEditMetadata(context, ref, task),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
@@ -68,6 +76,9 @@ class _DetailBody extends StatelessWidget {
             _Chip(label: task.state),
             _Chip(label: 'stage: ${task.currentStage}'),
             _Chip(label: 'autonomy: ${task.autonomy}'),
+            _Chip(label: 'priority: ${task.priority}'),
+            if (task.dueAt != null)
+              _Chip(label: 'due: ${_formatDate(task.dueAt!)}'),
           ],
         ),
         const SizedBox(height: 16),
@@ -96,6 +107,130 @@ class _DetailBody extends StatelessWidget {
         else
           ...task.activity.map((e) => _ActivityTile(event: e)),
       ],
+    );
+  }
+}
+
+// Date-only display for a task's due date, e.g. "2026-06-09".
+String _formatDate(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-'
+    '${d.month.toString().padLeft(2, '0')}-'
+    '${d.day.toString().padLeft(2, '0')}';
+
+// Owner-set priorities, ascending. Mirrors the create screen.
+const _priorities = ['LOW', 'NORMAL', 'HIGH', 'URGENT'];
+
+/// Opens the priority + due-date editor, pre-filled with the task's current
+/// metadata. On save it calls updateTaskMetadata and refreshes the detail.
+Future<void> _showEditMetadata(
+    BuildContext context, WidgetRef ref, TaskDetail task) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: _EditMetadataSheet(task: task),
+    ),
+  );
+}
+
+/// _EditMetadataSheet is the bottom-sheet form for editing a task's priority
+/// and (optional) due date after creation.
+class _EditMetadataSheet extends ConsumerStatefulWidget {
+  const _EditMetadataSheet({required this.task});
+
+  final TaskDetail task;
+
+  @override
+  ConsumerState<_EditMetadataSheet> createState() => _EditMetadataSheetState();
+}
+
+class _EditMetadataSheetState extends ConsumerState<_EditMetadataSheet> {
+  late String _priority = _priorities.contains(widget.task.priority)
+      ? widget.task.priority
+      : 'NORMAL';
+  late DateTime? _dueAt = widget.task.dueAt;
+  String? _error;
+  bool _saving = false;
+
+  Future<void> _pickDueDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dueAt ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (picked != null) setState(() => _dueAt = picked);
+  }
+
+  Future<void> _save() async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final update = await ref.read(updateTaskMetadataProvider.future);
+      await update(widget.task.id, priority: _priority, dueAt: _dueAt);
+      ref.invalidate(taskDetailProvider(widget.task.id));
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Edit task metadata',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            initialValue: _priority,
+            decoration: const InputDecoration(labelText: 'Priority'),
+            items: [
+              for (final p in _priorities)
+                DropdownMenuItem(value: p, child: Text(p)),
+            ],
+            onChanged: (v) => setState(() => _priority = v ?? 'NORMAL'),
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.event),
+            title: const Text('Due date'),
+            subtitle: Text(
+                _dueAt == null ? 'No deadline' : _formatDate(_dueAt!)),
+            trailing: _dueAt == null
+                ? TextButton(onPressed: _pickDueDate, child: const Text('Set'))
+                : IconButton(
+                    icon: const Icon(Icons.clear),
+                    tooltip: 'Clear due date',
+                    onPressed: () => setState(() => _dueAt = null),
+                  ),
+            onTap: _pickDueDate,
+          ),
+          const SizedBox(height: 16),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+            ),
+          FilledButton(
+            onPressed: _saving ? null : _save,
+            child: Text(_saving ? 'Saving…' : 'Save'),
+          ),
+        ],
+      ),
     );
   }
 }

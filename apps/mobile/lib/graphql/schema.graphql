@@ -34,7 +34,10 @@ type Query {
   tasks(first: Int, after: String, state: TaskState): TaskConnection!
   # Owner-only: list standing guidance notes by status ("active" default).
   agentGuidance(status: String): [AgentGuidance!]!
-  inbox(first: Int, after: String): [InboxItem!]!
+  # Ranked, keyset-paginated action feed. Replaces `inbox` — items appear only
+  # when actionable and are sorted by blended urgency (see InboxEntry.urgency).
+  inboxFeed(first: Int, after: String): InboxFeedPage!
+  inbox(first: Int, after: String): [InboxItem!]! @deprecated(reason: "Use inboxFeed — ranked + actionable-only + absorbs proposed tasks.")
   pendingDecision(id: ID!): PendingDecision
   agentAssignment(id: ID!): AgentAssignment
   sessions: [Session!]!
@@ -50,6 +53,10 @@ type Task {
   state: TaskState!
   currentStage: ChainStage!
   autonomy: AutonomyLevel!
+  # Owner-set metadata (composed on the create screen). priority is never null
+  # (defaults to NORMAL); dueAt is an optional deadline.
+  priority: TaskPriority!
+  dueAt: Time
   provenance: JSON
   contextRefs: JSON
   findings: JSON
@@ -102,7 +109,10 @@ type Mutation {
   # OWNER-ONLY. Upserts an owner rule read by owner.rule(key).
   # Errors: PERMISSION_DENIED, INVALID_RULE.
   setOwnerRule(key: String!, value: String!): OwnerRule!
-  createTask(title: String!, description: String): Task!
+  createTask(title: String!, description: String, priority: TaskPriority, dueAt: Time): Task!
+  # Edit owner-set metadata after creation. Replace semantics: priority is
+  # required (a task always has one); dueAt null clears any deadline.
+  updateTaskMetadata(taskId: ID!, priority: TaskPriority!, dueAt: Time): Task!
   completeTask(taskId: ID!, result: JSON): Task!
   cancelTask(taskId: ID!): Task!
   acceptProposedTask(taskId: ID!): Task!
@@ -353,6 +363,8 @@ scalar JSON
 enum TaskState     { PROPOSED ACCEPTED WAITING EXECUTING DONE DISMISSED HALTED }
 enum ChainStage    { CREATION TRIAGE EXPANSION EXECUTION COMPLETION }
 enum AutonomyLevel { NONE ENRICH_ONLY PROPOSE EXECUTE_GATED EXECUTE_AUTO }
+# Owner-set coarse priority dial (defaults to NORMAL on the create screen).
+enum TaskPriority  { LOW NORMAL HIGH URGENT }
 
 interface Principal { id: ID!  globalUri: String!  displayName: String! }
 type User implements Principal { id: ID!  globalUri: String!  displayName: String! }
@@ -459,7 +471,30 @@ type AgentGuidance {
 
 enum GuidanceScope { GLOBAL AGENT }
 
-union InboxItem = ApprovalRequest | AgentQuestion | PromotionProposal | AgentAssignment | FeedbackRequest
+# ActionableTask wraps a Task that itself needs the owner directly — currently
+# a PROPOSED task awaiting accept/dismiss. It joins the inbox union so the feed
+# is the single home for everything requiring action (not just decisions).
+type ActionableTask { id: ID!  task: Task!  createdAt: Time! }
+
+union InboxItem = ApprovalRequest | AgentQuestion | PromotionProposal | AgentAssignment | FeedbackRequest | ActionableTask
+
+# InboxEntry is the ranked envelope around an InboxItem. `urgency` is the blended
+# server-computed score (owner priority + deadline proximity + intake stakes +
+# age) the feed is sorted by, descending. `kind` mirrors the underlying source
+# ("pending_decision" | "agent_assignment" | "task").
+type InboxEntry {
+  id: ID!
+  kind: String!
+  createdAt: Time!
+  urgency: Float!
+  item: InboxItem!
+}
+
+type InboxFeedPage {
+  entries: [InboxEntry!]!
+  # Opaque keyset cursor for the next page; null when this is the last page.
+  nextCursor: String
+}
 
 # ----- Notifications (subscription type) --------------------------------
 
@@ -477,7 +512,10 @@ type Notification {
 # ----- Subscriptions ---------------------------------------------------
 
 type Subscription {
-  inboxItemArrived: InboxItem!
+  # Ranked sibling of inboxItemArrived — emits the InboxEntry envelope (with
+  # urgency) so live arrivals can be slotted into the ranked feed.
+  inboxEntryArrived: InboxEntry!
+  inboxItemArrived: InboxItem! @deprecated(reason: "Use inboxEntryArrived — carries the ranked envelope.")
   taskChanged(taskId: ID): Task!
   notificationReceived: Notification!
 }

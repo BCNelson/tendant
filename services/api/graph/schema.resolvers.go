@@ -136,7 +136,7 @@ func (r *feedbackRequestResolver) Messages(ctx context.Context, obj *model.Feedb
 }
 
 // CreateTask is the resolver for the createTask field.
-func (r *mutationResolver) CreateTask(ctx context.Context, title string, description *string) (*model.Task, error) {
+func (r *mutationResolver) CreateTask(ctx context.Context, title string, description *string, priority *model.TaskPriority, dueAt *time.Time) (*model.Task, error) {
 	if r.DBOS == nil {
 		return nil, fmt.Errorf("chain workflow not available — DBOS context is nil")
 	}
@@ -144,13 +144,39 @@ func (r *mutationResolver) CreateTask(ctx context.Context, title string, descrip
 	if description != nil {
 		desc = *description
 	}
-	created, err := core.CreateTask(ctx, r.Pool, r.DBOS, title, desc)
+	created, err := core.CreateTaskWithMeta(ctx, r.Pool, r.DBOS, title, desc, lowerTaskPriority(priority), dueAt)
 	if err != nil {
 		return nil, fmt.Errorf("create task: %w", err)
 	}
 	t, err := r.Queries.GetTask(ctx, created.ID)
 	if err != nil {
 		return nil, fmt.Errorf("get created task: %w", err)
+	}
+	return mapTask(&t)
+}
+
+// UpdateTaskMetadata edits the owner-set metadata (priority + due date) after
+// creation. Replace semantics: priority is always set; a nil dueAt clears any
+// existing deadline.
+func (r *mutationResolver) UpdateTaskMetadata(ctx context.Context, taskID string, priority model.TaskPriority, dueAt *time.Time) (*model.Task, error) {
+	tid, err := uuid.Parse(taskID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid id: %w", err)
+	}
+	var due pgtype.Timestamptz
+	if dueAt != nil {
+		due = pgtype.Timestamptz{Time: *dueAt, Valid: true}
+	}
+	t, err := r.Queries.UpdateTaskMetadata(ctx, db.UpdateTaskMetadataParams{
+		ID:       tid,
+		Priority: db.TaskPriority(strings.ToLower(string(priority))),
+		DueAt:    due,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("task not found")
+		}
+		return nil, fmt.Errorf("update task metadata: %w", err)
 	}
 	return mapTask(&t)
 }
@@ -684,6 +710,54 @@ func (r *queryResolver) AgentGuidance(ctx context.Context, status *string) ([]*m
 	return r.agentGuidanceImpl(ctx, status)
 }
 
+// InboxFeed is the resolver for the inboxFeed field. The ranked, actionable-only
+// action feed (replaces inbox). Viewer-scoped at the SQL layer; ranking is the
+// blended urgency score the cursor pins a clock for (see inbox.ListFeed).
+func (r *queryResolver) InboxFeed(ctx context.Context, first *int, after *string) (*model.InboxFeedPage, error) {
+	p, ok := auth.FromContext(ctx)
+	if !ok {
+		return nil, unauthorizedError(ctx)
+	}
+	limit := int32(inbox.DefaultLimit)
+	if first != nil {
+		limit = int32(*first)
+	}
+	cursor := ""
+	if after != nil {
+		cursor = *after
+	}
+	items, next, err := inbox.ListFeed(ctx, r.Queries, p.GlobalURI, cursor, limit, time.Now())
+	if err != nil {
+		return nil, fmt.Errorf("list inbox feed: %w", err)
+	}
+	assembled, err := inbox.Assemble(ctx, r.Queries, items)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]*model.InboxEntry, 0, len(assembled))
+	for _, it := range assembled {
+		gql, mapErr := mapInboxItem(it)
+		if mapErr != nil {
+			return nil, mapErr
+		}
+		if gql == nil {
+			continue
+		}
+		entries = append(entries, &model.InboxEntry{
+			ID:        it.ID.String(),
+			Kind:      it.Kind,
+			CreatedAt: it.CreatedAt,
+			Urgency:   it.Score,
+			Item:      gql,
+		})
+	}
+	page := &model.InboxFeedPage{Entries: entries}
+	if next != "" {
+		page.NextCursor = &next
+	}
+	return page, nil
+}
+
 // Inbox is the resolver for the inbox field. Viewer-scoped (FR-031) — the
 // SQL filter restricts agent_assignments to to_principal = viewer.globalUri.
 func (r *queryResolver) Inbox(ctx context.Context, first *int, after *string) ([]model.InboxItem, error) {
@@ -812,6 +886,25 @@ func (r *queryResolver) AgentConfigs(ctx context.Context, stage *model.AgentStag
 	for _, cfg := range configs {
 		out = append(out, mapAgentConfigSummary(cfg))
 	}
+	return out, nil
+}
+
+// InboxEntryArrived is the resolver for the inboxEntryArrived field — the ranked
+// sibling of inboxItemArrived. Reuses the same subscriber + per-event auth
+// re-check; emits the InboxEntry envelope (with urgency) so a live arrival can
+// be slotted into the ranked feed.
+func (r *subscriptionResolver) InboxEntryArrived(ctx context.Context) (<-chan *model.InboxEntry, error) {
+	p, ok := auth.FromContext(ctx)
+	if !ok {
+		return nil, unauthorizedError(ctx)
+	}
+	if r.Dispatcher == nil {
+		return nil, gqlerror.Errorf("realtime dispatcher unavailable")
+	}
+	sub := realtime.NewInboxSubscriber(p)
+	out := make(chan *model.InboxEntry, realtime.DefaultSubscriberCapacity)
+	dereg := r.Dispatcher.Register(sub)
+	go r.streamInboxEntries(ctx, sub, out, dereg)
 	return out, nil
 }
 

@@ -32,6 +32,14 @@ type Principal interface {
 	GetDisplayName() string
 }
 
+type ActionableTask struct {
+	ID        string    `json:"id"`
+	Task      *Task     `json:"task"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+func (ActionableTask) IsInboxItem() {}
+
 type ActivityEvent struct {
 	ID        string         `json:"id"`
 	Kind      string         `json:"kind"`
@@ -192,6 +200,19 @@ type GateScriptEvaluation struct {
 	At               time.Time `json:"at"`
 }
 
+type InboxEntry struct {
+	ID        string    `json:"id"`
+	Kind      string    `json:"kind"`
+	CreatedAt time.Time `json:"createdAt"`
+	Urgency   float64   `json:"urgency"`
+	Item      InboxItem `json:"item"`
+}
+
+type InboxFeedPage struct {
+	Entries    []*InboxEntry `json:"entries"`
+	NextCursor *string       `json:"nextCursor,omitempty"`
+}
+
 type Mandate struct {
 	Goal        string         `json:"goal"`
 	Constraints map[string]any `json:"constraints"`
@@ -297,6 +318,8 @@ type Task struct {
 	State          TaskState        `json:"state"`
 	CurrentStage   ChainStage       `json:"currentStage"`
 	Autonomy       AutonomyLevel    `json:"autonomy"`
+	Priority       TaskPriority     `json:"priority"`
+	DueAt          *time.Time       `json:"dueAt,omitempty"`
 	Provenance     map[string]any   `json:"provenance,omitempty"`
 	ContextRefs    map[string]any   `json:"contextRefs,omitempty"`
 	Findings       map[string]any   `json:"findings,omitempty"`
@@ -751,6 +774,65 @@ func (e *GuidanceScope) UnmarshalJSON(b []byte) error {
 }
 
 func (e GuidanceScope) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TaskPriority string
+
+const (
+	TaskPriorityLow    TaskPriority = "LOW"
+	TaskPriorityNormal TaskPriority = "NORMAL"
+	TaskPriorityHigh   TaskPriority = "HIGH"
+	TaskPriorityUrgent TaskPriority = "URGENT"
+)
+
+var AllTaskPriority = []TaskPriority{
+	TaskPriorityLow,
+	TaskPriorityNormal,
+	TaskPriorityHigh,
+	TaskPriorityUrgent,
+}
+
+func (e TaskPriority) IsValid() bool {
+	switch e {
+	case TaskPriorityLow, TaskPriorityNormal, TaskPriorityHigh, TaskPriorityUrgent:
+		return true
+	}
+	return false
+}
+
+func (e TaskPriority) String() string {
+	return string(e)
+}
+
+func (e *TaskPriority) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TaskPriority(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TaskPriority", str)
+	}
+	return nil
+}
+
+func (e TaskPriority) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TaskPriority) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TaskPriority) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -6,16 +6,18 @@ part of 'inbox.var.gql.dart';
 // BuiltValueGenerator
 // **************************************************************************
 
-Serializer<GInboxVars> _$gInboxVarsSerializer = _$GInboxVarsSerializer();
+Serializer<GInboxFeedVars> _$gInboxFeedVarsSerializer =
+    _$GInboxFeedVarsSerializer();
 
-class _$GInboxVarsSerializer implements StructuredSerializer<GInboxVars> {
+class _$GInboxFeedVarsSerializer
+    implements StructuredSerializer<GInboxFeedVars> {
   @override
-  final Iterable<Type> types = const [GInboxVars, _$GInboxVars];
+  final Iterable<Type> types = const [GInboxFeedVars, _$GInboxFeedVars];
   @override
-  final String wireName = 'GInboxVars';
+  final String wireName = 'GInboxFeedVars';
 
   @override
-  Iterable<Object?> serialize(Serializers serializers, GInboxVars object,
+  Iterable<Object?> serialize(Serializers serializers, GInboxFeedVars object,
       {FullType specifiedType = FullType.unspecified}) {
     final result = <Object?>[];
     Object? value;
@@ -36,9 +38,10 @@ class _$GInboxVarsSerializer implements StructuredSerializer<GInboxVars> {
   }
 
   @override
-  GInboxVars deserialize(Serializers serializers, Iterable<Object?> serialized,
+  GInboxFeedVars deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
       {FullType specifiedType = FullType.unspecified}) {
-    final result = GInboxVarsBuilder();
+    final result = GInboxFeedVarsBuilder();
 
     final iterator = serialized.iterator;
     while (iterator.moveNext()) {
@@ -61,27 +64,29 @@ class _$GInboxVarsSerializer implements StructuredSerializer<GInboxVars> {
   }
 }
 
-class _$GInboxVars extends GInboxVars {
+class _$GInboxFeedVars extends GInboxFeedVars {
   @override
   final int? first;
   @override
   final String? after;
 
-  factory _$GInboxVars([void Function(GInboxVarsBuilder)? updates]) =>
-      (GInboxVarsBuilder()..update(updates))._build();
+  factory _$GInboxFeedVars([void Function(GInboxFeedVarsBuilder)? updates]) =>
+      (GInboxFeedVarsBuilder()..update(updates))._build();
 
-  _$GInboxVars._({this.first, this.after}) : super._();
+  _$GInboxFeedVars._({this.first, this.after}) : super._();
   @override
-  GInboxVars rebuild(void Function(GInboxVarsBuilder) updates) =>
+  GInboxFeedVars rebuild(void Function(GInboxFeedVarsBuilder) updates) =>
       (toBuilder()..update(updates)).build();
 
   @override
-  GInboxVarsBuilder toBuilder() => GInboxVarsBuilder()..replace(this);
+  GInboxFeedVarsBuilder toBuilder() => GInboxFeedVarsBuilder()..replace(this);
 
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is GInboxVars && first == other.first && after == other.after;
+    return other is GInboxFeedVars &&
+        first == other.first &&
+        after == other.after;
   }
 
   @override
@@ -95,15 +100,16 @@ class _$GInboxVars extends GInboxVars {
 
   @override
   String toString() {
-    return (newBuiltValueToStringHelper(r'GInboxVars')
+    return (newBuiltValueToStringHelper(r'GInboxFeedVars')
           ..add('first', first)
           ..add('after', after))
         .toString();
   }
 }
 
-class GInboxVarsBuilder implements Builder<GInboxVars, GInboxVarsBuilder> {
-  _$GInboxVars? _$v;
+class GInboxFeedVarsBuilder
+    implements Builder<GInboxFeedVars, GInboxFeedVarsBuilder> {
+  _$GInboxFeedVars? _$v;
 
   int? _first;
   int? get first => _$this._first;
@@ -113,9 +119,9 @@ class GInboxVarsBuilder implements Builder<GInboxVars, GInboxVarsBuilder> {
   String? get after => _$this._after;
   set after(String? after) => _$this._after = after;
 
-  GInboxVarsBuilder();
+  GInboxFeedVarsBuilder();
 
-  GInboxVarsBuilder get _$this {
+  GInboxFeedVarsBuilder get _$this {
     final $v = _$v;
     if ($v != null) {
       _first = $v.first;
@@ -126,21 +132,21 @@ class GInboxVarsBuilder implements Builder<GInboxVars, GInboxVarsBuilder> {
   }
 
   @override
-  void replace(GInboxVars other) {
-    _$v = other as _$GInboxVars;
+  void replace(GInboxFeedVars other) {
+    _$v = other as _$GInboxFeedVars;
   }
 
   @override
-  void update(void Function(GInboxVarsBuilder)? updates) {
+  void update(void Function(GInboxFeedVarsBuilder)? updates) {
     if (updates != null) updates(this);
   }
 
   @override
-  GInboxVars build() => _build();
+  GInboxFeedVars build() => _build();
 
-  _$GInboxVars _build() {
+  _$GInboxFeedVars _build() {
     final _$result = _$v ??
-        _$GInboxVars._(
+        _$GInboxFeedVars._(
           first: first,
           after: after,
         );

@@ -9,6 +9,8 @@ query TaskDetail($id: ID!) {
     state
     currentStage
     autonomy
+    priority
+    dueAt
     findings
     stageSlots {
       stage

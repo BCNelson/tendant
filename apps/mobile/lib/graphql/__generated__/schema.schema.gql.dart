@@ -162,6 +162,24 @@ class GAutonomyLevel extends EnumClass {
   static GAutonomyLevel valueOf(String name) => _$gAutonomyLevelValueOf(name);
 }
 
+class GTaskPriority extends EnumClass {
+  const GTaskPriority._(String name) : super(name);
+
+  static const GTaskPriority LOW = _$gTaskPriorityLOW;
+
+  static const GTaskPriority NORMAL = _$gTaskPriorityNORMAL;
+
+  static const GTaskPriority HIGH = _$gTaskPriorityHIGH;
+
+  static const GTaskPriority URGENT = _$gTaskPriorityURGENT;
+
+  static Serializer<GTaskPriority> get serializer => _$gTaskPrioritySerializer;
+
+  static BuiltSet<GTaskPriority> get values => _$gTaskPriorityValues;
+
+  static GTaskPriority valueOf(String name) => _$gTaskPriorityValueOf(name);
+}
+
 class GDevicePlatform extends EnumClass {
   const GDevicePlatform._(String name) : super(name);
 
@@ -231,5 +249,6 @@ const Map<String, Set<String>> possibleTypesMap = {
     'PromotionProposal',
     'AgentAssignment',
     'FeedbackRequest',
+    'ActionableTask',
   },
 };

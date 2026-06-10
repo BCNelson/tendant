@@ -6,355 +6,540 @@ import 'package:built_collection/built_collection.dart';
 import 'package:built_value/built_value.dart';
 import 'package:built_value/serializer.dart';
 import 'package:gql_code_builder_serializers/gql_code_builder_serializers.dart'
-    as _i2;
-import 'package:tendant/graphql/__generated__/schema.schema.gql.dart' as _i3;
+    as _i3;
+import 'package:tendant/graphql/__generated__/schema.schema.gql.dart' as _i2;
 import 'package:tendant/graphql/__generated__/serializers.gql.dart' as _i1;
 
 part 'inbox.data.gql.g.dart';
 
-abstract class GInboxData implements Built<GInboxData, GInboxDataBuilder> {
-  GInboxData._();
+abstract class GInboxFeedData
+    implements Built<GInboxFeedData, GInboxFeedDataBuilder> {
+  GInboxFeedData._();
 
-  factory GInboxData([void Function(GInboxDataBuilder b) updates]) =
-      _$GInboxData;
+  factory GInboxFeedData([void Function(GInboxFeedDataBuilder b) updates]) =
+      _$GInboxFeedData;
 
-  static void _initializeBuilder(GInboxDataBuilder b) =>
+  static void _initializeBuilder(GInboxFeedDataBuilder b) =>
       b..G__typename = 'Query';
 
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
-  BuiltList<GInboxData_inbox> get inbox;
-  static Serializer<GInboxData> get serializer => _$gInboxDataSerializer;
+  GInboxFeedData_inboxFeed get inboxFeed;
+  static Serializer<GInboxFeedData> get serializer =>
+      _$gInboxFeedDataSerializer;
 
   Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
-        GInboxData.serializer,
+        GInboxFeedData.serializer,
         this,
       ) as Map<String, dynamic>);
 
-  static GInboxData? fromJson(Map<String, dynamic> json) =>
+  static GInboxFeedData? fromJson(Map<String, dynamic> json) =>
       _i1.serializers.deserializeWith(
-        GInboxData.serializer,
+        GInboxFeedData.serializer,
         json,
       );
 }
 
-abstract class GInboxData_inbox {
+abstract class GInboxFeedData_inboxFeed
+    implements
+        Built<GInboxFeedData_inboxFeed, GInboxFeedData_inboxFeedBuilder> {
+  GInboxFeedData_inboxFeed._();
+
+  factory GInboxFeedData_inboxFeed(
+          [void Function(GInboxFeedData_inboxFeedBuilder b) updates]) =
+      _$GInboxFeedData_inboxFeed;
+
+  static void _initializeBuilder(GInboxFeedData_inboxFeedBuilder b) =>
+      b..G__typename = 'InboxFeedPage';
+
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
-  static Serializer<GInboxData_inbox> get serializer =>
-      _i2.InlineFragmentSerializer<GInboxData_inbox>(
-        'GInboxData_inbox',
-        GInboxData_inbox__base,
+  String? get nextCursor;
+  BuiltList<GInboxFeedData_inboxFeed_entries> get entries;
+  static Serializer<GInboxFeedData_inboxFeed> get serializer =>
+      _$gInboxFeedDataInboxFeedSerializer;
+
+  Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
+        GInboxFeedData_inboxFeed.serializer,
+        this,
+      ) as Map<String, dynamic>);
+
+  static GInboxFeedData_inboxFeed? fromJson(Map<String, dynamic> json) =>
+      _i1.serializers.deserializeWith(
+        GInboxFeedData_inboxFeed.serializer,
+        json,
+      );
+}
+
+abstract class GInboxFeedData_inboxFeed_entries
+    implements
+        Built<GInboxFeedData_inboxFeed_entries,
+            GInboxFeedData_inboxFeed_entriesBuilder> {
+  GInboxFeedData_inboxFeed_entries._();
+
+  factory GInboxFeedData_inboxFeed_entries(
+          [void Function(GInboxFeedData_inboxFeed_entriesBuilder b) updates]) =
+      _$GInboxFeedData_inboxFeed_entries;
+
+  static void _initializeBuilder(GInboxFeedData_inboxFeed_entriesBuilder b) =>
+      b..G__typename = 'InboxEntry';
+
+  @BuiltValueField(wireName: '__typename')
+  String get G__typename;
+  String get id;
+  String get kind;
+  double get urgency;
+  _i2.GTime get createdAt;
+  GInboxFeedData_inboxFeed_entries_item get item;
+  static Serializer<GInboxFeedData_inboxFeed_entries> get serializer =>
+      _$gInboxFeedDataInboxFeedEntriesSerializer;
+
+  Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
+        GInboxFeedData_inboxFeed_entries.serializer,
+        this,
+      ) as Map<String, dynamic>);
+
+  static GInboxFeedData_inboxFeed_entries? fromJson(
+          Map<String, dynamic> json) =>
+      _i1.serializers.deserializeWith(
+        GInboxFeedData_inboxFeed_entries.serializer,
+        json,
+      );
+}
+
+abstract class GInboxFeedData_inboxFeed_entries_item {
+  @BuiltValueField(wireName: '__typename')
+  String get G__typename;
+  static Serializer<GInboxFeedData_inboxFeed_entries_item> get serializer =>
+      _i3.InlineFragmentSerializer<GInboxFeedData_inboxFeed_entries_item>(
+        'GInboxFeedData_inboxFeed_entries_item',
+        GInboxFeedData_inboxFeed_entries_item__base,
         {
-          'AgentAssignment': GInboxData_inbox__asAgentAssignment,
-          'ApprovalRequest': GInboxData_inbox__asApprovalRequest,
-          'AgentQuestion': GInboxData_inbox__asAgentQuestion,
-          'PromotionProposal': GInboxData_inbox__asPromotionProposal,
-          'FeedbackRequest': GInboxData_inbox__asFeedbackRequest,
+          'ActionableTask':
+              GInboxFeedData_inboxFeed_entries_item__asActionableTask,
+          'AgentAssignment':
+              GInboxFeedData_inboxFeed_entries_item__asAgentAssignment,
+          'ApprovalRequest':
+              GInboxFeedData_inboxFeed_entries_item__asApprovalRequest,
+          'AgentQuestion':
+              GInboxFeedData_inboxFeed_entries_item__asAgentQuestion,
+          'PromotionProposal':
+              GInboxFeedData_inboxFeed_entries_item__asPromotionProposal,
+          'FeedbackRequest':
+              GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest,
         },
       );
 
   Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
-        GInboxData_inbox.serializer,
+        GInboxFeedData_inboxFeed_entries_item.serializer,
         this,
       ) as Map<String, dynamic>);
 
-  static GInboxData_inbox? fromJson(Map<String, dynamic> json) =>
+  static GInboxFeedData_inboxFeed_entries_item? fromJson(
+          Map<String, dynamic> json) =>
       _i1.serializers.deserializeWith(
-        GInboxData_inbox.serializer,
+        GInboxFeedData_inboxFeed_entries_item.serializer,
         json,
       );
 }
 
-abstract class GInboxData_inbox__base
+abstract class GInboxFeedData_inboxFeed_entries_item__base
     implements
-        Built<GInboxData_inbox__base, GInboxData_inbox__baseBuilder>,
-        GInboxData_inbox {
-  GInboxData_inbox__base._();
+        Built<GInboxFeedData_inboxFeed_entries_item__base,
+            GInboxFeedData_inboxFeed_entries_item__baseBuilder>,
+        GInboxFeedData_inboxFeed_entries_item {
+  GInboxFeedData_inboxFeed_entries_item__base._();
 
-  factory GInboxData_inbox__base(
-          [void Function(GInboxData_inbox__baseBuilder b) updates]) =
-      _$GInboxData_inbox__base;
+  factory GInboxFeedData_inboxFeed_entries_item__base(
+      [void Function(GInboxFeedData_inboxFeed_entries_item__baseBuilder b)
+          updates]) = _$GInboxFeedData_inboxFeed_entries_item__base;
 
-  static void _initializeBuilder(GInboxData_inbox__baseBuilder b) =>
+  static void _initializeBuilder(
+          GInboxFeedData_inboxFeed_entries_item__baseBuilder b) =>
       b..G__typename = 'InboxItem';
 
   @override
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
-  static Serializer<GInboxData_inbox__base> get serializer =>
-      _$gInboxDataInboxBaseSerializer;
+  static Serializer<GInboxFeedData_inboxFeed_entries_item__base>
+      get serializer => _$gInboxFeedDataInboxFeedEntriesItemBaseSerializer;
 
   @override
   Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
-        GInboxData_inbox__base.serializer,
+        GInboxFeedData_inboxFeed_entries_item__base.serializer,
         this,
       ) as Map<String, dynamic>);
 
-  static GInboxData_inbox__base? fromJson(Map<String, dynamic> json) =>
+  static GInboxFeedData_inboxFeed_entries_item__base? fromJson(
+          Map<String, dynamic> json) =>
       _i1.serializers.deserializeWith(
-        GInboxData_inbox__base.serializer,
+        GInboxFeedData_inboxFeed_entries_item__base.serializer,
         json,
       );
 }
 
-abstract class GInboxData_inbox__asAgentAssignment
+abstract class GInboxFeedData_inboxFeed_entries_item__asActionableTask
     implements
-        Built<GInboxData_inbox__asAgentAssignment,
-            GInboxData_inbox__asAgentAssignmentBuilder>,
-        GInboxData_inbox {
-  GInboxData_inbox__asAgentAssignment._();
+        Built<GInboxFeedData_inboxFeed_entries_item__asActionableTask,
+            GInboxFeedData_inboxFeed_entries_item__asActionableTaskBuilder>,
+        GInboxFeedData_inboxFeed_entries_item {
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask._();
 
-  factory GInboxData_inbox__asAgentAssignment(
-      [void Function(GInboxData_inbox__asAgentAssignmentBuilder b)
-          updates]) = _$GInboxData_inbox__asAgentAssignment;
+  factory GInboxFeedData_inboxFeed_entries_item__asActionableTask(
+      [void Function(
+              GInboxFeedData_inboxFeed_entries_item__asActionableTaskBuilder b)
+          updates]) = _$GInboxFeedData_inboxFeed_entries_item__asActionableTask;
 
   static void _initializeBuilder(
-          GInboxData_inbox__asAgentAssignmentBuilder b) =>
+          GInboxFeedData_inboxFeed_entries_item__asActionableTaskBuilder b) =>
+      b..G__typename = 'ActionableTask';
+
+  @override
+  @BuiltValueField(wireName: '__typename')
+  String get G__typename;
+  String get id;
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask_task get task;
+  static Serializer<GInboxFeedData_inboxFeed_entries_item__asActionableTask>
+      get serializer =>
+          _$gInboxFeedDataInboxFeedEntriesItemAsActionableTaskSerializer;
+
+  @override
+  Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
+        GInboxFeedData_inboxFeed_entries_item__asActionableTask.serializer,
+        this,
+      ) as Map<String, dynamic>);
+
+  static GInboxFeedData_inboxFeed_entries_item__asActionableTask? fromJson(
+          Map<String, dynamic> json) =>
+      _i1.serializers.deserializeWith(
+        GInboxFeedData_inboxFeed_entries_item__asActionableTask.serializer,
+        json,
+      );
+}
+
+abstract class GInboxFeedData_inboxFeed_entries_item__asActionableTask_task
+    implements
+        Built<GInboxFeedData_inboxFeed_entries_item__asActionableTask_task,
+            GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder> {
+  GInboxFeedData_inboxFeed_entries_item__asActionableTask_task._();
+
+  factory GInboxFeedData_inboxFeed_entries_item__asActionableTask_task(
+          [void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder
+                      b)
+              updates]) =
+      _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task;
+
+  static void _initializeBuilder(
+          GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder
+              b) =>
+      b..G__typename = 'Task';
+
+  @BuiltValueField(wireName: '__typename')
+  String get G__typename;
+  String get id;
+  String get title;
+  _i2.GTaskState get state;
+  _i2.GTaskPriority get priority;
+  _i2.GTime? get dueAt;
+  _i2.GChainStage get currentStage;
+  static Serializer<
+          GInboxFeedData_inboxFeed_entries_item__asActionableTask_task>
+      get serializer =>
+          _$gInboxFeedDataInboxFeedEntriesItemAsActionableTaskTaskSerializer;
+
+  Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
+        GInboxFeedData_inboxFeed_entries_item__asActionableTask_task.serializer,
+        this,
+      ) as Map<String, dynamic>);
+
+  static GInboxFeedData_inboxFeed_entries_item__asActionableTask_task? fromJson(
+          Map<String, dynamic> json) =>
+      _i1.serializers.deserializeWith(
+        GInboxFeedData_inboxFeed_entries_item__asActionableTask_task.serializer,
+        json,
+      );
+}
+
+abstract class GInboxFeedData_inboxFeed_entries_item__asAgentAssignment
+    implements
+        Built<GInboxFeedData_inboxFeed_entries_item__asAgentAssignment,
+            GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentBuilder>,
+        GInboxFeedData_inboxFeed_entries_item {
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment._();
+
+  factory GInboxFeedData_inboxFeed_entries_item__asAgentAssignment(
+      [void Function(
+              GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentBuilder b)
+          updates]) = _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment;
+
+  static void _initializeBuilder(
+          GInboxFeedData_inboxFeed_entries_item__asAgentAssignmentBuilder b) =>
       b..G__typename = 'AgentAssignment';
 
   @override
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
   String get id;
-  _i3.GChainStage get stage;
+  _i2.GChainStage get stage;
   String get ask;
-  _i3.GTime get createdAt;
-  GInboxData_inbox__asAgentAssignment_task get task;
-  static Serializer<GInboxData_inbox__asAgentAssignment> get serializer =>
-      _$gInboxDataInboxAsAgentAssignmentSerializer;
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task get task;
+  static Serializer<GInboxFeedData_inboxFeed_entries_item__asAgentAssignment>
+      get serializer =>
+          _$gInboxFeedDataInboxFeedEntriesItemAsAgentAssignmentSerializer;
 
   @override
   Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
-        GInboxData_inbox__asAgentAssignment.serializer,
+        GInboxFeedData_inboxFeed_entries_item__asAgentAssignment.serializer,
         this,
       ) as Map<String, dynamic>);
 
-  static GInboxData_inbox__asAgentAssignment? fromJson(
+  static GInboxFeedData_inboxFeed_entries_item__asAgentAssignment? fromJson(
           Map<String, dynamic> json) =>
       _i1.serializers.deserializeWith(
-        GInboxData_inbox__asAgentAssignment.serializer,
+        GInboxFeedData_inboxFeed_entries_item__asAgentAssignment.serializer,
         json,
       );
 }
 
-abstract class GInboxData_inbox__asAgentAssignment_task
+abstract class GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task
     implements
-        Built<GInboxData_inbox__asAgentAssignment_task,
-            GInboxData_inbox__asAgentAssignment_taskBuilder> {
-  GInboxData_inbox__asAgentAssignment_task._();
+        Built<GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task,
+            GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder> {
+  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task._();
 
-  factory GInboxData_inbox__asAgentAssignment_task(
-      [void Function(GInboxData_inbox__asAgentAssignment_taskBuilder b)
-          updates]) = _$GInboxData_inbox__asAgentAssignment_task;
+  factory GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task(
+          [void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder
+                      b)
+              updates]) =
+      _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task;
 
   static void _initializeBuilder(
-          GInboxData_inbox__asAgentAssignment_taskBuilder b) =>
+          GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder
+              b) =>
       b..G__typename = 'Task';
 
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
   String get id;
   String get title;
-  _i3.GTaskState get state;
-  _i3.GChainStage get currentStage;
-  static Serializer<GInboxData_inbox__asAgentAssignment_task> get serializer =>
-      _$gInboxDataInboxAsAgentAssignmentTaskSerializer;
+  _i2.GTaskState get state;
+  _i2.GChainStage get currentStage;
+  static Serializer<
+          GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task>
+      get serializer =>
+          _$gInboxFeedDataInboxFeedEntriesItemAsAgentAssignmentTaskSerializer;
 
   Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
-        GInboxData_inbox__asAgentAssignment_task.serializer,
+        GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task
+            .serializer,
         this,
       ) as Map<String, dynamic>);
 
-  static GInboxData_inbox__asAgentAssignment_task? fromJson(
-          Map<String, dynamic> json) =>
-      _i1.serializers.deserializeWith(
-        GInboxData_inbox__asAgentAssignment_task.serializer,
-        json,
-      );
+  static GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task?
+      fromJson(Map<String, dynamic> json) => _i1.serializers.deserializeWith(
+            GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task
+                .serializer,
+            json,
+          );
 }
 
-abstract class GInboxData_inbox__asApprovalRequest
+abstract class GInboxFeedData_inboxFeed_entries_item__asApprovalRequest
     implements
-        Built<GInboxData_inbox__asApprovalRequest,
-            GInboxData_inbox__asApprovalRequestBuilder>,
-        GInboxData_inbox {
-  GInboxData_inbox__asApprovalRequest._();
+        Built<GInboxFeedData_inboxFeed_entries_item__asApprovalRequest,
+            GInboxFeedData_inboxFeed_entries_item__asApprovalRequestBuilder>,
+        GInboxFeedData_inboxFeed_entries_item {
+  GInboxFeedData_inboxFeed_entries_item__asApprovalRequest._();
 
-  factory GInboxData_inbox__asApprovalRequest(
-      [void Function(GInboxData_inbox__asApprovalRequestBuilder b)
-          updates]) = _$GInboxData_inbox__asApprovalRequest;
+  factory GInboxFeedData_inboxFeed_entries_item__asApprovalRequest(
+      [void Function(
+              GInboxFeedData_inboxFeed_entries_item__asApprovalRequestBuilder b)
+          updates]) = _$GInboxFeedData_inboxFeed_entries_item__asApprovalRequest;
 
   static void _initializeBuilder(
-          GInboxData_inbox__asApprovalRequestBuilder b) =>
+          GInboxFeedData_inboxFeed_entries_item__asApprovalRequestBuilder b) =>
       b..G__typename = 'ApprovalRequest';
 
   @override
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
   String get id;
-  _i3.GTime get createdAt;
-  static Serializer<GInboxData_inbox__asApprovalRequest> get serializer =>
-      _$gInboxDataInboxAsApprovalRequestSerializer;
+  static Serializer<GInboxFeedData_inboxFeed_entries_item__asApprovalRequest>
+      get serializer =>
+          _$gInboxFeedDataInboxFeedEntriesItemAsApprovalRequestSerializer;
 
   @override
   Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
-        GInboxData_inbox__asApprovalRequest.serializer,
+        GInboxFeedData_inboxFeed_entries_item__asApprovalRequest.serializer,
         this,
       ) as Map<String, dynamic>);
 
-  static GInboxData_inbox__asApprovalRequest? fromJson(
+  static GInboxFeedData_inboxFeed_entries_item__asApprovalRequest? fromJson(
           Map<String, dynamic> json) =>
       _i1.serializers.deserializeWith(
-        GInboxData_inbox__asApprovalRequest.serializer,
+        GInboxFeedData_inboxFeed_entries_item__asApprovalRequest.serializer,
         json,
       );
 }
 
-abstract class GInboxData_inbox__asAgentQuestion
+abstract class GInboxFeedData_inboxFeed_entries_item__asAgentQuestion
     implements
-        Built<GInboxData_inbox__asAgentQuestion,
-            GInboxData_inbox__asAgentQuestionBuilder>,
-        GInboxData_inbox {
-  GInboxData_inbox__asAgentQuestion._();
+        Built<GInboxFeedData_inboxFeed_entries_item__asAgentQuestion,
+            GInboxFeedData_inboxFeed_entries_item__asAgentQuestionBuilder>,
+        GInboxFeedData_inboxFeed_entries_item {
+  GInboxFeedData_inboxFeed_entries_item__asAgentQuestion._();
 
-  factory GInboxData_inbox__asAgentQuestion(
-          [void Function(GInboxData_inbox__asAgentQuestionBuilder b) updates]) =
-      _$GInboxData_inbox__asAgentQuestion;
+  factory GInboxFeedData_inboxFeed_entries_item__asAgentQuestion(
+      [void Function(
+              GInboxFeedData_inboxFeed_entries_item__asAgentQuestionBuilder b)
+          updates]) = _$GInboxFeedData_inboxFeed_entries_item__asAgentQuestion;
 
-  static void _initializeBuilder(GInboxData_inbox__asAgentQuestionBuilder b) =>
+  static void _initializeBuilder(
+          GInboxFeedData_inboxFeed_entries_item__asAgentQuestionBuilder b) =>
       b..G__typename = 'AgentQuestion';
 
   @override
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
   String get id;
-  _i3.GTime get createdAt;
   String get question;
-  static Serializer<GInboxData_inbox__asAgentQuestion> get serializer =>
-      _$gInboxDataInboxAsAgentQuestionSerializer;
+  static Serializer<GInboxFeedData_inboxFeed_entries_item__asAgentQuestion>
+      get serializer =>
+          _$gInboxFeedDataInboxFeedEntriesItemAsAgentQuestionSerializer;
 
   @override
   Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
-        GInboxData_inbox__asAgentQuestion.serializer,
+        GInboxFeedData_inboxFeed_entries_item__asAgentQuestion.serializer,
         this,
       ) as Map<String, dynamic>);
 
-  static GInboxData_inbox__asAgentQuestion? fromJson(
+  static GInboxFeedData_inboxFeed_entries_item__asAgentQuestion? fromJson(
           Map<String, dynamic> json) =>
       _i1.serializers.deserializeWith(
-        GInboxData_inbox__asAgentQuestion.serializer,
+        GInboxFeedData_inboxFeed_entries_item__asAgentQuestion.serializer,
         json,
       );
 }
 
-abstract class GInboxData_inbox__asPromotionProposal
+abstract class GInboxFeedData_inboxFeed_entries_item__asPromotionProposal
     implements
-        Built<GInboxData_inbox__asPromotionProposal,
-            GInboxData_inbox__asPromotionProposalBuilder>,
-        GInboxData_inbox {
-  GInboxData_inbox__asPromotionProposal._();
+        Built<GInboxFeedData_inboxFeed_entries_item__asPromotionProposal,
+            GInboxFeedData_inboxFeed_entries_item__asPromotionProposalBuilder>,
+        GInboxFeedData_inboxFeed_entries_item {
+  GInboxFeedData_inboxFeed_entries_item__asPromotionProposal._();
 
-  factory GInboxData_inbox__asPromotionProposal(
-      [void Function(GInboxData_inbox__asPromotionProposalBuilder b)
-          updates]) = _$GInboxData_inbox__asPromotionProposal;
+  factory GInboxFeedData_inboxFeed_entries_item__asPromotionProposal(
+      [void Function(
+              GInboxFeedData_inboxFeed_entries_item__asPromotionProposalBuilder
+                  b)
+          updates]) = _$GInboxFeedData_inboxFeed_entries_item__asPromotionProposal;
 
   static void _initializeBuilder(
-          GInboxData_inbox__asPromotionProposalBuilder b) =>
+          GInboxFeedData_inboxFeed_entries_item__asPromotionProposalBuilder
+              b) =>
       b..G__typename = 'PromotionProposal';
 
   @override
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
   String get id;
-  _i3.GTime get createdAt;
-  _i3.GAutonomyLevel get fromLevel;
-  _i3.GAutonomyLevel get toLevel;
-  static Serializer<GInboxData_inbox__asPromotionProposal> get serializer =>
-      _$gInboxDataInboxAsPromotionProposalSerializer;
+  _i2.GAutonomyLevel get fromLevel;
+  _i2.GAutonomyLevel get toLevel;
+  static Serializer<GInboxFeedData_inboxFeed_entries_item__asPromotionProposal>
+      get serializer =>
+          _$gInboxFeedDataInboxFeedEntriesItemAsPromotionProposalSerializer;
 
   @override
   Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
-        GInboxData_inbox__asPromotionProposal.serializer,
+        GInboxFeedData_inboxFeed_entries_item__asPromotionProposal.serializer,
         this,
       ) as Map<String, dynamic>);
 
-  static GInboxData_inbox__asPromotionProposal? fromJson(
+  static GInboxFeedData_inboxFeed_entries_item__asPromotionProposal? fromJson(
           Map<String, dynamic> json) =>
       _i1.serializers.deserializeWith(
-        GInboxData_inbox__asPromotionProposal.serializer,
+        GInboxFeedData_inboxFeed_entries_item__asPromotionProposal.serializer,
         json,
       );
 }
 
-abstract class GInboxData_inbox__asFeedbackRequest
+abstract class GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest
     implements
-        Built<GInboxData_inbox__asFeedbackRequest,
-            GInboxData_inbox__asFeedbackRequestBuilder>,
-        GInboxData_inbox {
-  GInboxData_inbox__asFeedbackRequest._();
+        Built<GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest,
+            GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestBuilder>,
+        GInboxFeedData_inboxFeed_entries_item {
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest._();
 
-  factory GInboxData_inbox__asFeedbackRequest(
-      [void Function(GInboxData_inbox__asFeedbackRequestBuilder b)
-          updates]) = _$GInboxData_inbox__asFeedbackRequest;
+  factory GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest(
+      [void Function(
+              GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestBuilder b)
+          updates]) = _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest;
 
   static void _initializeBuilder(
-          GInboxData_inbox__asFeedbackRequestBuilder b) =>
+          GInboxFeedData_inboxFeed_entries_item__asFeedbackRequestBuilder b) =>
       b..G__typename = 'FeedbackRequest';
 
   @override
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
   String get id;
-  _i3.GTime get createdAt;
-  GInboxData_inbox__asFeedbackRequest_task get task;
-  static Serializer<GInboxData_inbox__asFeedbackRequest> get serializer =>
-      _$gInboxDataInboxAsFeedbackRequestSerializer;
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task get task;
+  static Serializer<GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest>
+      get serializer =>
+          _$gInboxFeedDataInboxFeedEntriesItemAsFeedbackRequestSerializer;
 
   @override
   Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
-        GInboxData_inbox__asFeedbackRequest.serializer,
+        GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest.serializer,
         this,
       ) as Map<String, dynamic>);
 
-  static GInboxData_inbox__asFeedbackRequest? fromJson(
+  static GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest? fromJson(
           Map<String, dynamic> json) =>
       _i1.serializers.deserializeWith(
-        GInboxData_inbox__asFeedbackRequest.serializer,
+        GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest.serializer,
         json,
       );
 }
 
-abstract class GInboxData_inbox__asFeedbackRequest_task
+abstract class GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task
     implements
-        Built<GInboxData_inbox__asFeedbackRequest_task,
-            GInboxData_inbox__asFeedbackRequest_taskBuilder> {
-  GInboxData_inbox__asFeedbackRequest_task._();
+        Built<GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task,
+            GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder> {
+  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task._();
 
-  factory GInboxData_inbox__asFeedbackRequest_task(
-      [void Function(GInboxData_inbox__asFeedbackRequest_taskBuilder b)
-          updates]) = _$GInboxData_inbox__asFeedbackRequest_task;
+  factory GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task(
+          [void Function(
+                  GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder
+                      b)
+              updates]) =
+      _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task;
 
   static void _initializeBuilder(
-          GInboxData_inbox__asFeedbackRequest_taskBuilder b) =>
+          GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder
+              b) =>
       b..G__typename = 'Task';
 
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
   String get id;
   String get title;
-  static Serializer<GInboxData_inbox__asFeedbackRequest_task> get serializer =>
-      _$gInboxDataInboxAsFeedbackRequestTaskSerializer;
+  static Serializer<
+          GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task>
+      get serializer =>
+          _$gInboxFeedDataInboxFeedEntriesItemAsFeedbackRequestTaskSerializer;
 
   Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
-        GInboxData_inbox__asFeedbackRequest_task.serializer,
+        GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task
+            .serializer,
         this,
       ) as Map<String, dynamic>);
 
-  static GInboxData_inbox__asFeedbackRequest_task? fromJson(
-          Map<String, dynamic> json) =>
-      _i1.serializers.deserializeWith(
-        GInboxData_inbox__asFeedbackRequest_task.serializer,
-        json,
-      );
+  static GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task?
+      fromJson(Map<String, dynamic> json) => _i1.serializers.deserializeWith(
+            GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task
+                .serializer,
+            json,
+          );
 }

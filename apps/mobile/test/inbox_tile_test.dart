@@ -1,69 +1,75 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:tendant/features/inbox/inbox_page.dart';
+import 'package:tendant/features/inbox/inbox_provider.dart';
+
+Widget _host(Widget child) => ProviderScope(
+      child: MaterialApp(home: Scaffold(body: child)),
+    );
 
 void main() {
-  testWidgets('AgentAssignment tile renders the title and ask', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: InboxTile(
-            item: const InboxItemRef(
-              id: 'a1',
-              typename: 'AgentAssignment',
-              title: 'Buy milk',
-              subtitle: 'TRIAGE',
-            ),
-          ),
+  testWidgets('AgentAssignment card renders the title and ask',
+      (tester) async {
+    await tester.pumpWidget(_host(
+      const InboxEntryCard(
+        entry: InboxEntryRef(
+          entryId: 'a1',
+          kind: 'agent_assignment',
+          urgency: 210,
+          typename: 'AgentAssignment',
+          itemId: 'a1',
+          title: 'Buy milk',
+          subtitle: 'TRIAGE',
         ),
       ),
-    );
+    ));
     expect(find.text('Buy milk'), findsOneWidget);
     expect(find.text('TRIAGE'), findsOneWidget);
-    // Decision placeholder should NOT appear.
-    expect(find.text('Decision (Phase 4+)'), findsNothing);
   });
 
-  testWidgets('non-actionable decision renders the read-only placeholder',
+  testWidgets('non-actionable promotion proposal is read-only',
       (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: InboxTile(
-            item: const InboxItemRef(
-              id: 'd1',
-              typename: 'PromotionProposal',
-              title: 'unused',
-              subtitle: 'EXECUTE_GATED → EXECUTE_AUTO',
-            ),
-          ),
+    await tester.pumpWidget(_host(
+      const InboxEntryCard(
+        entry: InboxEntryRef(
+          entryId: 'd1',
+          kind: 'pending_decision',
+          urgency: 200,
+          typename: 'PromotionProposal',
+          itemId: 'd1',
+          title: 'Promotion proposal',
+          subtitle: 'EXECUTE_GATED → EXECUTE_AUTO',
         ),
       ),
-    );
-    expect(find.text('Decision (Phase 4+)'), findsOneWidget);
-    expect(find.text('unused'), findsNothing);
+    ));
+    expect(find.text('Promotion proposal'), findsOneWidget);
+    // Read-only: the lock icon is shown and the tile is disabled (no chevron).
+    expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
   });
 
-  testWidgets('FeedbackRequest tile is actionable, not the placeholder',
+  testWidgets('ActionableTask card exposes inline Accept / Dismiss',
       (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: InboxTile(
-            item: const InboxItemRef(
-              id: 'f1',
-              typename: 'FeedbackRequest',
-              title: 'Feedback: Buy milk',
-              subtitle: 'How did this task go? Tap to chat.',
-            ),
-          ),
+    await tester.pumpWidget(_host(
+      const InboxEntryCard(
+        entry: InboxEntryRef(
+          entryId: 't1',
+          kind: 'task',
+          urgency: 650,
+          typename: 'ActionableTask',
+          itemId: 't1',
+          title: 'Decide me',
+          subtitle: 'Proposed',
+          taskId: 't1',
+          priority: 'URGENT',
+          taskState: 'PROPOSED',
         ),
       ),
-    );
-    expect(find.text('Feedback: Buy milk'), findsOneWidget);
-    expect(find.text('How did this task go? Tap to chat.'), findsOneWidget);
-    // Must be actionable, not the read-only placeholder.
-    expect(find.text('Decision (Phase 4+)'), findsNothing);
+    ));
+    expect(find.text('Decide me'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Accept'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Dismiss'), findsOneWidget);
   });
 }

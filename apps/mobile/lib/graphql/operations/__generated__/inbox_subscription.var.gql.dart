@@ -8,25 +8,25 @@ import 'package:tendant/graphql/__generated__/serializers.gql.dart' as _i1;
 
 part 'inbox_subscription.var.gql.g.dart';
 
-abstract class GInboxItemArrivedVars
-    implements Built<GInboxItemArrivedVars, GInboxItemArrivedVarsBuilder> {
-  GInboxItemArrivedVars._();
+abstract class GInboxEntryArrivedVars
+    implements Built<GInboxEntryArrivedVars, GInboxEntryArrivedVarsBuilder> {
+  GInboxEntryArrivedVars._();
 
-  factory GInboxItemArrivedVars(
-          [void Function(GInboxItemArrivedVarsBuilder b) updates]) =
-      _$GInboxItemArrivedVars;
+  factory GInboxEntryArrivedVars(
+          [void Function(GInboxEntryArrivedVarsBuilder b) updates]) =
+      _$GInboxEntryArrivedVars;
 
-  static Serializer<GInboxItemArrivedVars> get serializer =>
-      _$gInboxItemArrivedVarsSerializer;
+  static Serializer<GInboxEntryArrivedVars> get serializer =>
+      _$gInboxEntryArrivedVarsSerializer;
 
   Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
-        GInboxItemArrivedVars.serializer,
+        GInboxEntryArrivedVars.serializer,
         this,
       ) as Map<String, dynamic>);
 
-  static GInboxItemArrivedVars? fromJson(Map<String, dynamic> json) =>
+  static GInboxEntryArrivedVars? fromJson(Map<String, dynamic> json) =>
       _i1.serializers.deserializeWith(
-        GInboxItemArrivedVars.serializer,
+        GInboxEntryArrivedVars.serializer,
         json,
       );
 }

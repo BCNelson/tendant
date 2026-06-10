@@ -1,5 +1,15 @@
-mutation CreateTask($title: String!, $description: String) {
-  createTask(title: $title, description: $description) {
+mutation CreateTask(
+  $title: String!
+  $description: String
+  $priority: TaskPriority
+  $dueAt: Time
+) {
+  createTask(
+    title: $title
+    description: $description
+    priority: $priority
+    dueAt: $dueAt
+  ) {
     id
     title
     state
