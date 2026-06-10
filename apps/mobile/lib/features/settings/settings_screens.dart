@@ -1,5 +1,4 @@
 import 'package:built_value/json_object.dart';
-import 'package:ferry/ferry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -27,7 +26,7 @@ final configKeysProvider = FutureProvider<List<ConfigKeyView>>((ref) async {
   final client = ref.watch(ferryClientProvider);
   final data = await runOnceRequired(
     client,
-    GConfigKeysReq((b) => b..fetchPolicy = FetchPolicy.NetworkOnly),
+    GConfigKeysReq(),
   );
   return [
     for (final k in data.configKeys)
@@ -109,7 +108,7 @@ final connectorsProvider = FutureProvider<List<ConnectorView>>((ref) async {
   final client = ref.watch(ferryClientProvider);
   final data = await runOnceRequired(
     client,
-    GConnectorsReq((b) => b..fetchPolicy = FetchPolicy.NetworkOnly),
+    GConnectorsReq(),
   );
   return [
     for (final c in data.connectors)
@@ -170,7 +169,7 @@ final categoriesProvider = FutureProvider<List<CategoryView>>((ref) async {
   final client = ref.watch(ferryClientProvider);
   final data = await runOnceRequired(
     client,
-    GCategoriesReq((b) => b..fetchPolicy = FetchPolicy.NetworkOnly),
+    GCategoriesReq(),
   );
   final views = [
     for (final c in data.categories)

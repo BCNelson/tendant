@@ -6,8 +6,9 @@ import 'package:ferry/ferry.dart';
 /// responses (data null + no link exception) and for legitimately-null query
 /// results, which would otherwise hang the future.
 ///
-/// Requests should be built with `fetchPolicy = FetchPolicy.NetworkOnly` (or
-/// NoCache) so the awaited response originates from the link, not the cache.
+/// The Ferry client defaults every operation to `FetchPolicy.NoCache` (see
+/// graphql/client.dart), so the awaited response already originates from the
+/// link, not the cache — no per-request fetchPolicy is needed.
 Future<TData?> runOnce<TData, TVars>(
   Client client,
   OperationRequest<TData, TVars> req,

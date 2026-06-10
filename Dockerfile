@@ -8,7 +8,11 @@ COPY apps/mobile/ ./
 # Codegen is not required: the app's lib/ code does not import generated ferry
 # types (the data layer uses overridable stub providers), so a plain build is
 # enough and avoids a build_runner step.
-RUN flutter pub get && flutter build web --release --base-href /
+# --pwa-strategy=none: no caching service worker (only the self-unregistering
+# stub); freshness is owned by the server's ETag + Cache-Control headers
+# (internal/webui/webui.go). Filename fingerprinting (scripts/fingerprint-web.mjs)
+# is deferred and intentionally not wired in here yet.
+RUN flutter pub get && flutter build web --release --base-href / --pwa-strategy=none
 
 # --- Stage 2: build the Go binary with the web bundle embedded --------------
 FROM --platform=$BUILDPLATFORM golang:1.25 AS builder

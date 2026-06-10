@@ -87,5 +87,20 @@ final ferryClientProvider = Provider<Client>((ref) {
     AuthLink(token),
     transportLink,
   ]);
-  return Client(link: link);
+  // GraphQL is never served from cache. Ferry's built-in query default is
+  // CacheFirst, which surfaced stale reads — and the normalized cache's
+  // identical-value dedup is what forced the subscription `tick` workarounds in
+  // bootstrap.dart. This app's freshness comes from network round-trips plus the
+  // live subscriptions; durable offline writes ride the Drift outbox, not this
+  // cache. So make NoCache the single, app-wide default: every query, mutation,
+  // and subscription resolves from the link and neither reads nor writes the
+  // normalized store. New operations inherit this — no per-request fetchPolicy.
+  return Client(
+    link: link,
+    defaultFetchPolicies: const {
+      OperationType.query: FetchPolicy.NoCache,
+      OperationType.mutation: FetchPolicy.NoCache,
+      OperationType.subscription: FetchPolicy.NoCache,
+    },
+  );
 });

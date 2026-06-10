@@ -65,9 +65,7 @@ List<Override> ferryOverrides() => [
           final data = await runOnceRequired(
             client,
             GInboxFeedReq((b) {
-              b
-                ..vars.first = 25
-                ..fetchPolicy = FetchPolicy.NetworkOnly;
+              b.vars.first = 25;
               if (after != null) b.vars.after = after;
             }),
           );
@@ -99,9 +97,7 @@ List<Override> ferryOverrides() => [
         final client = ref.watch(ferryClientProvider);
         final data = await runOnce(
           client,
-          GAgentAssignmentReq((b) => b
-            ..vars.id = id
-            ..fetchPolicy = FetchPolicy.NetworkOnly),
+          GAgentAssignmentReq((b) => b..vars.id = id),
         );
         final a = data?.agentAssignment;
         if (a == null) return null;
@@ -166,9 +162,7 @@ List<Override> ferryOverrides() => [
         final data = await runOnceRequired(
           client,
           GTasksReq((b) {
-            b
-              ..vars.first = 50
-              ..fetchPolicy = FetchPolicy.NetworkOnly;
+            b.vars.first = 50;
             if (serverState != null) {
               b.vars.state = GTaskState.valueOf(serverState);
             }
@@ -195,9 +189,7 @@ List<Override> ferryOverrides() => [
         final client = ref.watch(ferryClientProvider);
         final data = await runOnce(
           client,
-          GTaskDetailReq((b) => b
-            ..vars.id = id
-            ..fetchPolicy = FetchPolicy.NetworkOnly),
+          GTaskDetailReq((b) => b..vars.id = id),
         );
         final t = data?.task;
         if (t == null) return null;
@@ -226,9 +218,7 @@ List<Override> ferryOverrides() => [
         final client = ref.watch(ferryClientProvider);
         final data = await runOnce(
           client,
-          GPendingDecisionReq((b) => b
-            ..vars.id = id
-            ..fetchPolicy = FetchPolicy.NetworkOnly),
+          GPendingDecisionReq((b) => b..vars.id = id),
         );
         return _mapApproval(data?.pendingDecision);
       }),
@@ -245,9 +235,7 @@ List<Override> ferryOverrides() => [
         final client = ref.watch(ferryClientProvider);
         final data = await runOnce(
           client,
-          GFeedbackRequestReq((b) => b
-            ..vars.id = id
-            ..fetchPolicy = FetchPolicy.NetworkOnly),
+          GFeedbackRequestReq((b) => b..vars.id = id),
         );
         return _mapFeedbackConvo(data?.pendingDecision);
       }),
@@ -261,9 +249,7 @@ List<Override> ferryOverrides() => [
         final client = ref.watch(ferryClientProvider);
         final data = await runOnce(
           client,
-          GTaskStageSlotsReq((b) => b
-            ..vars.taskId = taskId
-            ..fetchPolicy = FetchPolicy.NetworkOnly),
+          GTaskStageSlotsReq((b) => b..vars.taskId = taskId),
         );
         final task = data?.task;
         if (task == null) return <StageSlotView>[];
@@ -291,7 +277,6 @@ List<Override> ferryOverrides() => [
         final data = await runOnce(
           client,
           GAgentConfigsReq((b) {
-            b.fetchPolicy = FetchPolicy.NetworkOnly;
             if (stage != null) b.vars.stage = _gStage(stage);
           }),
         );

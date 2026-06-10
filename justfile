@@ -7,9 +7,14 @@ LDFLAGS := "-X main.version=" + VERSION + " -X main.commit=" + COMMIT + " -X mai
 # Compile the Flutter web app and stage it into the Go embed directory
 # (services/api/internal/webui/dist). The contents are git-ignored; the
 # server embeds whatever is present at `go build` time (placeholder otherwise).
+# --pwa-strategy=none: emit no caching service worker (only the self-
+# unregistering stub). Freshness is owned by the server's ETag + Cache-Control
+# headers (services/api/internal/webui/webui.go), not a client-side SW.
+# (Filename fingerprinting via scripts/fingerprint-web.mjs is deferred — the
+# script exists but is intentionally not wired into the build yet.)
 build-web:
     cd apps/mobile && flutter pub get
-    cd apps/mobile && flutter build web --release --base-href /
+    cd apps/mobile && flutter build web --release --base-href / --pwa-strategy=none
     find services/api/internal/webui/dist -mindepth 1 ! -name .gitignore -delete
     cp -r apps/mobile/build/web/. services/api/internal/webui/dist/
 
