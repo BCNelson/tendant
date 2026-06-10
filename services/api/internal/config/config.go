@@ -43,6 +43,7 @@ type Config struct {
 	Gatescript  GatescriptConfig  `koanf:"gatescript"`
 	Calibration CalibrationConfig `koanf:"calibration"`
 	Intake      IntakeConfig      `koanf:"intake"`
+	Embedding   EmbeddingConfig   `koanf:"embedding"`
 	Auth        AuthConfig        `koanf:"auth"`
 	Credentials CredentialsConfig `koanf:"credentials"`
 	Seed        SeedConfig        `koanf:"seed"`
@@ -109,6 +110,21 @@ type OverseerConfig struct {
 type ProviderHTTPConfig struct {
 	APIKey  string `koanf:"api_key"`
 	BaseURL string `koanf:"base_url"`
+}
+
+// EmbeddingConfig holds the swappable embedding subsystem settings. Provider
+// empty/"log" disables embeddings (triage uses the full-taxonomy fallback). A
+// change to provider/model/dimension/base_url is detected at boot + on hot
+// reload and triggers a durable reindex into the idle slot. Dimension is the
+// expected vector length; the actual length is recorded per version, so a
+// model whose dimension differs needs no migration.
+type EmbeddingConfig struct {
+	Provider   string `koanf:"provider"`
+	Model      string `koanf:"model"`
+	BaseURL    string `koanf:"base_url"`
+	APIKey     string `koanf:"api_key"`
+	Dimension  int    `koanf:"dimension"`
+	TriageTopK int    `koanf:"triage_top_k"`
 }
 
 // GatescriptConfig holds the Phase-5 gate-script runner + ceilings.

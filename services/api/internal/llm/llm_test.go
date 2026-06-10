@@ -75,6 +75,45 @@ func TestOpenAIClient_ForceTool_RequestAndParse(t *testing.T) {
 	}
 }
 
+// TestOpenAIClient_JSONObjectMode verifies that ResponseFormat "json_object"
+// maps to the OpenAI `response_format` field, suppresses the forced-tool path
+// (tools + tool_choice are omitted), and that the model's JSON content is
+// surfaced verbatim for the caller to decode. This is the channel that keeps
+// Ollama producing structured output when it ignores tool_choice.
+func TestOpenAIClient_JSONObjectMode(t *testing.T) {
+	t.Parallel()
+	var seen string
+	body := `{"model":"gpt-4.1-mini","choices":[{"message":{"content":"{\"reply\":\"How did it go?\",\"draft_guidance\":\"Always cite sources.\"}"}}],"usage":{"prompt_tokens":5,"completion_tokens":4}}`
+	srv := fixtureServer(t, 200, body, &seen, nil)
+
+	c, _ := NewClient(Connection{Provider: "openai", BaseURL: srv.URL, APIKey: "sk", Model: "gpt-4.1-mini"})
+	resp, err := c.Chat(context.Background(), Request{
+		System:         "respond with json",
+		Messages:       []Message{{Role: "user", Content: "hi"}},
+		Tools:          []Tool{{Name: "feedback_turn", Schema: map[string]any{"type": "object"}}},
+		ForceTool:      "feedback_turn",
+		ResponseFormat: "json_object",
+	})
+	if err != nil {
+		t.Fatalf("chat: %v", err)
+	}
+	if resp.Content == "" || resp.ToolCalls != nil {
+		t.Fatalf("want JSON content and no tool calls, got content=%q toolcalls=%+v", resp.Content, resp.ToolCalls)
+	}
+
+	var req openaiReq
+	if err := json.Unmarshal([]byte(seen), &req); err != nil {
+		t.Fatalf("decode seen: %v", err)
+	}
+	rf, _ := req.ResponseFormat.(map[string]any)
+	if rf["type"] != "json_object" {
+		t.Fatalf("response_format not set to json_object: %v", req.ResponseFormat)
+	}
+	if req.Tools != nil || req.ToolChoice != nil {
+		t.Fatalf("json_object mode must omit tools/tool_choice: tools=%+v tool_choice=%+v", req.Tools, req.ToolChoice)
+	}
+}
+
 func TestOpenAIClient_Status500_Transient(t *testing.T) {
 	t.Parallel()
 	srv := fixtureServer(t, 500, `{"error":"down"}`, nil, nil)

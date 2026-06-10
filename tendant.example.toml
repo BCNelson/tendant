@@ -122,6 +122,27 @@
 # gmail_client_secret = ""   # 🔒 prefer TENDANT_GMAIL_CLIENT_SECRET
 # gmail_redirect_url = ""
 
+[embedding]
+# Swappable vector embeddings. When enabled, triage embeds the task and injects
+# only the top-K nearest categories instead of the whole taxonomy. Changing the
+# model/dimension auto-triggers a durable reindex (blue/green); the active slot
+# keeps serving throughout, and a different dimension needs no migration. Leave
+# provider empty to disable (triage falls back to the full taxonomy).
+#
+# Local dev with Ollama (run `ollama pull nomic-embed-text`):
+# provider     = "openai"                    # OpenAI-compatible protocol
+# model        = "nomic-embed-text"
+# base_url     = "http://localhost:11434/v1"
+# dimension    = 768
+# triage_top_k = 10
+#
+# OpenAI (text-embedding-3-small can emit 768 via the dimensions param):
+# provider  = "openai"
+# model     = "text-embedding-3-small"
+# base_url  = "https://api.openai.com/v1"
+# api_key   = "${env:OPENAI_API_KEY}"        # 🔒 prefer env/secret indirection
+# dimension = 1536
+
 [credentials]
 # key = ""              # 🔒 base64 AES-256 key — prefer TENDANT_CREDENTIALS_KEY
 

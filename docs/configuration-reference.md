@@ -66,6 +66,17 @@ systemd `CREDENTIALS_DIRECTORY`).
 |---|---|---|---|---|---|
 | `database.url` 🔒 | string | — | — | bootstrap | PostgreSQL connection DSN |
 
+## embedding
+
+| Key | Type | Default | DB-configurable | Takes effect | Description |
+|---|---|---|---|---|---|
+| `embedding.api_key` 🔒 | string | — | — | bootstrap | Embedding provider API key |
+| `embedding.base_url` | string | `http://localhost:11434/v1` | — | bootstrap | OpenAI-compatible embeddings base URL (Ollama default) |
+| `embedding.dimension` | int | `768` | yes | hot | Expected embedding dimension (actual length recorded per version; a change triggers a reindex) |
+| `embedding.model` | string | `nomic-embed-text` | — | bootstrap | Embedding model identifier |
+| `embedding.provider` | string | `` | — | bootstrap | Embedding provider: openai (OpenAI-compatible, incl. Ollama), or empty/log to disable |
+| `embedding.triage_top_k` | int | `10` | yes | hot | Number of nearest categories injected into the triage prompt |
+
 ## gate
 
 | Key | Type | Default | DB-configurable | Takes effect | Description |

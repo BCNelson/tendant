@@ -85,6 +85,14 @@ var Registry = []KeyDef{
 	{Key: "intake.gmail_client_secret", Type: "string", Default: "", Description: "Gmail OAuth client secret", Reload: ReloadBootstrap, Sensitive: true, DBConfigurable: false, ReadonlyReason: "OAuth credentials are read at boot"},
 	{Key: "intake.gmail_redirect_url", Type: "string", Default: "", Description: "Gmail OAuth redirect URL", Reload: ReloadBootstrap, DBConfigurable: false},
 
+	// Embedding subsystem (swappable vector embeddings; triage top-K categories).
+	{Key: "embedding.provider", Type: "string", Default: "", Description: "Embedding provider: openai (OpenAI-compatible, incl. Ollama), or empty/log to disable", Reload: ReloadBootstrap, DBConfigurable: false, ReadonlyReason: "Embedding routing is fixed at boot"},
+	{Key: "embedding.model", Type: "string", Default: "nomic-embed-text", Description: "Embedding model identifier", Reload: ReloadBootstrap, DBConfigurable: false},
+	{Key: "embedding.base_url", Type: "string", Default: "http://localhost:11434/v1", Description: "OpenAI-compatible embeddings base URL (Ollama default)", Reload: ReloadBootstrap, DBConfigurable: false},
+	{Key: "embedding.api_key", Type: "string", Default: "", Description: "Embedding provider API key", Reload: ReloadBootstrap, Sensitive: true, DBConfigurable: false, ReadonlyReason: "Provider credentials are read at boot"},
+	{Key: "embedding.dimension", Type: "int", Default: 768, Description: "Expected embedding dimension (actual length recorded per version; a change triggers a reindex)", Reload: ReloadHot, DBConfigurable: true, HotReloadable: true},
+	{Key: "embedding.triage_top_k", Type: "int", Default: 10, Description: "Number of nearest categories injected into the triage prompt", Reload: ReloadHot, DBConfigurable: true, HotReloadable: true},
+
 	// Secrets / boot toggles.
 	{Key: "credentials.key", Type: "string", Default: "", Description: "Base64 AES-256 key sealing source credentials", Reload: ReloadBootstrap, Sensitive: true, DBConfigurable: false, ReadonlyReason: "Sealing key is read at boot"},
 	{Key: "auth.password", Type: "string", Default: "", Description: "Static device-pairing password (reusable; presented to pairDevice)", Reload: ReloadBootstrap, Sensitive: true, DBConfigurable: false, ReadonlyReason: "Auth password is read at boot"},

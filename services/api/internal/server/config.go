@@ -4,10 +4,13 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	pgxvec "github.com/pgvector/pgvector-go/pgx"
 
 	"github.com/bcnelson/tendant/services/api/internal/secret"
 )
@@ -53,10 +56,26 @@ func envInt(key string, def int) int {
 }
 
 // OpenPool opens a new pgx connection pool against the given DSN. Caller owns
-// the returned pool and must Close it.
+// the returned pool and must Close it. Each connection registers the pgvector
+// types (binary codecs for the `vector` column used by internal/embedding).
+// Registration is best-effort: the pool is opened before migrations run, so a
+// connection established before the `vector` extension exists must still succeed
+// — `pgvector.Vector` falls back to text via driver.Valuer/Scanner, and
+// post-migration connections pick up the binary codec.
 func OpenPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	if dsn == "" {
 		return nil, fmt.Errorf("DATABASE_URL is empty")
 	}
-	return pgxpool.New(ctx, dsn)
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("parse pool config: %w", err)
+	}
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		if err := pgxvec.RegisterTypes(ctx, conn); err != nil {
+			// vector extension not present yet (pre-migration) — tolerate it.
+			slog.Debug("pgvector type registration skipped", "err", err)
+		}
+		return nil
+	}
+	return pgxpool.NewWithConfig(ctx, cfg)
 }

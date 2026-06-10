@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/core"
 	"github.com/bcnelson/tendant/services/api/internal/db"
 	"github.com/bcnelson/tendant/services/api/internal/durable"
+	"github.com/bcnelson/tendant/services/api/internal/embedding"
 	"github.com/bcnelson/tendant/services/api/internal/feedback"
 	"github.com/bcnelson/tendant/services/api/internal/gatescript"
 	"github.com/bcnelson/tendant/services/api/internal/intake"
@@ -214,7 +216,11 @@ func runServe(logLevel *slog.LevelVar) error {
 	// HumanOnlyRouter + nil runner, the unchanged default). buildLLMRegistry has
 	// no DBOS dependency, so it is built here and reused by the overseer below.
 	llmRegistry := buildLLMRegistry(cfg)
-	agentRouter, agentRunner := buildAgentWiring(cfg, llmRegistry, pool, q, overlay)
+	// Embedding subsystem: the triage category matcher + the reindex deps. Built
+	// here so the matcher can be injected into the agent runner; nil/"log"
+	// provider disables it (triage falls back to the full taxonomy).
+	embWiring := buildEmbedding(cfg, pool, q, overlay)
+	agentRouter, agentRunner := buildAgentWiring(cfg, llmRegistry, pool, q, overlay, embWiring.matcher, embWiring.topK)
 	// Post-completion feedback converser: reuse the agent connection's LLM; fall
 	// back to the deterministic stub when no agent connection is configured. The
 	// same converser drives the workflow's opener and the resolver's replies.
@@ -237,6 +243,12 @@ func runServe(logLevel *slog.LevelVar) error {
 	// before Launch so recovery + the schedule reconciler find the function.
 	calibration.RegisterSweep(dctx, pool, q, calibrator, calibMetrics, pushAdapter, ownerURI)
 
+	// 5b''. Embedding reindex workflow. Registered before Launch so an in-flight
+	// reindex from a previous boot recovers. Only when embedding is enabled.
+	if embWiring.embedder != nil {
+		embedding.RegisterReindex(dctx, embWiring.store, embWiring.embedder, embWiring.sources)
+	}
+
 	if err := durable.Launch(dctx); err != nil {
 		return fmt.Errorf("dbos launch: %w", err)
 	}
@@ -252,6 +264,25 @@ func runServe(logLevel *slog.LevelVar) error {
 	// 5d. Phase 8 calibration sweep schedule (DB-backed, crash-recovered). Idempotent.
 	if err := calibration.CreateSchedule(dctx, calibCfg.SweepCron); err != nil {
 		slog.Error("calibration: sweep schedule creation failed", "err", err)
+	}
+
+	// 5e. Embedding: ensure the active version matches the configured model and,
+	// when it differs (incl. first boot), provision a new version + start a
+	// durable reindex into the idle slot (the active slot keeps serving). A hot
+	// change to embedding.* (e.g. dimension via setConfigEntry) re-triggers it;
+	// EnsureActiveVersion is serialized + deduped, so rapid changes are safe.
+	if embWiring.embedder != nil {
+		if err := embedding.EnsureActiveVersion(ctx, dctx, embWiring.store, embeddingConfig(cfg, overlay)); err != nil {
+			slog.Error("embedding: ensure active version failed", "err", err)
+		}
+		overlay.OnChange(func(key string) {
+			if !strings.HasPrefix(key, "embedding.") {
+				return
+			}
+			if err := embedding.EnsureActiveVersion(context.Background(), dctx, embWiring.store, embeddingConfig(cfg, overlay)); err != nil {
+				slog.Error("embedding: reindex on config change failed", "key", key, "err", err)
+			}
+		})
 	}
 
 	// 6. LISTEN dispatcher.

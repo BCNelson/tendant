@@ -122,6 +122,11 @@ func TestLLMConverser_Reply_SalvagesPlainText(t *testing.T) {
 	if fc.got.ForceTool != "feedback_turn" {
 		t.Errorf("ForceTool = %q, want feedback_turn", fc.got.ForceTool)
 	}
+	// It must also request JSON-object output so OpenAI-compatible endpoints
+	// (Ollama) that ignore tool_choice still emit a decodable draft.
+	if fc.got.ResponseFormat != "json_object" {
+		t.Errorf("ResponseFormat = %q, want json_object", fc.got.ResponseFormat)
+	}
 	if len(fc.got.Messages) != 3 {
 		t.Fatalf("got %d messages, want 3 (seed + 2 turns)", len(fc.got.Messages))
 	}

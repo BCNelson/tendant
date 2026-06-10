@@ -60,6 +60,17 @@ type Request struct {
 	// ForceTool, when non-empty, forces the model to call exactly that tool
 	// (used for structured output). Empty ⇒ tool use is optional.
 	ForceTool string
+	// ResponseFormat requests a constrained output shape from providers that
+	// support it. The only recognized value is "json_object": the model must
+	// emit a single JSON object as its content. This is the reliable
+	// structured-output channel for OpenAI-compatible endpoints (notably
+	// Ollama) that do not honor forced tool_choice on multi-turn requests; the
+	// OpenAI-compatible Client maps it to `response_format` and skips the
+	// forced tool. Providers that drive structured output through tool calls
+	// (Anthropic / Gemini / Bedrock) ignore this field and use ForceTool, so a
+	// caller may set both and let each Client pick the channel it understands.
+	// Empty ⇒ unconstrained.
+	ResponseFormat string
 	// MaxTokens caps the response; 0 ⇒ the Client's per-provider default.
 	MaxTokens int
 }

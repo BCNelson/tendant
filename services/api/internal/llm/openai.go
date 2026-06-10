@@ -46,11 +46,12 @@ func (c *openaiClient) Provider() string { return "openai" }
 func (c *openaiClient) Model() string    { return c.model }
 
 type openaiReq struct {
-	Model      string       `json:"model"`
-	MaxTokens  int          `json:"max_tokens,omitempty"`
-	Messages   []openaiMsg  `json:"messages"`
-	Tools      []openaiTool `json:"tools,omitempty"`
-	ToolChoice any          `json:"tool_choice,omitempty"`
+	Model          string       `json:"model"`
+	MaxTokens      int          `json:"max_tokens,omitempty"`
+	Messages       []openaiMsg  `json:"messages"`
+	Tools          []openaiTool `json:"tools,omitempty"`
+	ToolChoice     any          `json:"tool_choice,omitempty"`
+	ResponseFormat any          `json:"response_format,omitempty"`
 }
 
 type openaiMsg struct {
@@ -102,20 +103,32 @@ func (c *openaiClient) Chat(ctx context.Context, req Request) (Response, error) 
 	}
 
 	body := openaiReq{Model: model, MaxTokens: req.MaxTokens, Messages: msgs}
-	for _, t := range req.Tools {
-		body.Tools = append(body.Tools, openaiTool{
-			Type: "function",
-			Function: openaiFunction{
-				Name:        t.Name,
-				Description: t.Description,
-				Parameters:  t.Schema,
-			},
-		})
-	}
-	if req.ForceTool != "" {
-		body.ToolChoice = map[string]any{
-			"type":     "function",
-			"function": map[string]any{"name": req.ForceTool},
+
+	// JSON-object output mode wins over the forced-tool path: it is the
+	// reliable structured-output channel for OpenAI-compatible endpoints
+	// (notably Ollama) that drop tool_choice on multi-turn requests. Forcing a
+	// tool while also requiring a JSON object content would be contradictory
+	// (a tool call leaves content empty), so when ResponseFormat is set we omit
+	// the tool declarations and emit the object as content for the caller to
+	// decode.
+	if req.ResponseFormat == "json_object" {
+		body.ResponseFormat = map[string]any{"type": "json_object"}
+	} else {
+		for _, t := range req.Tools {
+			body.Tools = append(body.Tools, openaiTool{
+				Type: "function",
+				Function: openaiFunction{
+					Name:        t.Name,
+					Description: t.Description,
+					Parameters:  t.Schema,
+				},
+			})
+		}
+		if req.ForceTool != "" {
+			body.ToolChoice = map[string]any{
+				"type":     "function",
+				"function": map[string]any{"name": req.ForceTool},
+			}
 		}
 	}
 

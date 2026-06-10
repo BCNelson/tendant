@@ -54,6 +54,16 @@ func DefaultConfig() Config {
 			SweepCron:         "0 * * * *",
 			IntakeTightenK:    0.02,
 		},
+		Embedding: EmbeddingConfig{
+			// Disabled by default (triage uses the full-taxonomy fallback). The
+			// other fields pre-fill the Ollama dev setup so enabling embeddings
+			// is just `provider = "openai"` (see tendant.example.toml).
+			Provider:   "",
+			Model:      "nomic-embed-text",
+			BaseURL:    "http://localhost:11434/v1",
+			Dimension:  768,
+			TriageTopK: 10,
+		},
 		Seed: SeedConfig{
 			ExampleGateScript: false,
 		},

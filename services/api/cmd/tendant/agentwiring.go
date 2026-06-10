@@ -27,7 +27,7 @@ import (
 // Mirrors buildOverseerProvider's "name a connection, fall closed if absent"
 // shape. Inference routing is fixed at boot (no self-escalation): an agent
 // cannot mint a connection at runtime.
-func buildAgentWiring(cfg *config.Config, reg *llm.Registry, pool *pgxpool.Pool, q *db.Queries, ov *config.Overlay) (chain.Router, chain.StageRunner) {
+func buildAgentWiring(cfg *config.Config, reg *llm.Registry, pool *pgxpool.Pool, q *db.Queries, ov *config.Overlay, matcher agent.CategoryMatcher, triageTopK int) (chain.Router, chain.StageRunner) {
 	name := cfg.Agent.Connection
 	if name == "" {
 		return chain.HumanOnlyRouter{}, nil
@@ -55,6 +55,8 @@ func buildAgentWiring(cfg *config.Config, reg *llm.Registry, pool *pgxpool.Pool,
 		Dispatcher: nil,                          // never reached: failClosedGate never approves
 		Auditor:    chainAuditWriter{pool: pool}, // agent_run_* + refusal/budget rows on the audit DAG
 		Queries:    q,
+		Matcher:    matcher, // nil ⇒ full-taxonomy fallback for triage
+		TriageTopK: triageTopK,
 		MaxIter:    ov.IntOr("agent.max_iter", cfg.Agent.MaxIter),
 		Budget:     ov.IntOr("gate.call_budget", cfg.Gate.CallBudget),
 	}

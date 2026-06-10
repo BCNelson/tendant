@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pgvector/pgvector-go"
 )
 
 type AgentStage string
@@ -486,6 +487,29 @@ type DeviceToken struct {
 	OwnerID   uuid.UUID      `json:"owner_id"`
 	Platform  DevicePlatform `json:"platform"`
 	CreatedAt time.Time      `json:"created_at"`
+}
+
+type Embedding struct {
+	SourceType     string           `json:"source_type"`
+	SourceID       uuid.UUID        `json:"source_id"`
+	SourceText     string           `json:"source_text"`
+	ContentHash    string           `json:"content_hash"`
+	EmbeddingBlue  *pgvector.Vector `json:"embedding_blue"`
+	EmbeddingGreen *pgvector.Vector `json:"embedding_green"`
+	UpdatedAt      time.Time        `json:"updated_at"`
+}
+
+type EmbeddingVersion struct {
+	Version     int32              `json:"version"`
+	Slot        string             `json:"slot"`
+	Provider    string             `json:"provider"`
+	Model       string             `json:"model"`
+	Dimension   int32              `json:"dimension"`
+	ConfigHash  string             `json:"config_hash"`
+	Status      string             `json:"status"`
+	WorkflowID  *string            `json:"workflow_id"`
+	CreatedAt   time.Time          `json:"created_at"`
+	ActivatedAt pgtype.Timestamptz `json:"activated_at"`
 }
 
 type FeedbackMessage struct {

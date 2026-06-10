@@ -59,9 +59,28 @@ func (r *Runner) appendGuidance(ctx context.Context, agentConfigID uuid.UUID, sy
 
 // appendTaxonomy appends the available task-category taxonomy (key — label) to a
 // triage agent's system prompt under a labeled section, instructing it to set
-// findings.structured.category to the single best-matching key. Nil Queries, a
-// load error, or an empty catalog degrades to the unmodified prompt (best-effort).
-func (r *Runner) appendTaxonomy(ctx context.Context, systemPrompt string) string {
+// findings.structured.category to the single best-matching key. When a Matcher
+// is configured it injects only the top-K categories most similar to taskText
+// (semantic narrowing); otherwise — and on any matcher error / empty result — it
+// degrades to the full taxonomy. Nil Queries, a load error, or an empty catalog
+// degrades to the unmodified prompt (best-effort).
+func (r *Runner) appendTaxonomy(ctx context.Context, systemPrompt, taskText string) string {
+	if r.Matcher != nil && strings.TrimSpace(taskText) != "" {
+		k := r.TriageTopK
+		if k <= 0 {
+			k = 10
+		}
+		if matches, err := r.Matcher.TopCategories(ctx, taskText, k); err == nil && len(matches) > 0 {
+			var b strings.Builder
+			b.WriteString(systemPrompt)
+			b.WriteString("\n\n[TASK_CATEGORIES]\nClassify this task by setting findings.structured.category to the single best-matching key below (the most specific one that fits; these are the closest matches to this task). Use exactly one key, or leave it empty if none fit:\n")
+			for _, m := range matches {
+				writeCategoryLine(&b, m.Key, m.Label)
+			}
+			return b.String()
+		}
+		// matcher error or no matches → fall through to the full taxonomy.
+	}
 	if r.Queries == nil {
 		return systemPrompt
 	}
@@ -73,15 +92,20 @@ func (r *Runner) appendTaxonomy(ctx context.Context, systemPrompt string) string
 	b.WriteString(systemPrompt)
 	b.WriteString("\n\n[TASK_CATEGORIES]\nClassify this task by setting findings.structured.category to the single best-matching key below (the most specific one that fits). Use exactly one key, or leave it empty if none fit:\n")
 	for _, c := range cats {
-		b.WriteString("- ")
-		b.WriteString(c.Key)
-		if c.Label != "" {
-			b.WriteString(" — ")
-			b.WriteString(c.Label)
-		}
-		b.WriteString("\n")
+		writeCategoryLine(&b, c.Key, c.Label)
 	}
 	return b.String()
+}
+
+// writeCategoryLine renders one "- key — label" taxonomy entry.
+func writeCategoryLine(b *strings.Builder, key, label string) {
+	b.WriteString("- ")
+	b.WriteString(key)
+	if label != "" {
+		b.WriteString(" — ")
+		b.WriteString(label)
+	}
+	b.WriteString("\n")
 }
 
 // GateEvaluator is the interface the runner uses to gate tool calls.
@@ -114,8 +138,25 @@ type Runner struct {
 	Dispatcher ToolDispatcher
 	Auditor    AuditWriter
 	Queries    *db.Queries
+	// Matcher, when set, narrows the triage taxonomy to the top-K nearest
+	// categories (semantic embedding search). nil ⇒ inject the full taxonomy.
+	Matcher    CategoryMatcher
+	TriageTopK int // top-K for Matcher (0 ⇒ 10)
 	MaxIter    int
 	Budget     int // per-task gate-call budget (shared across stages in a task)
+}
+
+// CategoryMatch is one nearest category for triage narrowing (key + label).
+type CategoryMatch struct {
+	Key   string
+	Label string
+}
+
+// CategoryMatcher returns the categories most semantically similar to a task's
+// text. Implemented by internal/embedding (adapted in cmd/tendant) so the agent
+// package stays decoupled from the embedding subsystem.
+type CategoryMatcher interface {
+	TopCategories(ctx context.Context, taskText string, k int) ([]CategoryMatch, error)
 }
 
 // RunConfig is the per-run context for a stage.
@@ -162,7 +203,11 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 	// stages route by that category; other stages don't classify, so they don't
 	// need the list.
 	if rc.Config.Stage == db.AgentStageTriage {
-		systemPrompt = r.appendTaxonomy(ctx, systemPrompt)
+		taskText := rc.TaskTitle
+		if rc.TaskDesc != "" {
+			taskText += "\n" + rc.TaskDesc
+		}
+		systemPrompt = r.appendTaxonomy(ctx, systemPrompt, taskText)
 	}
 
 	model := ""
