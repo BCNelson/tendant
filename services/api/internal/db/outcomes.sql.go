@@ -26,6 +26,30 @@ func (q *Queries) CountToolOutcomesForTask(ctx context.Context, taskID uuid.UUID
 	return n, err
 }
 
+const decisionAlreadyDispatched = `-- name: DecisionAlreadyDispatched :one
+SELECT EXISTS (
+  SELECT 1 FROM audit_messages
+  WHERE kind = 'decision_resolved'
+    AND payload->>'decision_id' = $1::text
+    AND payload->>'approved' = 'true'
+) AS dispatched
+`
+
+// Idempotency guard for non-idempotent tool dispatch. Reports whether an
+// approved decision_resolved audit already exists for this decision — it is
+// written in the SAME transaction as the tool outcome, after Execute, so a true
+// result means a prior attempt already dispatched and recorded. On a recovery
+// re-run the workflow consults this before Execute and skips the dispatch,
+// closing the at-least-once window between the outcome commit and the DBOS step
+// checkpoint. (The narrower Execute-succeeded-but-tx-uncommitted window is
+// irreducible without a provider-side idempotency key.)
+func (q *Queries) DecisionAlreadyDispatched(ctx context.Context, decisionID string) (bool, error) {
+	row := q.db.QueryRow(ctx, decisionAlreadyDispatched, decisionID)
+	var dispatched bool
+	err := row.Scan(&dispatched)
+	return dispatched, err
+}
+
 const insertToolOutcome = `-- name: InsertToolOutcome :one
 INSERT INTO tool_outcomes (tool_id, task_id, outcome, matured_at, routine_fingerprint)
 VALUES ($1, $2, $3, $4, $5)

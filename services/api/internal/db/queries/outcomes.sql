@@ -12,3 +12,19 @@ RETURNING id, tool_id, task_id, outcome, at, matured_at, routine_fingerprint;
 SELECT COUNT(*) AS n
 FROM tool_outcomes
 WHERE task_id = $1;
+
+-- name: DecisionAlreadyDispatched :one
+-- Idempotency guard for non-idempotent tool dispatch. Reports whether an
+-- approved decision_resolved audit already exists for this decision — it is
+-- written in the SAME transaction as the tool outcome, after Execute, so a true
+-- result means a prior attempt already dispatched and recorded. On a recovery
+-- re-run the workflow consults this before Execute and skips the dispatch,
+-- closing the at-least-once window between the outcome commit and the DBOS step
+-- checkpoint. (The narrower Execute-succeeded-but-tx-uncommitted window is
+-- irreducible without a provider-side idempotency key.)
+SELECT EXISTS (
+  SELECT 1 FROM audit_messages
+  WHERE kind = 'decision_resolved'
+    AND payload->>'decision_id' = @decision_id::text
+    AND payload->>'approved' = 'true'
+) AS dispatched;

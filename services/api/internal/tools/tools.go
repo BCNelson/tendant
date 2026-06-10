@@ -33,6 +33,38 @@ type Tool interface {
 	// Execute dispatches the call. The payload is the frozen ApprovalRequest
 	// payload — byte-for-byte identical to what the human approved.
 	Execute(ctx context.Context, payload json.RawMessage) (Result, error)
+
+	// Idempotent reports whether executing THIS payload more than once is safe —
+	// i.e. the effect is naturally idempotent, or the tool/provider will dedup
+	// using the idempotency key carried on ctx (see IdempotencyKey). The decision
+	// is per-call: most tools return a constant, but a tool may inspect ctx (for
+	// the key) or the payload (e.g. honor a message-id field). DBOS steps are
+	// at-least-once — a crash between Execute and the step's checkpoint re-runs
+	// the dispatch on recovery — so when this returns false the tool-call
+	// workflow guards the dispatch (skips re-Execute if the decision already
+	// dispatched) to avoid a duplicate external effect. When true, the workflow
+	// dispatches without the guard (the tool/provider is trusted to dedup).
+	Idempotent(ctx context.Context, payload json.RawMessage) bool
+}
+
+// idempotencyKeyCtxKey is the private context key under which the tool-call
+// workflow stashes a per-call idempotency key.
+type idempotencyKeyCtxKey struct{}
+
+// WithIdempotencyKey returns a context carrying a stable idempotency key for the
+// tool call. The key is the decision id — deterministic across DBOS recovery
+// re-runs — so a provider that forwards it to its backing service (e.g. as an
+// Idempotency-Key header / message-id) gets exactly-once delivery even if
+// Execute runs more than once. The same context reaches both Idempotent and
+// Execute, so providers and the idempotency check see the identical key.
+func WithIdempotencyKey(ctx context.Context, key string) context.Context {
+	return context.WithValue(ctx, idempotencyKeyCtxKey{}, key)
+}
+
+// IdempotencyKey returns the idempotency key set on ctx, or "" if none.
+func IdempotencyKey(ctx context.Context) string {
+	k, _ := ctx.Value(idempotencyKeyCtxKey{}).(string)
+	return k
 }
 
 // Registry maps global_uri → Tool. Tools register at boot; lookups are

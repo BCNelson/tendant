@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -217,7 +218,33 @@ func dispatchAndRecord(ctx context.Context, d *envDeps, decisionID uuid.UUID, en
 	if len(payload) == 0 {
 		return fmt.Errorf("decision %s missing frozen_payload", decisionID)
 	}
-	result, execErr := d.registry.Execute(ctx, tool.GlobalUri, payload)
+
+	// Carry a stable idempotency key (the decision id — deterministic across
+	// DBOS recovery re-runs) on the context handed to both the Idempotent check
+	// and Execute, so a provider that dedups on it can guarantee exactly-once
+	// even though DBOS steps are at-least-once.
+	dispatchCtx := tools.WithIdempotencyKey(ctx, decisionID.String())
+
+	// Idempotency guard. A crash between Execute and the step checkpoint re-runs
+	// dispatchAndRecord on recovery. The tool inspects this ctx + payload to
+	// report whether repeating the call is safe (its provider dedups on the
+	// key). When it is NOT, skip re-Execute if this decision already dispatched
+	// (an approved decision_resolved audit exists, written in the same tx as the
+	// outcome below) so we don't repeat the side effect. Unknown tools fall
+	// through to Execute, which returns ErrUnknownTool.
+	if t, ok := d.registry.ByGlobalURI(tool.GlobalUri); ok && !t.Idempotent(dispatchCtx, payload) {
+		dispatched, derr := d.queries.DecisionAlreadyDispatched(ctx, decisionID.String())
+		if derr != nil {
+			return fmt.Errorf("dispatch idempotency guard: %w", derr)
+		}
+		if dispatched {
+			slog.WarnContext(ctx, "toolflow.dispatch_skipped_already_dispatched",
+				"decision_id", decisionID, "tool", tool.GlobalUri)
+			return nil
+		}
+	}
+
+	result, execErr := d.registry.Execute(dispatchCtx, tool.GlobalUri, payload)
 
 	outcomeKind := db.ToolOutcomeKindClean
 	dispatchErrStr := ""

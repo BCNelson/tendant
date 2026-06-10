@@ -9,6 +9,7 @@ import (
 
 	"github.com/dbos-inc/dbos-transact-golang/dbos"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bcnelson/tendant/services/api/internal/chain"
@@ -48,6 +49,56 @@ func TestWaitPrimitive_IsGeneric(t *testing.T) {
 	result, err := handle.GetResult()
 	require.NoError(t, err)
 	require.JSONEq(t, `{"hello":"world"}`, result)
+}
+
+// TestWaitPrimitive_ShutdownLeavesWorkflowRecoverable proves the shutdown
+// safety contract: when a workflow is blocked in WaitForResult and the DBOS
+// runtime is shut down (base context cancelled), the workflow must be left
+// PENDING — NOT recorded as terminal ERROR. A regression here is the
+// "marked complete but never done" bug: an ERROR-status chain workflow is
+// never recovered, so the operator's later completeTask Send lands on a dead
+// workflow and the task is stuck mid-stage forever.
+func TestWaitPrimitive_ShutdownLeavesWorkflowRecoverable(t *testing.T) {
+	ctx := context.Background()
+	pool := testutil.TestDB(t)
+
+	dctx, err := durable.Init(ctx, pool, "wait-shutdown-"+uuid.New().String())
+	require.NoError(t, err)
+
+	dbos.RegisterWorkflow(dctx, syntheticWaitWorkflow,
+		dbos.WithWorkflowName("test.synthetic.wait"))
+	require.NoError(t, durable.Launch(dctx))
+
+	// Start a workflow that blocks on the wait primitive; never resolve it.
+	wfID := "synthetic-shutdown-" + uuid.New().String()
+	_, err = dbos.RunWorkflow(dctx, syntheticWaitWorkflow, "never-resolved-key",
+		dbos.WithWorkflowID(wfID))
+	require.NoError(t, err)
+
+	// Give the workflow time to reach the blocking Recv.
+	time.Sleep(200 * time.Millisecond)
+
+	// Capture the DSN before shutdown — DBOS closes the shared pool on Shutdown.
+	connStr := pool.Config().ConnString()
+
+	// Shut down while the workflow is parked in WaitForResult. This cancels the
+	// DBOS base context → Recv returns context.Canceled → WaitForResult parks
+	// (does not return), so the goroutine never records an outcome. The drain
+	// times out (bounded by the timeout arg) and Shutdown returns.
+	durable.Shutdown(dctx, time.Second)
+
+	// The pool DBOS used is now closed; reconnect to inspect the final status.
+	verifyPool, err := pgxpool.New(ctx, connStr)
+	require.NoError(t, err)
+	defer verifyPool.Close()
+
+	var status string
+	err = verifyPool.QueryRow(ctx,
+		`SELECT status FROM dbos.workflow_status WHERE workflow_uuid = $1`, wfID).
+		Scan(&status)
+	require.NoError(t, err)
+	require.Equal(t, "PENDING", status,
+		"a shutdown during a durable wait must leave the workflow recoverable (PENDING), not terminal ERROR")
 }
 
 // syntheticWaitWorkflow uses the chain wait primitive directly with a

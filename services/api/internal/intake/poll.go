@@ -2,6 +2,7 @@ package intake
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -78,10 +79,21 @@ func loadPollDeps() (*pollDeps, error) {
 	return d, nil
 }
 
+// pollConfig is the memoized result of the load-config step: the connector
+// fields the poll needs, plus a Skip flag for the deleted/disabled cases.
+// Serialized by DBOS as the step output, so all fields are JSON-friendly.
+type pollConfig struct {
+	Skip             bool            `json:"skip"`
+	ConnectorType    string          `json:"connector_type"`
+	Filter           json.RawMessage `json:"filter"`
+	DispositionRules json.RawMessage `json:"disposition_rules"`
+}
+
 // PollWorkflow is the DBOS scheduled workflow run once per cron tick per enabled
-// connector. input.Context carries the connector id (string). It runs in two
+// connector. input.Context carries the connector id (string). It runs in
 // durable, memoized steps:
 //
+//  0. load_config — read the connector row; skip the tick if deleted/disabled.
 //  1. fetch+ingest — run the connector, ingesting each emission idempotently
 //     (ON CONFLICT). Re-running on crash re-fetches and re-ingests safely.
 //  2. dispose — load the connector's unprocessed signals and route each through
@@ -98,28 +110,44 @@ func PollWorkflow(ctx dbos.DBOSContext, input dbos.ScheduledWorkflowInput) (any,
 		return nil, err
 	}
 
-	cfgRow, err := d.queries.GetConnectorConfig(ctx, connectorID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil // connector deleted; a lingering tick is a no-op
+	// Step 0: load the connector config inside a memoized step. Reading mutable
+	// config in the workflow body and branching on it (enabled/deleted) would be
+	// non-deterministic on replay; branching on a memoized step result is not.
+	cfg, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (pollConfig, error) {
+		cfgRow, gerr := d.queries.GetConnectorConfig(stepCtx, connectorID)
+		if gerr != nil {
+			if errors.Is(gerr, pgx.ErrNoRows) {
+				return pollConfig{Skip: true}, nil // connector deleted; a lingering tick is a no-op
+			}
+			return pollConfig{}, fmt.Errorf("load connector config: %w", gerr)
 		}
-		return nil, fmt.Errorf("load connector config: %w", err)
+		if !cfgRow.Enabled {
+			return pollConfig{Skip: true}, nil // disabled between schedule-delete and this tick
+		}
+		return pollConfig{
+			ConnectorType:    cfgRow.ConnectorType,
+			Filter:           cfgRow.Filter,
+			DispositionRules: cfgRow.DispositionRules,
+		}, nil
+	}, dbos.WithStepName("intake.poll.load_config."+connectorID.String()))
+	if err != nil {
+		return nil, err
 	}
-	if !cfgRow.Enabled {
-		return nil, nil // disabled between schedule-delete and this tick
+	if cfg.Skip {
+		return nil, nil
 	}
-	rules := ParseDispositionRules(cfgRow.DispositionRules)
+	rules := ParseDispositionRules(cfg.DispositionRules)
 
 	runCfg := ConnectorConfig{
 		ConnectorID:      connectorID,
-		ConnectorType:    cfgRow.ConnectorType,
-		Filter:           cfgRow.Filter,
-		DispositionRules: cfgRow.DispositionRules,
+		ConnectorType:    cfg.ConnectorType,
+		Filter:           cfg.Filter,
+		DispositionRules: cfg.DispositionRules,
 	}
 	if d.credStore != nil {
 		var refresher TokenRefresher
 		if d.refresher != nil {
-			refresher = d.refresher(cfgRow.ConnectorType, connectorID)
+			refresher = d.refresher(cfg.ConnectorType, connectorID)
 		}
 		runCfg.Credentials = d.credStore.Accessor(connectorID, refresher, time.Now)
 	}
@@ -128,7 +156,7 @@ func PollWorkflow(ctx dbos.DBOSContext, input dbos.ScheduledWorkflowInput) (any,
 	_, err = dbos.RunAsStep(ctx, func(stepCtx context.Context) (int, error) {
 		ingested := 0
 		emit := func(sig PotentialTaskSignal) error {
-			res, ierr := Ingest(stepCtx, d.pool, sig, cfgRow.ConnectorType, connectorID)
+			res, ierr := Ingest(stepCtx, d.pool, sig, cfg.ConnectorType, connectorID)
 			if ierr != nil {
 				return ierr
 			}
@@ -159,7 +187,7 @@ func PollWorkflow(ctx dbos.DBOSContext, input dbos.ScheduledWorkflowInput) (any,
 		capState := NewCapCounter(rules.LLMJudgePerPoll)
 		disposed := 0
 		for _, sig := range unprocessed {
-			if _, derr := d.disposer.Dispose(stepCtx, sig, cfgRow.ConnectorType, rules, capState); derr != nil {
+			if _, derr := d.disposer.Dispose(stepCtx, sig, cfg.ConnectorType, rules, capState); derr != nil {
 				return disposed, fmt.Errorf("dispose signal %s: %w", sig.ID, derr)
 			}
 			disposed++

@@ -13,6 +13,7 @@ class TendantApp extends ConsumerWidget {
     final router = ref.watch(routerProvider(initialSession));
     return MaterialApp.router(
       title: 'tendant',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.indigo),
       routerConfig: router,
     );

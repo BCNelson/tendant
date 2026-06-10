@@ -348,9 +348,22 @@ func handoffReasonOf(raw json.RawMessage) string {
 	return result.HandoffReason
 }
 
+// detachCancel strips cancellation/deadline from a step context while keeping
+// its values. Short, idempotent DB-write steps run their transaction under it
+// so a graceful shutdown mid-step lets the in-flight tx commit and the step
+// record SUCCESS — instead of the DB call observing context.Canceled, which
+// DBOS persists as the step's PERMANENT error (replayed on every recovery) and
+// returns to the workflow body, poisoning the whole workflow to terminal ERROR
+// (which DBOS never recovers). The drain timeout in durable.Shutdown bounds how
+// long these can hold up shutdown. Do NOT use this for long-running I/O steps
+// (agent/LLM, HTTP fetch, tool dispatch): those must stay cancellable and rely
+// instead on idempotent re-run after a hard-kill recovery.
+func detachCancel(ctx context.Context) context.Context { return context.WithoutCancel(ctx) }
+
 // runAdvanceStageStep advances the chain stage in one DBOS step.
 func runAdvanceStageStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, from, to lifecycle.ChainStage, reason string) error {
 	_, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (struct{}, error) {
+		stepCtx = detachCancel(stepCtx)
 		err := pgx.BeginFunc(stepCtx, d.pool, func(tx pgx.Tx) error {
 			_, txErr := lifecycle.AdvanceStage(stepCtx, tx, taskID, from, to, reason)
 			return txErr
@@ -375,6 +388,7 @@ func runOpenAssignmentStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, s
 	}
 	var outerAssignmentID uuid.UUID
 	_, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (struct{}, error) {
+		stepCtx = detachCancel(stepCtx)
 		err := pgx.BeginFunc(stepCtx, d.pool, func(tx pgx.Tx) error {
 			q := db.New(tx)
 			if _, fErr := q.FindOpenAssignmentForStage(stepCtx, db.FindOpenAssignmentForStageParams{
@@ -458,6 +472,7 @@ func runResolveAndAdvanceStep(
 ) error {
 	stepName := "chain.resolve_and_advance." + string(stage) + "_to_" + string(nextStage)
 	_, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (struct{}, error) {
+		stepCtx = detachCancel(stepCtx)
 		err := pgx.BeginFunc(stepCtx, d.pool, func(tx pgx.Tx) error {
 			q := db.New(tx)
 			// Unfiltered lookup (open OR already-closed): the completeTask
@@ -531,6 +546,7 @@ func runResolveAndAdvanceStep(
 // chain_workflows row. Last step before the workflow returns successfully.
 func runCompletionStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID) error {
 	_, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (struct{}, error) {
+		stepCtx = detachCancel(stepCtx)
 		err := pgx.BeginFunc(stepCtx, d.pool, func(tx pgx.Tx) error {
 			q := db.New(tx)
 			task, gerr := q.GetTask(stepCtx, taskID)

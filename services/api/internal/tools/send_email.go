@@ -55,6 +55,14 @@ func NewSendEmail(p EmailProvider) *SendEmail {
 // GlobalURI satisfies Tool.
 func (s *SendEmail) GlobalURI() string { return SendEmailGlobalURI }
 
+// Idempotent reports false for every payload: the default LogProvider performs
+// no dedup, so a recovery re-run of Execute would deliver a duplicate message.
+// The tool-call workflow therefore guards this tool's dispatch. When a provider
+// that dedups on the ctx idempotency key (IdempotencyKey) is wired, this can
+// return true whenever a key is present, letting the provider guarantee
+// exactly-once instead.
+func (s *SendEmail) Idempotent(_ context.Context, _ json.RawMessage) bool { return false }
+
 // Execute unmarshals + validates + delegates. Errors from the provider
 // surface to the workflow, which records an outcome=bad row.
 func (s *SendEmail) Execute(ctx context.Context, payload json.RawMessage) (Result, error) {
@@ -75,8 +83,11 @@ type LogProvider struct {
 	Logger *slog.Logger
 }
 
-// Send records the intended message and returns a clean Result.
-func (l LogProvider) Send(_ context.Context, p SendEmailPayload) (Result, error) {
+// Send records the intended message and returns a clean Result. It reads the
+// idempotency key off ctx and logs it — a real SMTP/HTTP provider would instead
+// forward it to its backing service (e.g. as a message-id) so a recovery re-run
+// is deduped at the provider rather than delivering twice.
+func (l LogProvider) Send(ctx context.Context, p SendEmailPayload) (Result, error) {
 	logger := l.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -86,6 +97,7 @@ func (l LogProvider) Send(_ context.Context, p SendEmailPayload) (Result, error)
 		"to", p.To,
 		"subject", p.Subject,
 		"body_len", len(p.Body),
+		"idempotency_key", IdempotencyKey(ctx),
 	)
 	detail, _ := json.Marshal(map[string]string{"to": p.To, "subject": p.Subject})
 	return Result{Provider: "log", Detail: detail}, nil
