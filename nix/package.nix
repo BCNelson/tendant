@@ -43,7 +43,7 @@ buildGoModule {
 
   # Replace lib.fakeHash with the value Nix reports on first build (the "got:"
   # hash in the mismatch error).
-  vendorHash = "sha256-FILSYEhB4KH8Wk80zlMvq5rAN9XJx8tL3xxyoOxkQHw=";
+  vendorHash = "sha256-485aEmGS5QMfdbIVzunuFOHv/M7AkpGbx/PigLe7jLk=";
 
   # Static build, matching the Dockerfile (distroless-static compatible).
   env.CGO_ENABLED = "0";
