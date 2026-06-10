@@ -104,6 +104,47 @@ func TestListFeed_RankingAndActionableFilter(t *testing.T) {
 	require.True(t, sawActionableTask)
 }
 
+// TestListFeed_FeedbackRequestOnDoneTaskSurfaces guards the post-completion
+// feedback loop: a feedback_request decision is opened *after* its task reaches
+// DONE, so the actionable-only terminal-state filter must exempt it (other
+// decision kinds on terminal tasks stay filtered, proven by the sibling test).
+func TestListFeed_FeedbackRequestOnDoneTaskSurfaces(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	q, owner := setupInboxDB(t)
+
+	now := time.Now().UTC()
+
+	// DONE task carrying an open feedback_request → must surface despite the
+	// task being terminal.
+	doneWithFeedback := createTaskWith(t, q, db.TaskStateDone, db.TaskPriorityNormal, nil)
+	_, err := q.InsertPendingDecision(ctx, db.InsertPendingDecisionParams{
+		TaskID:  doneWithFeedback,
+		Kind:    db.DecisionKindFeedbackRequest,
+		Payload: json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	// DONE task carrying an open approval_request → must stay filtered.
+	doneWithApproval := createTaskWith(t, q, db.TaskStateDone, db.TaskPriorityNormal, nil)
+	insertDecision(t, q, doneWithApproval)
+
+	items, _, err := inbox.ListFeed(ctx, q, owner.GlobalUri, "", 50, now)
+	require.NoError(t, err)
+
+	var sawFeedback, sawApproval bool
+	for _, it := range items {
+		if it.TaskID == doneWithFeedback {
+			sawFeedback = true
+		}
+		if it.TaskID == doneWithApproval {
+			sawApproval = true
+		}
+	}
+	require.True(t, sawFeedback, "feedback_request on a DONE task must surface in the feed")
+	require.False(t, sawApproval, "approval_request on a DONE task must remain filtered")
+}
+
 // TestListFeed_KeysetStabilityPinnedClock walks the whole feed in pages against
 // a single pinned clock and asserts every item appears exactly once — and that
 // a high-urgency row inserted mid-scroll does NOT gate-crash later pages (its

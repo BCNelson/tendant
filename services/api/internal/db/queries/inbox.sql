@@ -45,7 +45,11 @@ WITH feed AS (
     FROM pending_decisions pd
     JOIN tasks t ON t.id = pd.task_id
    WHERE pd.resolved_at IS NULL
-     AND t.state NOT IN ('done', 'dismissed', 'halted')
+     AND (t.state NOT IN ('done', 'dismissed', 'halted')
+          -- feedback_request decisions are post-completion by design (the chain
+          -- opens them after the task reaches DONE), so the actionable-only
+          -- terminal-state guard must not hide them.
+          OR pd.kind = 'feedback_request')
   UNION ALL
   SELECT aa.id, 'agent_assignment'::text AS kind, aa.task_id, aa.created_at,
          t.priority, t.due_at, t.intake_signal_id
