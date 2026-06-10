@@ -84,11 +84,14 @@ List<Override> ferryOverrides() => [
       // ---- Inbox live arrival subscription (drives feed refresh) ------
       inboxArrivedProvider.overrideWith((ref) {
         final client = ref.watch(ferryClientProvider);
+        var tick = 0;
         return client
             .request(GInboxEntryArrivedReq())
             .handleError((_) {}) // swallow transient transport drops
             .where((r) => r.data != null)
-            .map<void>((_) {});
+            // Distinct tick per event: Riverpod drops repeat-equal AsyncData,
+            // so a constant value would refresh the feed only once.
+            .map<int>((_) => ++tick);
       }),
 
       // ---- Assignment detail + complete -------------------------------
@@ -145,15 +148,20 @@ List<Override> ferryOverrides() => [
       // ---- Task change subscription -----------------------------------
       taskChangedProvider.overrideWith((ref, taskId) {
         final client = ref.watch(ferryClientProvider);
+        var tick = 0;
         return client
             .request(GTaskChangedReq((b) => b..vars.taskId = taskId))
             .handleError((_) {}) // swallow transient transport drops
             .where((r) => r.data != null)
-            .map<dynamic>((r) => r.data);
+            // Distinct tick per event: Riverpod drops repeat-equal AsyncData,
+            // so two byte-identical payloads would drop the second refresh.
+            .map<int>((_) => ++tick);
       }),
 
-      // ---- Tasks list (one-shot query, filterable) --------------------
-      tasksListProvider.overrideWith((ref, filter) async {
+      // ---- Tasks list (one-shot query, keyed by server state) ----------
+      // Keyed by the server `TaskState` name (null = unfiltered), so the
+      // "Active" and "All" UI filters — both unfiltered — share this one fetch.
+      rawTasksProvider.overrideWith((ref, serverState) async {
         final client = ref.watch(ferryClientProvider);
         final data = await runOnceRequired(
           client,
@@ -161,21 +169,25 @@ List<Override> ferryOverrides() => [
             b
               ..vars.first = 50
               ..fetchPolicy = FetchPolicy.NetworkOnly;
-            final st = _serverState(filter);
-            if (st != null) b.vars.state = st;
+            if (serverState != null) {
+              b.vars.state = GTaskState.valueOf(serverState);
+            }
           }),
         );
-        return _mapTasks(data, filter);
+        return _mapTasks(data);
       }),
 
       // ---- All-tasks live subscription (drives list refresh) ----------
       allTasksChangedProvider.overrideWith((ref) {
         final client = ref.watch(ferryClientProvider);
+        var tick = 0;
         return client
             .request(GTaskChangedReq((b) => b..vars.taskId = null))
             .handleError((_) {}) // swallow transient transport drops
             .where((r) => r.data != null)
-            .map<void>((_) {});
+            // Distinct tick per event: Riverpod drops repeat-equal AsyncData,
+            // so a constant value would refresh the list only once.
+            .map<int>((_) => ++tick);
       }),
 
       // ---- Task detail (header + stage slots + findings + activity) ----
@@ -436,7 +448,7 @@ class _FerryProposedTaskMutator implements ProposedTaskMutator {
   }
 }
 
-List<TaskRef> _mapTasks(GTasksData data, TasksFilter filter) {
+List<TaskRef> _mapTasks(GTasksData data) {
   final out = <TaskRef>[];
   for (final edge in data.tasks.edges) {
     final n = edge.node;
@@ -449,7 +461,7 @@ List<TaskRef> _mapTasks(GTasksData data, TasksFilter filter) {
           occupantModel: s.occupant?.model,
         ),
     ];
-    final task = TaskRef(
+    out.add(TaskRef(
       id: n.id,
       title: n.title,
       state: n.state.name,
@@ -457,11 +469,7 @@ List<TaskRef> _mapTasks(GTasksData data, TasksFilter filter) {
       autonomy: n.autonomy.name,
       hasOpenAssignment: n.openAssignment != null,
       stageSlots: slots,
-    );
-    // The server `state` arg is single-valued, so "Active" (any in-flight
-    // state) is enforced client-side.
-    if (filter == TasksFilter.active && task.isTerminal) continue;
-    out.add(task);
+    ));
   }
   return out;
 }
@@ -503,28 +511,6 @@ TaskDetail _mapTaskDetail(GTaskDetailData_task t) {
         ),
     ],
   );
-}
-
-GTaskState? _serverState(TasksFilter f) {
-  switch (f) {
-    case TasksFilter.active:
-    case TasksFilter.all:
-      return null;
-    case TasksFilter.proposed:
-      return GTaskState.PROPOSED;
-    case TasksFilter.accepted:
-      return GTaskState.ACCEPTED;
-    case TasksFilter.waiting:
-      return GTaskState.WAITING;
-    case TasksFilter.executing:
-      return GTaskState.EXECUTING;
-    case TasksFilter.done:
-      return GTaskState.DONE;
-    case TasksFilter.dismissed:
-      return GTaskState.DISMISSED;
-    case TasksFilter.halted:
-      return GTaskState.HALTED;
-  }
 }
 
 ApprovalRequestView? _mapApproval(

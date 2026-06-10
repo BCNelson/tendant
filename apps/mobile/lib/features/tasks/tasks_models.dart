@@ -21,6 +21,33 @@ enum TasksFilter {
 }
 
 extension TasksFilterLabel on TasksFilter {
+  /// The server-side `TaskState` enum name this filter maps to, or null when the
+  /// filter issues an unfiltered query. `active` and `all` both map to null —
+  /// they share one fetch, and `active` hides terminal tasks client-side — so
+  /// the two views can never diverge. The per-state filters map straight to the
+  /// matching server enum name. (Ferry-free twin of bootstrap's `_serverState`.)
+  String? get serverStateName {
+    switch (this) {
+      case TasksFilter.active:
+      case TasksFilter.all:
+        return null;
+      case TasksFilter.proposed:
+        return 'PROPOSED';
+      case TasksFilter.accepted:
+        return 'ACCEPTED';
+      case TasksFilter.waiting:
+        return 'WAITING';
+      case TasksFilter.executing:
+        return 'EXECUTING';
+      case TasksFilter.done:
+        return 'DONE';
+      case TasksFilter.dismissed:
+        return 'DISMISSED';
+      case TasksFilter.halted:
+        return 'HALTED';
+    }
+  }
+
   String get label {
     switch (this) {
       case TasksFilter.active:

@@ -23,9 +23,11 @@ class _TasksPageState extends ConsumerState<TasksPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Any task change → refetch the list so the live agent view stays current.
+    // Any task change → refetch the underlying list so the live agent view
+    // stays current. Invalidate `rawTasksProvider` (the network layer); the
+    // derived `tasksListProvider` views rebuild from it consistently.
     ref.listen(allTasksChangedProvider, (_, __) {
-      ref.invalidate(tasksListProvider);
+      ref.invalidate(rawTasksProvider);
     });
 
     final tasks = ref.watch(tasksListProvider(_filter));
@@ -46,7 +48,7 @@ class _TasksPageState extends ConsumerState<TasksPage> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
-            onPressed: () => ref.invalidate(tasksListProvider),
+            onPressed: () => ref.invalidate(rawTasksProvider),
           ),
         ],
       ),
@@ -62,7 +64,7 @@ class _TasksPageState extends ConsumerState<TasksPage> {
             return Center(child: Text('No ${_filter.label.toLowerCase()} tasks.'));
           }
           return RefreshIndicator(
-            onRefresh: () async => ref.invalidate(tasksListProvider),
+            onRefresh: () async => ref.invalidate(rawTasksProvider),
             child: ListView.builder(
               itemCount: list.length,
               itemBuilder: (_, i) => TaskTile(task: list[i]),

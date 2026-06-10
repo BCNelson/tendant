@@ -63,10 +63,12 @@ dev: _pg
     fi
     go run -C services/api ./cmd/tendant serve --config {{justfile_directory()}}/tendant.dev.toml
 
-# Pull the fast, tool-calling Ollama models referenced by tendant.dev.toml.
+# Pull the fast, tool-calling Ollama models referenced by tendant.dev.toml
+# (the two chat models for the overseer/agent + the embedding model for triage).
 ollama-models:
     ollama pull llama3.2:3b
     ollama pull qwen2.5:3b
+    ollama pull nomic-embed-text
 
 # Run the Flutter client with hot reload against the local API on :8080.
 # With no DEVICE it lists the available devices and prompts you to pick one;

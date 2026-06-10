@@ -33,6 +33,20 @@ example_gate_script = true
 # 5-field and logs a harmless boot error. Pin a valid hourly cron for dev.
 sweep_cron = "0 0 * * * *"
 
+# --- Embeddings (triage category retrieval) --------------------------------
+# Use the local Ollama for vector embeddings. Ollama serves the OpenAI-compatible
+# /v1/embeddings endpoint, so provider "openai" + the localhost base_url is all it
+# takes. When enabled, triage embeds the task and injects only the top-K nearest
+# categories instead of the whole taxonomy. The model/dimension below match
+# nomic-embed-text (pulled by `just ollama-models`). Leave provider empty to
+# disable (triage falls back to the full taxonomy). Routing is boot-only.
+[embedding]
+provider     = "openai"
+model        = "nomic-embed-text"
+base_url     = "http://localhost:11434/v1"
+dimension    = 768
+triage_top_k = 10
+
 # --- Overseer (Layer-4 LLM grader) -----------------------------------------
 # Point the overseer at the local Ollama connection defined below. The provider
 # choice is boot-only (agents cannot reroute inference). If Ollama is down the

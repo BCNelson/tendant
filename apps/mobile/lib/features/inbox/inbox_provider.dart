@@ -123,11 +123,14 @@ final inboxFeedProvider =
   InboxFeedController.new,
 );
 
-/// inboxArrivedProvider emits whenever a new inbox entry arrives (the
-/// `inboxEntryArrived` subscription). The Inbox view listens to it and
-/// refreshes the ranked feed live. Stubbed here; bootstrap overrides it
+/// inboxArrivedProvider emits a monotonically increasing tick whenever a new
+/// inbox entry arrives (the `inboxEntryArrived` subscription). The Inbox view
+/// listens to it and refreshes the ranked feed live. The value is a distinct
+/// counter — not `void` — because Riverpod suppresses `ref.listen` callbacks
+/// for repeat-equal `AsyncData`, so a constant value would only ever trigger
+/// the first refresh and then go stale. Stubbed here; bootstrap overrides it
 /// against the Ferry subscription.
-final inboxArrivedProvider = StreamProvider<void>((ref) async* {
+final inboxArrivedProvider = StreamProvider<int>((ref) async* {
   // No emissions until overridden in the bootstrap layer.
 });
 

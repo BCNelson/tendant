@@ -13,7 +13,8 @@ void main() {
     // Mutable backing list the fetcher reads; the arrival stream drives the
     // refetch that re-pins the clock and re-ranks.
     var entries = const <InboxEntryRef>[];
-    final arrivals = StreamController<void>.broadcast();
+    final arrivals = StreamController<int>.broadcast();
+    var tick = 0;
     addTearDown(arrivals.close);
 
     await tester.pumpWidget(
@@ -42,9 +43,30 @@ void main() {
         subtitle: 'TRIAGE',
       ),
     ];
-    arrivals.add(null);
+    arrivals.add(++tick);
     await tester.pumpAndSettle();
 
     expect(find.text('New task'), findsOneWidget);
+
+    // A SECOND entry lands. This is the regression guard: each arrival carries
+    // a distinct tick, so Riverpod's repeat-equal AsyncData suppression cannot
+    // swallow the follow-up refresh (the bug was mapping every event to a
+    // constant `void`, which refreshed only on the first arrival).
+    entries = const [
+      InboxEntryRef(
+        entryId: 'a2',
+        kind: 'agent_assignment',
+        urgency: 220,
+        typename: 'AgentAssignment',
+        itemId: 'a2',
+        title: 'Second task',
+        subtitle: 'TRIAGE',
+      ),
+    ];
+    arrivals.add(++tick);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Second task'), findsOneWidget);
+    expect(find.text('New task'), findsNothing);
   });
 }
