@@ -8,8 +8,14 @@ go 1.25.7
 // the network.
 replace github.com/bcnelson/tendant/db => ../../db
 
+// Workspace-local agentkit module (`use ./agentkit` in go.work). Same replace
+// rationale as the db module above: keeps per-module `go mod tidy` working
+// without reaching for a network pseudo-version.
+replace github.com/bcnelson/tendant/agentkit => ../../agentkit
+
 require (
 	github.com/99designs/gqlgen v0.17.90
+	github.com/bcnelson/tendant/agentkit v0.0.0-00010101000000-000000000000
 	github.com/bcnelson/tendant/db v0.0.0-00010101000000-000000000000
 	github.com/dbos-inc/dbos-transact-golang v0.15.0
 	github.com/go-chi/chi/v5 v5.3.0
