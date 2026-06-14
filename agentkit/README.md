@@ -64,8 +64,11 @@ path.
    so existing importers are unchanged; concrete `send-email` + seed stay
    app-side.
 2. **db foundation.** Split the sqlc package + migrations into framework-owned
-   (`agentkit/db`) and app-owned. Re-point importers. This is the wide,
-   mechanical unlock for everything below.
+   (`agentkit/db`, in a dedicated **`agentkit` Postgres schema** with its own
+   goose version table) and app-owned. Re-point importers. This is the wide,
+   mechanical unlock for everything below. See
+   [docs/schema-separation.md](docs/schema-separation.md) for the table
+   partition and the dependency rule (no FK from `agentkit.*` → an app table).
 3. **`gate` + `gatescript` + `overseer` + `calibration`.** The decision spine.
    Introduce a framework-owned `Tool` domain type to replace `db.Tool` in the
    `Gate.Evaluate` signature; relocate the WASM runner (with its embedded
