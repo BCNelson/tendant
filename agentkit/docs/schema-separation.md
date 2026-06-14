@@ -5,8 +5,11 @@ its sqlc-generated queries, and its goose migration lineage are independent of
 the consuming application's. This follows the precedent already in the codebase:
 DBOS runs in its own `dbos` schema against the same database.
 
-This is the design for roadmap step 2 (the db-foundation split). It is not yet
-implemented.
+**Scope note:** agentkit is the *agent* layer, not task management. It does
+**not** own `tasks`, the chain workflow, the lifecycle state machine, the
+human-approval/decision tables, the inbox, intake, or auth — those stay in the
+consuming application. The framework's schema is therefore small: just the
+agent + trust catalog.
 
 ## Mechanics
 
@@ -26,9 +29,11 @@ run independently:
 - the app's existing migrate — applies app migrations against the app version
   table.
 
-**Ordering.** Framework migrations run **first**: app tables hold FKs that
-reference `agentkit.*` tables (allowed: app → framework), so the framework
-schema must exist before the app's migrations apply.
+There is no migration-ordering constraint between the two: with task management
+out of scope, no framework table FKs an app table **and** no app table needs to
+FK a framework table (the consumer links its own rows to agent runs by the
+opaque correlation id below, not a database FK). The two lineages are
+independent.
 
 **DBOS is unchanged** — it keeps its own `dbos` schema and its own lifecycle.
 
@@ -38,73 +43,53 @@ it). The app keeps its own sqlc config for the app half. Optionally emit a
 `Querier` interface (`emit_interface: true`) on the framework side so consumers
 can mock the framework's persistence in their own tests.
 
-## Table partition
-
-The rule that drives classification: **no foreign key may point from
-`agentkit.*` to an app-owned table** (the framework must not depend on the
-app). Everything the framework's own FKs reach is therefore framework-owned.
-
-### Framework (`agentkit` schema)
+## Tables the framework owns (`agentkit` schema)
 
 | Table | Role |
 |---|---|
-| `tasks` | the unit of work the chain walks |
-| `audit_messages` | the audit DAG (self-referencing parent) |
-| `principals` | minimal identity the gate / assignments / decisions reference |
 | `agent_configs` | the specialist catalog (a specialist = a config row) |
-| `agent_assignments` | human-slot assignments (→ tasks, → principals) |
-| `chain_workflows` | DBOS chain bookkeeping (→ tasks) |
-| `pending_decisions` | gate decisions awaiting resolution (→ tasks) |
-| `tools` | the action-edge catalog + permissions/overseer instructions |
-| `tool_outcomes` | gated-call outcomes + routine fingerprints (→ tools, → tasks) |
-| `tool_routine_grants` | earned-autonomy grants (→ tools) |
+| `tools` | the action-edge catalog + permissions / overseer instructions |
+| `tool_outcomes` | gated-call outcomes + routine fingerprints (→ `tools`; keyed by correlation id) |
+| `tool_routine_grants` | earned-autonomy grants (→ `tools`) |
 | `gate_scripts` | the untrusted-code gate layer |
 | `owner_rules` | owner-rule key/value backing the gate-script host fn |
 
-### Application (e.g. `public` schema, tendant-owned)
+The only FKs among these are framework→framework (`tool_outcomes` and
+`tool_routine_grants` → `tools`), so the schema is self-contained.
 
-| Table | Role |
-|---|---|
-| `intake_signals` | the intake edge (Phase 7) |
-| `connector_configs`, `source_credentials` | intake connectors |
-| `task_categories` | tendant categorization tree |
-| `agent_guidance` | owner-feedback notes the runner reads |
-| `feedback_messages` | feedback generation loop |
-| `embeddings`, `embedding_versions` | semantic search (the `CategoryMatcher` seam impl) |
-| `config_entries` | config overlay |
-| `sessions`, `device_tokens` | operator-edge auth + push |
+## Tables the application owns (NOT agentkit)
 
-`embeddings` is app-owned by design: the agent runner consumes a
-`CategoryMatcher` *interface*; tendant's embedding subsystem is one
-implementation of that seam, not framework machinery.
+Everything task-management and edge-related stays app-side: `tasks`,
+`audit_messages`, `transitions`, `chain_workflows`, `agent_assignments`,
+`pending_decisions`, `principals`, `intake_signals`, `connector_configs`,
+`source_credentials`, `task_categories`, `agent_guidance`, `feedback_messages`,
+`embeddings`, `embedding_versions`, `config_entries`, `sessions`,
+`device_tokens`.
 
-## The one inversion edge to resolve
+Note `embeddings` and `agent_guidance` are app-owned by design: the agent runner
+consumes them through seams (`CategoryMatcher`, a guidance lookup), so a
+consumer supplies its own implementation — they are not framework machinery.
 
-`tasks.intake_signal_id → intake_signals` is the only FK pointing from a
-framework table to an app table. Resolution: **drop the typed FK column from the
-framework `tasks` table and carry the intake reference in the existing
-`tasks.provenance jsonb`** (already present, and already documented as "a
-reference, not a content copy"). The framework treats provenance as opaque; the
-app interprets it.
+## The correlation id (no cross-schema FK)
 
-If the app wants enforced referential integrity for the linkage, it owns an
-app-side link table — `task_intake_links(task_id → agentkit.tasks(id),
-signal_id → intake_signals(id))` — whose FKs are app→framework and app→app, both
-allowed.
+The framework's trust state currently keys on `task_id` (`tool_outcomes.task_id`,
+and the overseer's per-task evaluation cap). Because `tasks` is app-owned, the
+framework must not FK it. The fix: **rekey on an opaque `correlation_id` the
+consumer supplies** — a `uuid`/`text` column with **no foreign key**. In tendant
+that value is the task id; in another app it is whatever identifies the run (the
+DBOS workflow id, an objective id, …). The framework treats it as an opaque
+grouping key for cost caps and audit correlation; it never dereferences it.
 
-## Allowed cross-schema edges (app → framework)
+Audit is not a framework table at all: the runner and calibration write through
+the `AuditWriter` seam, so the audit DAG lives in whatever store the consumer
+keeps (in tendant, `audit_messages`).
 
-These stay as ordinary FKs; they point inward, which is fine:
-`agent_guidance → tasks`, `feedback_messages → tasks`, the app's intake-link
-table → `tasks`, etc. The only constraint they impose is migration ordering
-(framework first), already required above.
+## What the move costs
 
-## What the move actually costs
-
-The mechanical heavy lift of step 2 is partitioning the existing migrations
-`00001–00016`: extracting framework DDL into the `agentkit` migration lineage
-(rewritten schema-qualified into `agentkit.*`) and leaving app DDL in the app
-lineage, then re-pointing the ~130 importers of `internal/db` to either
-`agentkit/db` or the app's db package depending on which queries they use. The
-partition above is what makes that a mechanical sort rather than a judgment call
-per file.
+Smaller than the full extraction, because most of the original schema stays
+app-side. The framework migrations carry only the six catalog/trust tables
+above (rewritten schema-qualified into `agentkit.*`, with `task_id` → an
+unkeyed `correlation_id`). The bulk of `00001–00016` — tasks, lifecycle,
+decisions, intake, inbox, auth — is untouched and stays in the app's lineage.
+The re-point of `internal/db` importers is correspondingly narrower: only the
+agent/gate/overseer/calibration packages move to `agentkit/db`.

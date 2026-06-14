@@ -1,85 +1,99 @@
 # agentkit
 
-The reusable agent framework extracted from tendant — the trust-spine that
-turns "a config row" into a contained autonomous specialist, packaged so other
-projects can adopt it wholesale.
+A reusable **agent** framework extracted from tendant: the contained
+plan→act→observe runner and the trust-spine that gates everything it does
+(floor → script → overseer → earned-autonomy). You bring the orchestration;
+agentkit brings the agent and its containment.
 
 **Status:** scaffolding. First package (`tools`) lifted; the rest is sequenced
 below.
 
-## What this is (and isn't)
+## Scope: agents, not task management
 
-`agentkit` is an **opinionated** framework. It does not try to abstract away its
-runtime: **Postgres + DBOS are hard requirements**, not pluggable seams. A
-consuming project gets the framework's schema (migrations), its sqlc-generated
-queries, its DBOS workflows, and the trust-spine packages that ride on top.
-This is a deliberate trade: by keeping the stack fixed we avoid abstracting the
-two hardest dependencies (durable execution + persistence) and keep the
-crash-recovery guarantees that make the agent loop safe.
+agentkit is deliberately **just the agent layer**. Task management — what a
+unit of work is, how it flows through stages, the human-approval/decision
+lifecycle, intake, the operator inbox — is **not portable** and stays in the
+consuming application (in tendant: the `tasks` table, the chain workflow, the
+lifecycle state machine).
 
-What it is **not**: a storage-agnostic or orchestrator-agnostic SDK. If you
-don't want DBOS+Postgres, this isn't your library.
+What agentkit owns:
 
-## The framework/app boundary
+- the **agent runner** (one trusted plan→act→observe loop; a specialist is a
+  config over it, never new code)
+- the **universal gate** that contains every tool call the agent makes
+  (read-only short-circuit → hard-rule floor → gate script → overseer →
+  earned-autonomy)
+- the **tools** action-edge registry, the **overseer** LLM grader, the
+  **gatescript** WASM sandbox, and the **calibration** trust ratchet
+- the **model-client** seam (Anthropic/OpenAI/Gemini + a deterministic log
+  client for tests)
 
-The line is "generic agent machinery" vs "this product's domain":
+What the **consumer** owns: when and why an agent runs, the unit of work it runs
+against, what happens on a `RequestDecision`/fail-close (open a decision, wait
+on a human, …), and how the agent is wrapped for durability.
 
-| Framework (`agentkit`) | Application (e.g. tendant) |
+## Wrap agents in your own DBOS workflow
+
+agentkit is **opinionated about its runtime — Postgres + DBOS** — but it does
+**not** own a workflow. The agent runner and the gate are plain, deterministic
+Go designed to be invoked inside a **memoized DBOS step** in a workflow *you*
+write. tendant wraps agents in its chain workflow; another application wraps the
+same agents in its own. agentkit ships the building blocks (and a reference
+example) for that wrapping — not a fixed orchestration.
+
+This is why the runner is already seam-driven: it calls `GateEvaluator`,
+`ToolDispatcher`, and `AuditWriter` rather than touching a workflow or a task
+table directly. Your workflow supplies those implementations.
+
+## The boundary
+
+| agentkit (portable) | Application (e.g. tendant) |
 |---|---|
+| Agent runner (plan→act→observe) | The DBOS workflow that wraps/sequences agents |
+| Universal gate (floor → script → overseer → autonomy) | What to do on RequestDecision / fail-close |
 | Tool registry + `Tool` interface | Concrete tools (send-email, …) |
-| Universal gate (floor → script → overseer) | Tool permissions / owner rules data |
 | Overseer LLM grader + provider seam | Provider credentials / config |
 | Gate-script WASM sandbox | Authored gate scripts |
-| Agent runner (plan→act→observe) | Agent catalog rows, prompts |
 | Calibration (earned-autonomy ratchet) | Tuning knobs |
-| DBOS chain + tool-call workflows | GraphQL surface, Flutter app, intake/connectors |
-| Framework-owned schema + migrations | App-owned schema + migrations |
+| Agent + trust catalog tables (see below) | tasks, lifecycle, decisions, inbox, intake, auth |
+| `agentkit` Postgres schema + its migrations | App schema + migrations |
 
-Model transport already lives behind a clean seam (`Provider` / `AgentModelClient`,
-backed by `internal/llm`) with a deterministic log provider for tests — that
-part is reuse-ready as-is.
+## Persistence
 
-## Why the trust-spine is the easy part
+agentkit owns a small, dedicated **`agentkit` Postgres schema** (precedent:
+DBOS's own `dbos` schema) holding only the agent + trust catalog: `agent_configs`,
+`tools`, `tool_outcomes`, `tool_routine_grants`, `gate_scripts`, `owner_rules`.
+Its trust state is keyed by an **opaque correlation id** the consumer supplies
+(in tendant, the task id) — never a foreign key into an app table, so the
+framework never depends on the app's schema. Audit flows out through the
+`AuditWriter` seam into whatever store the consumer keeps. See
+[docs/schema-separation.md](docs/schema-separation.md).
 
-The tendant trust-spine is already exceptionally well-seamed: nearly every
-domain component sits behind an interface (`Gate`, `Grader`, `Provider`,
-`ScriptEvaluator`, `Tool`, `Router`, `StageRunner`, `Calibrator`,
-`AgentModelClient`, `GateEvaluator`, `ToolDispatcher`, `AuditWriter`, …). The
-loop logic ports almost verbatim.
-
-**The real work is the schema split.** Every trust-spine package depends on
-`*db.Queries`, and today that's one sqlc package
-(`services/api/internal/db`, ~130 importers) mixing framework-schema queries
-(tools, gate_scripts, agent_configs, pending_decisions, tool_outcomes, tasks,
-audit_messages, transitions, agent_assignments, calibration, owner_rules) with
-app-schema queries (connectors, intake_signals, embeddings, feedback, inbox,
-sessions, …). agentkit must own the framework half (queries + migrations);
-the app keeps its half. That split — not the agent logic — is the critical
-path.
-
-## Extraction roadmap
+## Roadmap
 
 1. **`tools` core — DONE.** Registry + `Tool` interface + idempotency plumbing
    (zero db dependency). tendant's `internal/tools` re-exports it via aliases,
    so existing importers are unchanged; concrete `send-email` + seed stay
    app-side.
-2. **db foundation.** Split the sqlc package + migrations into framework-owned
-   (`agentkit/db`, in a dedicated **`agentkit` Postgres schema** with its own
-   goose version table) and app-owned. Re-point importers. This is the wide,
-   mechanical unlock for everything below. See
-   [docs/schema-separation.md](docs/schema-separation.md) for the table
-   partition and the dependency rule (no FK from `agentkit.*` → an app table).
-3. **`gate` + `gatescript` + `overseer` + `calibration`.** The decision spine.
-   Introduce a framework-owned `Tool` domain type to replace `db.Tool` in the
-   `Gate.Evaluate` signature; relocate the WASM runner (with its embedded
-   `asc.wasm`/`quickjs.wasm`) and the pure calibration helpers (`Band`,
-   `Fingerprint`).
-4. **`agent` runner + `lifecycle` + `chain` + `toolflow` + `durable`.** The
-   autonomous loop and the DBOS workflows. Generalize the stage/state machine
-   so the five tendant stages become configuration the framework reads, not a
-   hardcoded enum.
-5. **Reference example.** A minimal app wiring agentkit end-to-end, proving a
-   new project gets the whole loop with little glue.
+2. **Decouple the runner from tendant.** Make `internal/agent.Runner` portable:
+   resolve the tool allowlist via the `tools.Registry` (not `db.GetToolByID`);
+   turn the taxonomy/guidance enrichments into optional injected seams (nil =
+   skip); and key the run on a generic context + **opaque correlation id**
+   instead of `TaskID/TaskTitle/TaskDesc`. Replace `db.AgentConfig` with a
+   framework `AgentConfig` domain type. The `GateEvaluator`/`ToolDispatcher`/
+   `AuditWriter` seams already isolate the workflow layer — no change needed.
+3. **db foundation (agent + trust catalog only).** Stand up `agentkit/db` in the
+   `agentkit` schema with its own goose version table: `agent_configs`, `tools`,
+   `tool_outcomes`, `tool_routine_grants`, `gate_scripts`, `owner_rules`.
+4. **`gate` + `gatescript` + `overseer` + `calibration`.** The decision spine.
+   Replace `db.Tool` with a framework `Tool` domain type in `Gate.Evaluate`;
+   relocate the WASM runner (with its embedded `asc.wasm`/`quickjs.wasm`) and the
+   pure calibration helpers (`Band`, `Fingerprint`). Calibration keyed by the
+   correlation id.
+5. **DBOS step helpers + reference example.** Thin utilities for running an agent
+   as a memoized step and the `Send/Recv` human-wake pattern, plus a minimal app
+   that wraps agentkit end-to-end — proving a non-tendant project gets agents
+   with little glue.
 
 ## Layout
 
@@ -87,7 +101,8 @@ path.
 agentkit/
 ├── go.mod
 ├── tools/            # action-edge registry (step 1 — done)
-└── (db, gate, gatescript, overseer, calibration, agent, chain, … to follow)
+├── docs/
+└── (agent, db, gate, gatescript, overseer, calibration, … to follow)
 ```
 
 In-repo module first (wired via the root `go.work`), with tendant as the live
