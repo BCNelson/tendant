@@ -5,6 +5,7 @@
 import 'package:built_value/built_value.dart';
 import 'package:built_value/serializer.dart';
 import 'package:ferry_exec/ferry_exec.dart' as _i1;
+import 'package:gql/ast.dart' as _i7;
 import 'package:gql_exec/gql_exec.dart' as _i4;
 import 'package:tendant/graphql/__generated__/serializers.gql.dart' as _i6;
 import 'package:tendant/graphql/operations/__generated__/task_detail.ast.gql.dart'
@@ -90,6 +91,51 @@ abstract class GTaskDetailReq
   static GTaskDetailReq? fromJson(Map<String, dynamic> json) =>
       _i6.serializers.deserializeWith(
         GTaskDetailReq.serializer,
+        json,
+      );
+}
+
+abstract class GTaskLinkReq
+    implements
+        Built<GTaskLinkReq, GTaskLinkReqBuilder>,
+        _i1.FragmentRequest<_i2.GTaskLinkData, _i3.GTaskLinkVars> {
+  GTaskLinkReq._();
+
+  factory GTaskLinkReq([void Function(GTaskLinkReqBuilder b) updates]) =
+      _$GTaskLinkReq;
+
+  static void _initializeBuilder(GTaskLinkReqBuilder b) => b
+    ..document = _i5.document
+    ..fragmentName = 'TaskLink';
+
+  @override
+  _i3.GTaskLinkVars get vars;
+  @override
+  _i7.DocumentNode get document;
+  @override
+  String? get fragmentName;
+  @override
+  Map<String, dynamic> get idFields;
+  @override
+  _i2.GTaskLinkData? parseData(Map<String, dynamic> json) =>
+      _i2.GTaskLinkData.fromJson(json);
+
+  @override
+  Map<String, dynamic> varsToJson() => vars.toJson();
+
+  @override
+  Map<String, dynamic> dataToJson(_i2.GTaskLinkData data) => data.toJson();
+
+  static Serializer<GTaskLinkReq> get serializer => _$gTaskLinkReqSerializer;
+
+  Map<String, dynamic> toJson() => (_i6.serializers.serializeWith(
+        GTaskLinkReq.serializer,
+        this,
+      ) as Map<String, dynamic>);
+
+  static GTaskLinkReq? fromJson(Map<String, dynamic> json) =>
+      _i6.serializers.deserializeWith(
+        GTaskLinkReq.serializer,
         json,
       );
 }

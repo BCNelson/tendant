@@ -2,10 +2,20 @@ mutation UpdateTaskMetadata(
   $taskId: ID!
   $priority: TaskPriority!
   $dueAt: Time
+  $startsAt: Time
+  $rank: Float
 ) {
-  updateTaskMetadata(taskId: $taskId, priority: $priority, dueAt: $dueAt) {
+  updateTaskMetadata(
+    taskId: $taskId
+    priority: $priority
+    dueAt: $dueAt
+    startsAt: $startsAt
+    rank: $rank
+  ) {
     id
     priority
     dueAt
+    startsAt
+    rank
   }
 }

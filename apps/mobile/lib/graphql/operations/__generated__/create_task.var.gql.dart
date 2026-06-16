@@ -20,6 +20,8 @@ abstract class GCreateTaskVars
   String? get description;
   _i1.GTaskPriority? get priority;
   _i1.GTime? get dueAt;
+  _i1.GTime? get startsAt;
+  double? get rank;
   static Serializer<GCreateTaskVars> get serializer =>
       _$gCreateTaskVarsSerializer;
 

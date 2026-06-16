@@ -50,6 +50,38 @@ final BuiltSet<GGateScriptStatus> _$gGateScriptStatusValues =
   _$gGateScriptStatusDISABLED,
 ]);
 
+const GTaskRelationKind _$gTaskRelationKindBLOCKS =
+    const GTaskRelationKind._('BLOCKS');
+const GTaskRelationKind _$gTaskRelationKindSUBTASK_OF =
+    const GTaskRelationKind._('SUBTASK_OF');
+const GTaskRelationKind _$gTaskRelationKindRELATED =
+    const GTaskRelationKind._('RELATED');
+const GTaskRelationKind _$gTaskRelationKindDUPLICATE_OF =
+    const GTaskRelationKind._('DUPLICATE_OF');
+
+GTaskRelationKind _$gTaskRelationKindValueOf(String name) {
+  switch (name) {
+    case 'BLOCKS':
+      return _$gTaskRelationKindBLOCKS;
+    case 'SUBTASK_OF':
+      return _$gTaskRelationKindSUBTASK_OF;
+    case 'RELATED':
+      return _$gTaskRelationKindRELATED;
+    case 'DUPLICATE_OF':
+      return _$gTaskRelationKindDUPLICATE_OF;
+    default:
+      throw ArgumentError(name);
+  }
+}
+
+final BuiltSet<GTaskRelationKind> _$gTaskRelationKindValues =
+    BuiltSet<GTaskRelationKind>(const <GTaskRelationKind>[
+  _$gTaskRelationKindBLOCKS,
+  _$gTaskRelationKindSUBTASK_OF,
+  _$gTaskRelationKindRELATED,
+  _$gTaskRelationKindDUPLICATE_OF,
+]);
+
 const GTaskState _$gTaskStatePROPOSED = const GTaskState._('PROPOSED');
 const GTaskState _$gTaskStateACCEPTED = const GTaskState._('ACCEPTED');
 const GTaskState _$gTaskStateWAITING = const GTaskState._('WAITING');
@@ -261,6 +293,8 @@ Serializer<GGateScriptTier> _$gGateScriptTierSerializer =
     _$GGateScriptTierSerializer();
 Serializer<GGateScriptStatus> _$gGateScriptStatusSerializer =
     _$GGateScriptStatusSerializer();
+Serializer<GTaskRelationKind> _$gTaskRelationKindSerializer =
+    _$GTaskRelationKindSerializer();
 Serializer<GTaskState> _$gTaskStateSerializer = _$GTaskStateSerializer();
 Serializer<GChainStage> _$gChainStageSerializer = _$GChainStageSerializer();
 Serializer<GAutonomyLevel> _$gAutonomyLevelSerializer =
@@ -396,6 +430,24 @@ class _$GGateScriptStatusSerializer
   GGateScriptStatus deserialize(Serializers serializers, Object serialized,
           {FullType specifiedType = FullType.unspecified}) =>
       GGateScriptStatus.valueOf(serialized as String);
+}
+
+class _$GTaskRelationKindSerializer
+    implements PrimitiveSerializer<GTaskRelationKind> {
+  @override
+  final Iterable<Type> types = const <Type>[GTaskRelationKind];
+  @override
+  final String wireName = 'GTaskRelationKind';
+
+  @override
+  Object serialize(Serializers serializers, GTaskRelationKind object,
+          {FullType specifiedType = FullType.unspecified}) =>
+      object.name;
+
+  @override
+  GTaskRelationKind deserialize(Serializers serializers, Object serialized,
+          {FullType specifiedType = FullType.unspecified}) =>
+      GTaskRelationKind.valueOf(serialized as String);
 }
 
 class _$GTaskStateSerializer implements PrimitiveSerializer<GTaskState> {

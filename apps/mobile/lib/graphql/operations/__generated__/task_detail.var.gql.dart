@@ -30,3 +30,24 @@ abstract class GTaskDetailVars
         json,
       );
 }
+
+abstract class GTaskLinkVars
+    implements Built<GTaskLinkVars, GTaskLinkVarsBuilder> {
+  GTaskLinkVars._();
+
+  factory GTaskLinkVars([void Function(GTaskLinkVarsBuilder b) updates]) =
+      _$GTaskLinkVars;
+
+  static Serializer<GTaskLinkVars> get serializer => _$gTaskLinkVarsSerializer;
+
+  Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
+        GTaskLinkVars.serializer,
+        this,
+      ) as Map<String, dynamic>);
+
+  static GTaskLinkVars? fromJson(Map<String, dynamic> json) =>
+      _i1.serializers.deserializeWith(
+        GTaskLinkVars.serializer,
+        json,
+      );
+}

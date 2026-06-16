@@ -39,6 +39,20 @@ class _$GUpdateTaskMetadataVarsSerializer
         ..add(serializers.serialize(value,
             specifiedType: const FullType(_i1.GTime)));
     }
+    value = object.startsAt;
+    if (value != null) {
+      result
+        ..add('startsAt')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(_i1.GTime)));
+    }
+    value = object.rank;
+    if (value != null) {
+      result
+        ..add('rank')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(double)));
+    }
     return result;
   }
 
@@ -67,6 +81,14 @@ class _$GUpdateTaskMetadataVarsSerializer
           result.dueAt.replace(serializers.deserialize(value,
               specifiedType: const FullType(_i1.GTime))! as _i1.GTime);
           break;
+        case 'startsAt':
+          result.startsAt.replace(serializers.deserialize(value,
+              specifiedType: const FullType(_i1.GTime))! as _i1.GTime);
+          break;
+        case 'rank':
+          result.rank = serializers.deserialize(value,
+              specifiedType: const FullType(double)) as double?;
+          break;
       }
     }
 
@@ -81,13 +103,21 @@ class _$GUpdateTaskMetadataVars extends GUpdateTaskMetadataVars {
   final _i1.GTaskPriority priority;
   @override
   final _i1.GTime? dueAt;
+  @override
+  final _i1.GTime? startsAt;
+  @override
+  final double? rank;
 
   factory _$GUpdateTaskMetadataVars(
           [void Function(GUpdateTaskMetadataVarsBuilder)? updates]) =>
       (GUpdateTaskMetadataVarsBuilder()..update(updates))._build();
 
   _$GUpdateTaskMetadataVars._(
-      {required this.taskId, required this.priority, this.dueAt})
+      {required this.taskId,
+      required this.priority,
+      this.dueAt,
+      this.startsAt,
+      this.rank})
       : super._();
   @override
   GUpdateTaskMetadataVars rebuild(
@@ -104,7 +134,9 @@ class _$GUpdateTaskMetadataVars extends GUpdateTaskMetadataVars {
     return other is GUpdateTaskMetadataVars &&
         taskId == other.taskId &&
         priority == other.priority &&
-        dueAt == other.dueAt;
+        dueAt == other.dueAt &&
+        startsAt == other.startsAt &&
+        rank == other.rank;
   }
 
   @override
@@ -113,6 +145,8 @@ class _$GUpdateTaskMetadataVars extends GUpdateTaskMetadataVars {
     _$hash = $jc(_$hash, taskId.hashCode);
     _$hash = $jc(_$hash, priority.hashCode);
     _$hash = $jc(_$hash, dueAt.hashCode);
+    _$hash = $jc(_$hash, startsAt.hashCode);
+    _$hash = $jc(_$hash, rank.hashCode);
     _$hash = $jf(_$hash);
     return _$hash;
   }
@@ -122,7 +156,9 @@ class _$GUpdateTaskMetadataVars extends GUpdateTaskMetadataVars {
     return (newBuiltValueToStringHelper(r'GUpdateTaskMetadataVars')
           ..add('taskId', taskId)
           ..add('priority', priority)
-          ..add('dueAt', dueAt))
+          ..add('dueAt', dueAt)
+          ..add('startsAt', startsAt)
+          ..add('rank', rank))
         .toString();
   }
 }
@@ -144,6 +180,14 @@ class GUpdateTaskMetadataVarsBuilder
   _i1.GTimeBuilder get dueAt => _$this._dueAt ??= _i1.GTimeBuilder();
   set dueAt(_i1.GTimeBuilder? dueAt) => _$this._dueAt = dueAt;
 
+  _i1.GTimeBuilder? _startsAt;
+  _i1.GTimeBuilder get startsAt => _$this._startsAt ??= _i1.GTimeBuilder();
+  set startsAt(_i1.GTimeBuilder? startsAt) => _$this._startsAt = startsAt;
+
+  double? _rank;
+  double? get rank => _$this._rank;
+  set rank(double? rank) => _$this._rank = rank;
+
   GUpdateTaskMetadataVarsBuilder();
 
   GUpdateTaskMetadataVarsBuilder get _$this {
@@ -152,6 +196,8 @@ class GUpdateTaskMetadataVarsBuilder
       _taskId = $v.taskId;
       _priority = $v.priority;
       _dueAt = $v.dueAt?.toBuilder();
+      _startsAt = $v.startsAt?.toBuilder();
+      _rank = $v.rank;
       _$v = null;
     }
     return this;
@@ -180,12 +226,16 @@ class GUpdateTaskMetadataVarsBuilder
             priority: BuiltValueNullFieldError.checkNotNull(
                 priority, r'GUpdateTaskMetadataVars', 'priority'),
             dueAt: _dueAt?.build(),
+            startsAt: _startsAt?.build(),
+            rank: rank,
           );
     } catch (_) {
       late String _$failedField;
       try {
         _$failedField = 'dueAt';
         _dueAt?.build();
+        _$failedField = 'startsAt';
+        _startsAt?.build();
       } catch (e) {
         throw BuiltValueNestedFieldError(
             r'GUpdateTaskMetadataVars', _$failedField, e.toString());

@@ -31,10 +31,33 @@ const ChainWorkflowIDPrefix = "chain:"
 // stays generic — only the chain layer interprets this convention.
 const CancelSentinelKey = "_chain_cancel"
 
+// BlockedTopicPrefix is the Send/Recv topic prefix the readiness gate waits on
+// while a task is parked in WAITING. Full topic is `blocked:<task_uuid>`. A
+// wake Send lands here when a blocker reaches a terminal state (so the gate
+// re-evaluates) or when the task is cancelled (a CancelSentinel).
+const BlockedTopicPrefix = "blocked:"
+
+// BlockedReevalInterval caps how long the readiness gate parks before
+// re-evaluating on its own. It is the heartbeat that (a) lets a future
+// start date clear without an external Send and (b) re-checks blockers even
+// if a wake Send was missed.
+const BlockedReevalInterval = 6 * time.Hour
+
 // ChainWorkflowID is the deterministic workflow id for a given task — kept
 // in lockstep with `chain_workflows.dbos_workflow_id`.
 func ChainWorkflowID(taskID uuid.UUID) string {
 	return ChainWorkflowIDPrefix + taskID.String()
+}
+
+// BlockedTopic is the deterministic readiness-gate topic for a task.
+func BlockedTopic(taskID uuid.UUID) string {
+	return BlockedTopicPrefix + taskID.String()
+}
+
+// WakePayload is the non-sentinel message a wake Send carries. The gate
+// distinguishes it from a CancelSentinel (which carries CancelSentinelKey).
+func WakePayload() json.RawMessage {
+	return json.RawMessage(`{"_chain_wake":true}`)
 }
 
 // TopicForStage is the deterministic Send/Recv topic for a stage's human
@@ -198,6 +221,20 @@ func ChainWorkflow(ctx dbos.DBOSContext, taskIDStr string) (string, error) {
 	// the memoized return value byte-for-byte. If the original execution
 	// called Recv, replay calls Recv (memoized). If it skipped, replay skips.
 	for _, stage := range []lifecycle.ChainStage{lifecycle.StageTriage, lifecycle.StageExpansion, lifecycle.StageExecution} {
+		// Readiness gate (FR-019): before EXECUTION opens its slot, park the
+		// task in WAITING until its blockers clear and its start date arrives.
+		// A ready task transitions ACCEPTED/WAITING → EXECUTING inside the gate
+		// step. Cancellation while parked unblocks via a CancelSentinel.
+		if stage == lifecycle.StageExecution {
+			cancelled, err := runReadinessGate(ctx, d, taskID)
+			if err != nil {
+				return "", err
+			}
+			if cancelled {
+				return "", nil
+			}
+		}
+
 		decision, err := runRouteAndOccupyStep(ctx, d, taskID, stage, task.Findings)
 		if err != nil {
 			return "", err
@@ -230,6 +267,19 @@ func ChainWorkflow(ctx dbos.DBOSContext, taskIDStr string) (string, error) {
 	// Final: COMPLETION step (EXECUTING → DONE + EndChainWorkflow).
 	if err := runCompletionStep(ctx, d, taskID); err != nil {
 		return "", err
+	}
+
+	// Now that the task is DONE, wake every task it was blocking so their
+	// readiness gates re-evaluate. The dependent-id list is computed in a
+	// memoized step so the Send fan-out below is identical on replay.
+	dependents, err := runListDependentsStep(ctx, d, taskID)
+	if err != nil {
+		return "", err
+	}
+	for _, dep := range dependents {
+		if err := dbos.Send(ctx, ChainWorkflowID(dep), WakePayload(), BlockedTopic(dep)); err != nil {
+			return "", fmt.Errorf("wake dependent %s: %w", dep, err)
+		}
 	}
 
 	// Post-completion: start the feedback workflow as a durable child (mirrors
@@ -521,27 +571,10 @@ func runResolveAndAdvanceStep(
 				return aerr
 			}
 
-			if stage == lifecycle.StageExpansion && nextStage == lifecycle.StageExecution {
-				ready, rerr := EvaluateReadiness(stepCtx, db.New(tx), taskID)
-				if rerr != nil {
-					return fmt.Errorf("evaluate readiness: %w", rerr)
-				}
-				task, terr := q.GetTask(stepCtx, taskID)
-				if terr != nil {
-					return fmt.Errorf("get task: %w", terr)
-				}
-				if task.State == lifecycle.StateAccepted {
-					target := lifecycle.StateWaiting
-					reason := "readiness predicate false"
-					if ready {
-						target = lifecycle.StateExecuting
-						reason = "readiness predicate true"
-					}
-					if _, terr := lifecycle.Transition(stepCtx, tx, taskID, lifecycle.StateAccepted, target, reason, lifecycle.StageExecution); terr != nil {
-						return terr
-					}
-				}
-			}
+			// NOTE: the ACCEPTED → EXECUTING/WAITING transition for the
+			// EXPANSION→EXECUTION boundary now lives in the readiness gate
+			// (runReadinessGate), which both evaluates blockers/start-date and
+			// parks the task until it becomes eligible.
 			return nil
 		})
 		return struct{}{}, err
@@ -577,6 +610,129 @@ func runCompletionStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID) error
 		return struct{}{}, err
 	}, dbos.WithStepName("chain.completion"))
 	return err
+}
+
+// readinessOutcome is the memoized result of one readiness evaluation. Ready
+// means the task transitioned into EXECUTING; Terminal means the task became
+// terminal while parked (e.g., cancelled) and the gate should exit; WaitMs is
+// how long to park before the next evaluation when not ready.
+type readinessOutcome struct {
+	Ready    bool  `json:"ready"`
+	Terminal bool  `json:"terminal"`
+	WaitMs   int64 `json:"wait_ms"`
+}
+
+// runReadinessGate parks the task in WAITING until it becomes eligible to
+// execute. Each iteration runs one memoized evaluation step (which performs the
+// state transition) and, if not ready, a durable wait on the task's blocked
+// topic. Returns cancelled=true when the task became terminal while parked.
+//
+// Recovery safety: the loop is a straight alternation of a memoized step and a
+// memoized Recv. On replay each step returns its recorded outcome, so the same
+// number of Recv calls happen in the same order — deterministic.
+func runReadinessGate(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID) (cancelled bool, err error) {
+	for {
+		outcome, err := runReadinessStep(ctx, d, taskID)
+		if err != nil {
+			return false, err
+		}
+		if outcome.Terminal {
+			return true, nil
+		}
+		if outcome.Ready {
+			return false, nil
+		}
+		msg, err := WaitForWake(ctx, BlockedTopic(taskID), time.Duration(outcome.WaitMs)*time.Millisecond)
+		if err != nil {
+			return false, err
+		}
+		if isCancelSentinel(msg) {
+			return true, nil
+		}
+		// A wake (blocker resolved) or a timeout (start date may have passed):
+		// loop and re-evaluate.
+	}
+}
+
+// runReadinessStep evaluates readiness in one memoized DBOS step and applies
+// the resulting state transition: ACCEPTED/WAITING → EXECUTING when ready, or
+// ACCEPTED → WAITING when not. Returns the outcome the gate branches on.
+func runReadinessStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID) (readinessOutcome, error) {
+	return dbos.RunAsStep(ctx, func(stepCtx context.Context) (readinessOutcome, error) {
+		stepCtx = detachCancel(stepCtx)
+		var out readinessOutcome
+		err := pgx.BeginFunc(stepCtx, d.pool, func(tx pgx.Tx) error {
+			q := db.New(tx)
+			task, gerr := q.GetTaskForUpdate(stepCtx, taskID)
+			if gerr != nil {
+				return fmt.Errorf("lock task for readiness: %w", gerr)
+			}
+			if lifecycle.IsTerminal(task.State) {
+				out.Terminal = true
+				return nil
+			}
+			ready, rerr := EvaluateReadiness(stepCtx, q, taskID)
+			if rerr != nil {
+				return rerr
+			}
+			if ready {
+				out.Ready = true
+				if task.State == lifecycle.StateAccepted || task.State == lifecycle.StateWaiting {
+					if _, terr := lifecycle.Transition(stepCtx, tx, taskID, task.State, lifecycle.StateExecuting, "readiness predicate true", lifecycle.StageExecution); terr != nil {
+						return terr
+					}
+				}
+				return nil
+			}
+			if task.State == lifecycle.StateAccepted {
+				if _, terr := lifecycle.Transition(stepCtx, tx, taskID, lifecycle.StateAccepted, lifecycle.StateWaiting, "readiness predicate false", lifecycle.StageExecution); terr != nil {
+					return terr
+				}
+			}
+			out.WaitMs = readinessWaitHint(stepCtx, q, taskID).Milliseconds()
+			return nil
+		})
+		return out, err
+	}, dbos.WithStepName("chain.readiness_gate"))
+}
+
+// runListDependentsStep returns, in a memoized step, the ids of still-pending
+// tasks blocked by taskID — the set to wake when taskID completes.
+func runListDependentsStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID) ([]uuid.UUID, error) {
+	return dbos.RunAsStep(ctx, func(stepCtx context.Context) ([]uuid.UUID, error) {
+		stepCtx = detachCancel(stepCtx)
+		return d.queries.ListDependentTaskIDs(stepCtx, taskID)
+	}, dbos.WithStepName("chain.list_dependents"))
+}
+
+// WakeDependents sends a wake to the readiness gate of every still-pending task
+// blocked by taskID, so they re-evaluate now that taskID has reached a terminal
+// state. Safe to call from outside a workflow (the cancel / dismiss resolvers);
+// a nil dctx or no dependents is a no-op. Wakes are idempotent — a spurious
+// wake just triggers a re-evaluation that finds the task still blocked.
+func WakeDependents(ctx context.Context, dctx dbos.DBOSContext, q *db.Queries, taskID uuid.UUID) error {
+	if dctx == nil {
+		return nil
+	}
+	deps, err := q.ListDependentTaskIDs(ctx, taskID)
+	if err != nil {
+		return fmt.Errorf("list dependents: %w", err)
+	}
+	for _, dep := range deps {
+		if err := dbos.Send(dctx, ChainWorkflowID(dep), WakePayload(), BlockedTopic(dep)); err != nil {
+			return fmt.Errorf("wake dependent %s: %w", dep, err)
+		}
+	}
+	return nil
+}
+
+// WakeTask sends a single wake to a task's readiness gate so it re-evaluates
+// (e.g., after a blocker relation is removed). nil dctx is a no-op.
+func WakeTask(dctx dbos.DBOSContext, taskID uuid.UUID) error {
+	if dctx == nil {
+		return nil
+	}
+	return dbos.Send(dctx, ChainWorkflowID(taskID), WakePayload(), BlockedTopic(taskID))
 }
 
 // HandleCancelCleanup writes state → HALTED, audits the cancel with

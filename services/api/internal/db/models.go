@@ -320,6 +320,50 @@ func (ns NullTaskPriority) Value() (driver.Value, error) {
 	return string(ns.TaskPriority), nil
 }
 
+type TaskRelationKind string
+
+const (
+	TaskRelationKindBlocks      TaskRelationKind = "blocks"
+	TaskRelationKindSubtaskOf   TaskRelationKind = "subtask_of"
+	TaskRelationKindRelated     TaskRelationKind = "related"
+	TaskRelationKindDuplicateOf TaskRelationKind = "duplicate_of"
+)
+
+func (e *TaskRelationKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TaskRelationKind(s)
+	case string:
+		*e = TaskRelationKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TaskRelationKind: %T", src)
+	}
+	return nil
+}
+
+type NullTaskRelationKind struct {
+	TaskRelationKind TaskRelationKind `json:"task_relation_kind"`
+	Valid            bool             `json:"valid"` // Valid is true if TaskRelationKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTaskRelationKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.TaskRelationKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TaskRelationKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTaskRelationKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TaskRelationKind), nil
+}
+
 type TaskState string
 
 const (
@@ -627,6 +671,8 @@ type Task struct {
 	Priority       TaskPriority       `json:"priority"`
 	DueAt          pgtype.Timestamptz `json:"due_at"`
 	ShortID        int64              `json:"short_id"`
+	StartsAt       pgtype.Timestamptz `json:"starts_at"`
+	Rank           *float64           `json:"rank"`
 }
 
 type TaskCategory struct {
@@ -638,6 +684,14 @@ type TaskCategory struct {
 	StageBindings json.RawMessage `json:"stage_bindings"`
 	Origin        ConfigOrigin    `json:"origin"`
 	Version       int32           `json:"version"`
+}
+
+type TaskRelation struct {
+	ID        uuid.UUID        `json:"id"`
+	FromTask  uuid.UUID        `json:"from_task"`
+	ToTask    uuid.UUID        `json:"to_task"`
+	Kind      TaskRelationKind `json:"kind"`
+	CreatedAt time.Time        `json:"created_at"`
 }
 
 type Tool struct {

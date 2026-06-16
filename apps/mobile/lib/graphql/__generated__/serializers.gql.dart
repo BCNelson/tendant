@@ -20,6 +20,7 @@ import 'package:tendant/graphql/__generated__/schema.schema.gql.dart'
         GGuidanceScope,
         GSetTaskCategoryInput,
         GTaskPriority,
+        GTaskRelationKind,
         GTaskState,
         GTime;
 import 'package:tendant/graphql/operations/__generated__/agent_assignment.data.gql.dart'
@@ -206,12 +207,31 @@ import 'package:tendant/graphql/operations/__generated__/task_detail.data.gql.da
         GTaskDetailData,
         GTaskDetailData_task,
         GTaskDetailData_task_activity,
+        GTaskDetailData_task_blockedBy,
+        GTaskDetailData_task_blocks,
+        GTaskDetailData_task_duplicateOf,
+        GTaskDetailData_task_duplicates,
+        GTaskDetailData_task_parent,
+        GTaskDetailData_task_related,
         GTaskDetailData_task_stageSlots,
-        GTaskDetailData_task_stageSlots_occupant;
+        GTaskDetailData_task_stageSlots_occupant,
+        GTaskDetailData_task_subtasks,
+        GTaskLinkData;
 import 'package:tendant/graphql/operations/__generated__/task_detail.req.gql.dart'
-    show GTaskDetailReq;
+    show GTaskDetailReq, GTaskLinkReq;
 import 'package:tendant/graphql/operations/__generated__/task_detail.var.gql.dart'
-    show GTaskDetailVars;
+    show GTaskDetailVars, GTaskLinkVars;
+import 'package:tendant/graphql/operations/__generated__/task_relations.data.gql.dart'
+    show
+        GAddTaskRelationData,
+        GAddTaskRelationData_addTaskRelation,
+        GAddTaskRelationData_addTaskRelation_from,
+        GAddTaskRelationData_addTaskRelation_to,
+        GRemoveTaskRelationData;
+import 'package:tendant/graphql/operations/__generated__/task_relations.req.gql.dart'
+    show GAddTaskRelationReq, GRemoveTaskRelationReq;
+import 'package:tendant/graphql/operations/__generated__/task_relations.var.gql.dart'
+    show GAddTaskRelationVars, GRemoveTaskRelationVars;
 import 'package:tendant/graphql/operations/__generated__/tasks.data.gql.dart'
     show
         GTasksData,
@@ -288,6 +308,12 @@ final SerializersBuilder _serializersBuilder = _$serializers.toBuilder()
   GAcceptProposedTaskData_acceptProposedTask,
   GAcceptProposedTaskReq,
   GAcceptProposedTaskVars,
+  GAddTaskRelationData,
+  GAddTaskRelationData_addTaskRelation,
+  GAddTaskRelationData_addTaskRelation_from,
+  GAddTaskRelationData_addTaskRelation_to,
+  GAddTaskRelationReq,
+  GAddTaskRelationVars,
   GAgentAssignmentData,
   GAgentAssignmentData_agentAssignment,
   GAgentAssignmentData_agentAssignment_task,
@@ -422,6 +448,9 @@ final SerializersBuilder _serializersBuilder = _$serializers.toBuilder()
   GRejectApprovalData_rejectApproval,
   GRejectApprovalReq,
   GRejectApprovalVars,
+  GRemoveTaskRelationData,
+  GRemoveTaskRelationReq,
+  GRemoveTaskRelationVars,
   GSendFeedbackMessageData,
   GSendFeedbackMessageData_sendFeedbackMessage,
   GSendFeedbackMessageData_sendFeedbackMessage_messages,
@@ -450,11 +479,22 @@ final SerializersBuilder _serializersBuilder = _$serializers.toBuilder()
   GTaskDetailData,
   GTaskDetailData_task,
   GTaskDetailData_task_activity,
+  GTaskDetailData_task_blockedBy,
+  GTaskDetailData_task_blocks,
+  GTaskDetailData_task_duplicateOf,
+  GTaskDetailData_task_duplicates,
+  GTaskDetailData_task_parent,
+  GTaskDetailData_task_related,
   GTaskDetailData_task_stageSlots,
   GTaskDetailData_task_stageSlots_occupant,
+  GTaskDetailData_task_subtasks,
   GTaskDetailReq,
   GTaskDetailVars,
+  GTaskLinkData,
+  GTaskLinkReq,
+  GTaskLinkVars,
   GTaskPriority,
+  GTaskRelationKind,
   GTaskStageSlotsData,
   GTaskStageSlotsData_task,
   GTaskStageSlotsData_task_stageSlots,

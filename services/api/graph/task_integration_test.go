@@ -182,7 +182,7 @@ func TestTaskMetadataOverGraphQL(t *testing.T) {
 	require.NoError(t, core.SeedOwner(ctx, q))
 
 	due := time.Date(2030, 1, 2, 15, 4, 5, 0, time.UTC)
-	created, err := core.CreateTaskWithMeta(ctx, pool, nil, "with-meta", "", db.TaskPriorityHigh, &due)
+	created, err := core.CreateTaskWithMeta(ctx, pool, nil, "with-meta", "", db.TaskPriorityHigh, &due, nil, nil)
 	require.NoError(t, err)
 	id := created.ID.String()
 

@@ -101,6 +101,20 @@ class _$GUpdateTaskMetadataData_updateTaskMetadataSerializer
         ..add(serializers.serialize(value,
             specifiedType: const FullType(_i2.GTime)));
     }
+    value = object.startsAt;
+    if (value != null) {
+      result
+        ..add('startsAt')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(_i2.GTime)));
+    }
+    value = object.rank;
+    if (value != null) {
+      result
+        ..add('rank')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(double)));
+    }
     return result;
   }
 
@@ -132,6 +146,14 @@ class _$GUpdateTaskMetadataData_updateTaskMetadataSerializer
         case 'dueAt':
           result.dueAt.replace(serializers.deserialize(value,
               specifiedType: const FullType(_i2.GTime))! as _i2.GTime);
+          break;
+        case 'startsAt':
+          result.startsAt.replace(serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTime))! as _i2.GTime);
+          break;
+        case 'rank':
+          result.rank = serializers.deserialize(value,
+              specifiedType: const FullType(double)) as double?;
           break;
       }
     }
@@ -268,6 +290,10 @@ class _$GUpdateTaskMetadataData_updateTaskMetadata
   final _i2.GTaskPriority priority;
   @override
   final _i2.GTime? dueAt;
+  @override
+  final _i2.GTime? startsAt;
+  @override
+  final double? rank;
 
   factory _$GUpdateTaskMetadataData_updateTaskMetadata(
           [void Function(GUpdateTaskMetadataData_updateTaskMetadataBuilder)?
@@ -279,7 +305,9 @@ class _$GUpdateTaskMetadataData_updateTaskMetadata
       {required this.G__typename,
       required this.id,
       required this.priority,
-      this.dueAt})
+      this.dueAt,
+      this.startsAt,
+      this.rank})
       : super._();
   @override
   GUpdateTaskMetadataData_updateTaskMetadata rebuild(
@@ -298,7 +326,9 @@ class _$GUpdateTaskMetadataData_updateTaskMetadata
         G__typename == other.G__typename &&
         id == other.id &&
         priority == other.priority &&
-        dueAt == other.dueAt;
+        dueAt == other.dueAt &&
+        startsAt == other.startsAt &&
+        rank == other.rank;
   }
 
   @override
@@ -308,6 +338,8 @@ class _$GUpdateTaskMetadataData_updateTaskMetadata
     _$hash = $jc(_$hash, id.hashCode);
     _$hash = $jc(_$hash, priority.hashCode);
     _$hash = $jc(_$hash, dueAt.hashCode);
+    _$hash = $jc(_$hash, startsAt.hashCode);
+    _$hash = $jc(_$hash, rank.hashCode);
     _$hash = $jf(_$hash);
     return _$hash;
   }
@@ -319,7 +351,9 @@ class _$GUpdateTaskMetadataData_updateTaskMetadata
           ..add('G__typename', G__typename)
           ..add('id', id)
           ..add('priority', priority)
-          ..add('dueAt', dueAt))
+          ..add('dueAt', dueAt)
+          ..add('startsAt', startsAt)
+          ..add('rank', rank))
         .toString();
   }
 }
@@ -346,6 +380,14 @@ class GUpdateTaskMetadataData_updateTaskMetadataBuilder
   _i2.GTimeBuilder get dueAt => _$this._dueAt ??= _i2.GTimeBuilder();
   set dueAt(_i2.GTimeBuilder? dueAt) => _$this._dueAt = dueAt;
 
+  _i2.GTimeBuilder? _startsAt;
+  _i2.GTimeBuilder get startsAt => _$this._startsAt ??= _i2.GTimeBuilder();
+  set startsAt(_i2.GTimeBuilder? startsAt) => _$this._startsAt = startsAt;
+
+  double? _rank;
+  double? get rank => _$this._rank;
+  set rank(double? rank) => _$this._rank = rank;
+
   GUpdateTaskMetadataData_updateTaskMetadataBuilder() {
     GUpdateTaskMetadataData_updateTaskMetadata._initializeBuilder(this);
   }
@@ -357,6 +399,8 @@ class GUpdateTaskMetadataData_updateTaskMetadataBuilder
       _id = $v.id;
       _priority = $v.priority;
       _dueAt = $v.dueAt?.toBuilder();
+      _startsAt = $v.startsAt?.toBuilder();
+      _rank = $v.rank;
       _$v = null;
     }
     return this;
@@ -389,12 +433,16 @@ class GUpdateTaskMetadataData_updateTaskMetadataBuilder
             priority: BuiltValueNullFieldError.checkNotNull(priority,
                 r'GUpdateTaskMetadataData_updateTaskMetadata', 'priority'),
             dueAt: _dueAt?.build(),
+            startsAt: _startsAt?.build(),
+            rank: rank,
           );
     } catch (_) {
       late String _$failedField;
       try {
         _$failedField = 'dueAt';
         _dueAt?.build();
+        _$failedField = 'startsAt';
+        _startsAt?.build();
       } catch (e) {
         throw BuiltValueNestedFieldError(
             r'GUpdateTaskMetadataData_updateTaskMetadata',

@@ -2,13 +2,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// CreateTaskFn composes a new owner-authored task via the `createTask`
 /// mutation. Only `title` is required; `description`, `priority` (one of
-/// LOW/NORMAL/HIGH/URGENT — null → server default NORMAL), and `dueAt` (an
-/// optional deadline) are all optional metadata.
+/// LOW/NORMAL/HIGH/URGENT — null → server default NORMAL), `dueAt` (an optional
+/// deadline), `startsAt` (an optional earliest-start that gates eligibility),
+/// and `rank` (an optional manual ordering weight, lower sorts first) are all
+/// optional metadata.
 typedef CreateTaskFn = Future<void> Function({
   required String title,
   String? description,
   String? priority,
   DateTime? dueAt,
+  DateTime? startsAt,
+  double? rank,
 });
 
 /// createTaskProvider is a stub until the bootstrap layer overrides it against
@@ -20,6 +24,8 @@ final createTaskProvider = FutureProvider<CreateTaskFn>(
     String? description,
     String? priority,
     DateTime? dueAt,
+    DateTime? startsAt,
+    double? rank,
   }) async {
     throw UnimplementedError(
       'createTaskProvider not wired — override in core/bootstrap.dart',

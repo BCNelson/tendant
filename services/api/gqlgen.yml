@@ -54,6 +54,24 @@ models:
       # Category — resolves findings.structured.category → task_categories row.
       category:
         resolver: true
+      # Task graph — relation traversals are lazy field resolvers (each hits
+      # the relation table on demand; detail page / dependency views only).
+      blocked:
+        resolver: true
+      blockedBy:
+        resolver: true
+      blocks:
+        resolver: true
+      parent:
+        resolver: true
+      subtasks:
+        resolver: true
+      related:
+        resolver: true
+      duplicateOf:
+        resolver: true
+      duplicates:
+        resolver: true
   # Task categories — parent/children are lazy field resolvers so the tree is
   # walked on demand (never eagerly materialized, which would recurse).
   TaskCategory:

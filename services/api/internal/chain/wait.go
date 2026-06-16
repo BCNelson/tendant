@@ -50,6 +50,29 @@ func WaitForResult(ctx dbos.DBOSContext, topic string, timeout time.Duration) (j
 	return msg, err
 }
 
+// WaitForWake blocks the readiness gate on a "blocked:<taskID>" topic until a
+// wake Send arrives (a blocker reached a terminal state, or a cancellation
+// sentinel), or the timeout fires. Unlike WaitForResult, a timeout is NOT
+// fatal: it returns (nil, nil) so the gate simply re-evaluates readiness (this
+// is how a future start date eventually clears — the wait is sized to expire
+// when starts_at passes). Shutdown cancellation is handled identically to
+// WaitForResult: park so DBOS leaves the workflow PENDING (recoverable).
+func WaitForWake(ctx dbos.DBOSContext, topic string, timeout time.Duration) (json.RawMessage, error) {
+	msg, err := dbos.Recv[json.RawMessage](ctx, topic, timeout)
+	if err == nil {
+		return msg, nil
+	}
+	if errors.Is(err, context.Canceled) {
+		// Runtime shutting down — park (see WaitForResult).
+		<-make(chan struct{})
+	}
+	if errors.Is(err, &dbos.DBOSError{Code: dbos.TimeoutError}) {
+		// Timeout is the gate's heartbeat, not a failure — re-evaluate.
+		return nil, nil
+	}
+	return nil, err
+}
+
 // Resolve delivers `payload` to the workflow identified by `workflowID` on
 // `topic`. Callable from outside any workflow (the GraphQL completeTask
 // resolver). The destination workflow's WaitForResult call returns with the

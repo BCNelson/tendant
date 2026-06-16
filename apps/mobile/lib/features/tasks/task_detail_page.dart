@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../task/task_provider.dart' show taskChangedProvider;
 import 'activity_format.dart';
+import 'task_relations_section.dart';
 import 'tasks_models.dart';
 import 'tasks_provider.dart';
 
@@ -30,7 +31,7 @@ class TaskDetailPage extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
-            tooltip: 'Edit priority & due date',
+            tooltip: 'Edit priority, schedule & rank',
             onPressed: task == null
                 ? null
                 : () => _showEditMetadata(context, ref, task),
@@ -75,13 +76,20 @@ class _DetailBody extends StatelessWidget {
           runSpacing: 4,
           children: [
             _Chip(label: task.state),
+            if (task.blocked) const _Chip(label: 'blocked', highlight: true),
             _Chip(label: 'stage: ${task.currentStage}'),
             _Chip(label: 'autonomy: ${task.autonomy}'),
             _Chip(label: 'priority: ${task.priority}'),
             if (task.dueAt != null)
               _Chip(label: 'due: ${_formatDate(task.dueAt!)}'),
+            if (task.startsAt != null)
+              _Chip(label: 'starts: ${_formatDate(task.startsAt!)}'),
+            if (task.rank != null)
+              _Chip(label: 'rank: ${_formatRank(task.rank!)}'),
           ],
         ),
+        const SizedBox(height: 16),
+        TaskRelationsSection(task: task),
         const SizedBox(height: 16),
         _SectionTitle('Specialists'),
         ...task.stageSlots.map((s) => ListTile(
@@ -118,6 +126,10 @@ String _formatDate(DateTime d) =>
     '${d.month.toString().padLeft(2, '0')}-'
     '${d.day.toString().padLeft(2, '0')}';
 
+// Compact rank display: trims a trailing ".0" so whole numbers read cleanly.
+String _formatRank(double r) =>
+    r == r.roundToDouble() ? r.toStringAsFixed(0) : r.toString();
+
 // Owner-set priorities, ascending. Mirrors the create screen.
 const _priorities = ['LOW', 'NORMAL', 'HIGH', 'URGENT'];
 
@@ -153,28 +165,47 @@ class _EditMetadataSheetState extends ConsumerState<_EditMetadataSheet> {
       ? widget.task.priority
       : 'NORMAL';
   late DateTime? _dueAt = widget.task.dueAt;
+  late DateTime? _startsAt = widget.task.startsAt;
+  late final TextEditingController _rank = TextEditingController(
+      text: widget.task.rank == null ? '' : _formatRank(widget.task.rank!));
   String? _error;
   bool _saving = false;
 
-  Future<void> _pickDueDate() async {
+  @override
+  void dispose() {
+    _rank.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate(DateTime? current, ValueChanged<DateTime> onPicked) async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _dueAt ?? now,
+      initialDate: current ?? now,
       firstDate: DateTime(now.year - 1),
       lastDate: DateTime(now.year + 5),
     );
-    if (picked != null) setState(() => _dueAt = picked);
+    if (picked != null) onPicked(picked);
   }
 
   Future<void> _save() async {
+    final rankText = _rank.text.trim();
+    double? rank;
+    if (rankText.isNotEmpty) {
+      rank = double.tryParse(rankText);
+      if (rank == null) {
+        setState(() => _error = 'Rank must be a number.');
+        return;
+      }
+    }
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
       final update = await ref.read(updateTaskMetadataProvider.future);
-      await update(widget.task.id, priority: _priority, dueAt: _dueAt);
+      await update(widget.task.id,
+          priority: _priority, dueAt: _dueAt, startsAt: _startsAt, rank: rank);
       ref.invalidate(taskDetailProvider(widget.task.id));
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -212,13 +243,46 @@ class _EditMetadataSheetState extends ConsumerState<_EditMetadataSheet> {
             subtitle: Text(
                 _dueAt == null ? 'No deadline' : _formatDate(_dueAt!)),
             trailing: _dueAt == null
-                ? TextButton(onPressed: _pickDueDate, child: const Text('Set'))
+                ? TextButton(
+                    onPressed: () =>
+                        _pickDate(_dueAt, (d) => setState(() => _dueAt = d)),
+                    child: const Text('Set'))
                 : IconButton(
                     icon: const Icon(Icons.clear),
                     tooltip: 'Clear due date',
                     onPressed: () => setState(() => _dueAt = null),
                   ),
-            onTap: _pickDueDate,
+            onTap: () => _pickDate(_dueAt, (d) => setState(() => _dueAt = d)),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.play_circle_outline),
+            title: const Text('Start date'),
+            subtitle: Text(_startsAt == null
+                ? 'No start gate'
+                : _formatDate(_startsAt!)),
+            trailing: _startsAt == null
+                ? TextButton(
+                    onPressed: () => _pickDate(
+                        _startsAt, (d) => setState(() => _startsAt = d)),
+                    child: const Text('Set'))
+                : IconButton(
+                    icon: const Icon(Icons.clear),
+                    tooltip: 'Clear start date',
+                    onPressed: () => setState(() => _startsAt = null),
+                  ),
+            onTap: () =>
+                _pickDate(_startsAt, (d) => setState(() => _startsAt = d)),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _rank,
+            decoration: const InputDecoration(
+              labelText: 'Rank',
+              helperText: 'Optional — lower sorts first',
+            ),
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true, signed: true),
           ),
           const SizedBox(height: 16),
           if (_error != null)
@@ -409,8 +473,9 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _Chip extends StatelessWidget {
-  const _Chip({required this.label});
+  const _Chip({required this.label, this.highlight = false});
   final String label;
+  final bool highlight;
 
   @override
   Widget build(BuildContext context) {
@@ -418,10 +483,17 @@ class _Chip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
+        color: highlight
+            ? scheme.errorContainer
+            : scheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(label, style: Theme.of(context).textTheme.labelSmall),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: highlight ? scheme.onErrorContainer : null,
+            ),
+      ),
     );
   }
 }

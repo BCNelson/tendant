@@ -39,9 +39,13 @@ type Task {
   currentStage: ChainStage!
   autonomy: AutonomyLevel!
   # Owner-set metadata (composed on the create screen). priority is never null
-  # (defaults to NORMAL); dueAt is an optional deadline.
+  # (defaults to NORMAL); dueAt is an optional deadline; startsAt is an optional
+  # earliest-start that gates eligibility; rank is an optional manual ordering
+  # weight (lower sorts first) within a priority band.
   priority: TaskPriority!
   dueAt: Time
+  startsAt: Time
+  rank: Float
   provenance: JSON
   contextRefs: JSON
   findings: JSON
@@ -72,10 +76,11 @@ type Query {
 }
 
 type Mutation {
-  createTask(title: String!, description: String, priority: TaskPriority, dueAt: Time): Task!
+  createTask(title: String!, description: String, priority: TaskPriority, dueAt: Time, startsAt: Time, rank: Float): Task!
   # Edit owner-set metadata after creation. Replace semantics: priority is
-  # required (a task always has one); dueAt null clears any deadline.
-  updateTaskMetadata(taskId: ID!, priority: TaskPriority!, dueAt: Time): Task!
+  # required (a task always has one); a null dueAt/startsAt/rank clears the
+  # corresponding deadline/start/ordering weight.
+  updateTaskMetadata(taskId: ID!, priority: TaskPriority!, dueAt: Time, startsAt: Time, rank: Float): Task!
   completeTask(taskId: ID!, result: JSON): Task!
   cancelTask(taskId: ID!): Task!
   acceptProposedTask(taskId: ID!): Task!

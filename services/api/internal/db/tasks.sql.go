@@ -18,7 +18,7 @@ VALUES ($1, $2, $3, $4, $6::task_state, $7::chain_stage,
         $5, $8::uuid)
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
-          created_at, edited_at, priority, due_at, short_id
+          created_at, edited_at, priority, due_at, short_id, starts_at, rank
 `
 
 type CreateIntakeTaskParams struct {
@@ -34,7 +34,7 @@ type CreateIntakeTaskParams struct {
 
 // Intake-origin task (Phase 7): carries provenance (copied from the signal) and
 // intake_signal_id (the back-link AND the marker that a task is intake-origin).
-// priority/due_at take column defaults ('normal' / NULL) — intake tasks are not
+// priority/due_at/starts_at/rank take column defaults — intake tasks are not
 // owner-composed, so the owner sets these later if at all.
 func (q *Queries) CreateIntakeTask(ctx context.Context, arg CreateIntakeTaskParams) (Task, error) {
 	row := q.db.QueryRow(ctx, createIntakeTask,
@@ -64,17 +64,21 @@ func (q *Queries) CreateIntakeTask(ctx context.Context, arg CreateIntakeTaskPara
 		&i.Priority,
 		&i.DueAt,
 		&i.ShortID,
+		&i.StartsAt,
+		&i.Rank,
 	)
 	return i, err
 }
 
 const createTask = `-- name: CreateTask :one
-INSERT INTO tasks (id, global_uri, title, description, state, current_stage, priority, due_at)
+INSERT INTO tasks (id, global_uri, title, description, state, current_stage,
+                   priority, due_at, starts_at, rank)
 VALUES ($1, $2, $3, $4, $5::task_state, $6::chain_stage,
-        $7::task_priority, $8::timestamptz)
+        $7::task_priority, $8::timestamptz,
+        $9::timestamptz, $10::double precision)
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
-          created_at, edited_at, priority, due_at, short_id
+          created_at, edited_at, priority, due_at, short_id, starts_at, rank
 `
 
 type CreateTaskParams struct {
@@ -86,12 +90,15 @@ type CreateTaskParams struct {
 	CurrentStage ChainStage         `json:"current_stage"`
 	Priority     TaskPriority       `json:"priority"`
 	DueAt        pgtype.Timestamptz `json:"due_at"`
+	StartsAt     pgtype.Timestamptz `json:"starts_at"`
+	Rank         *float64           `json:"rank"`
 }
 
 // The app generates id + global_uri (local://task/<uuid>) and passes both,
 // plus the explicit state + current_stage so the owner-authored path can
 // write 'accepted','creation' regardless of column defaults. priority defaults
-// to 'normal' (owner-set at compose time); due_at is an optional deadline.
+// to 'normal' (owner-set at compose time); due_at/starts_at are optional
+// deadlines and rank is an optional manual ordering weight.
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
 	row := q.db.QueryRow(ctx, createTask,
 		arg.ID,
@@ -102,6 +109,8 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		arg.CurrentStage,
 		arg.Priority,
 		arg.DueAt,
+		arg.StartsAt,
+		arg.Rank,
 	)
 	var i Task
 	err := row.Scan(
@@ -120,6 +129,8 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		&i.Priority,
 		&i.DueAt,
 		&i.ShortID,
+		&i.StartsAt,
+		&i.Rank,
 	)
 	return i, err
 }
@@ -127,7 +138,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 const getTask = `-- name: GetTask :one
 SELECT id, global_uri, title, description, state, current_stage,
        provenance, context_refs, findings, intake_signal_id,
-       created_at, edited_at, priority, due_at, short_id
+       created_at, edited_at, priority, due_at, short_id, starts_at, rank
 FROM tasks
 WHERE id = $1
 `
@@ -151,6 +162,8 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (Task, error) {
 		&i.Priority,
 		&i.DueAt,
 		&i.ShortID,
+		&i.StartsAt,
+		&i.Rank,
 	)
 	return i, err
 }
@@ -158,7 +171,7 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (Task, error) {
 const getTaskByIntakeSignal = `-- name: GetTaskByIntakeSignal :one
 SELECT id, global_uri, title, description, state, current_stage,
        provenance, context_refs, findings, intake_signal_id,
-       created_at, edited_at, priority, due_at, short_id
+       created_at, edited_at, priority, due_at, short_id, starts_at, rank
 FROM tasks
 WHERE intake_signal_id = $1
 LIMIT 1
@@ -186,6 +199,8 @@ func (q *Queries) GetTaskByIntakeSignal(ctx context.Context, intakeSignalID pgty
 		&i.Priority,
 		&i.DueAt,
 		&i.ShortID,
+		&i.StartsAt,
+		&i.Rank,
 	)
 	return i, err
 }
@@ -193,7 +208,7 @@ func (q *Queries) GetTaskByIntakeSignal(ctx context.Context, intakeSignalID pgty
 const getTaskForUpdate = `-- name: GetTaskForUpdate :one
 SELECT id, global_uri, title, description, state, current_stage,
        provenance, context_refs, findings, intake_signal_id,
-       created_at, edited_at, priority, due_at, short_id
+       created_at, edited_at, priority, due_at, short_id, starts_at, rank
 FROM tasks
 WHERE id = $1
 FOR UPDATE
@@ -219,6 +234,8 @@ func (q *Queries) GetTaskForUpdate(ctx context.Context, id uuid.UUID) (Task, err
 		&i.Priority,
 		&i.DueAt,
 		&i.ShortID,
+		&i.StartsAt,
+		&i.Rank,
 	)
 	return i, err
 }
@@ -226,7 +243,7 @@ func (q *Queries) GetTaskForUpdate(ctx context.Context, id uuid.UUID) (Task, err
 const listTasks = `-- name: ListTasks :many
 SELECT id, global_uri, title, description, state, current_stage,
        provenance, context_refs, findings, intake_signal_id,
-       created_at, edited_at, priority, due_at, short_id
+       created_at, edited_at, priority, due_at, short_id, starts_at, rank
 FROM tasks
 WHERE ($1::task_state IS NULL OR state = $1::task_state)
   AND (
@@ -277,6 +294,8 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 			&i.Priority,
 			&i.DueAt,
 			&i.ShortID,
+			&i.StartsAt,
+			&i.Rank,
 		); err != nil {
 			return nil, err
 		}
@@ -291,25 +310,36 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 const updateTaskMetadata = `-- name: UpdateTaskMetadata :one
 UPDATE tasks
 SET priority = $1::task_priority,
-    due_at = $2::timestamptz,
+    due_at   = $2::timestamptz,
+    starts_at = $3::timestamptz,
+    rank      = $4::double precision,
     edited_at = now()
-WHERE id = $3::uuid
+WHERE id = $5::uuid
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
-          created_at, edited_at, priority, due_at, short_id
+          created_at, edited_at, priority, due_at, short_id, starts_at, rank
 `
 
 type UpdateTaskMetadataParams struct {
 	Priority TaskPriority       `json:"priority"`
 	DueAt    pgtype.Timestamptz `json:"due_at"`
+	StartsAt pgtype.Timestamptz `json:"starts_at"`
+	Rank     *float64           `json:"rank"`
 	ID       uuid.UUID          `json:"id"`
 }
 
-// Replace the owner-set metadata (priority + due date) and bump edited_at.
-// "Replace" semantics: priority always has a value; a NULL due_at clears any
-// existing deadline (the edit form sends the desired final state).
+// Replace the owner-set metadata (priority + schedule + rank) and bump
+// edited_at. "Replace" semantics: priority always has a value; NULL due_at /
+// starts_at clears any existing deadline/start; NULL rank clears the manual
+// ordering weight (the edit form sends the desired final state).
 func (q *Queries) UpdateTaskMetadata(ctx context.Context, arg UpdateTaskMetadataParams) (Task, error) {
-	row := q.db.QueryRow(ctx, updateTaskMetadata, arg.Priority, arg.DueAt, arg.ID)
+	row := q.db.QueryRow(ctx, updateTaskMetadata,
+		arg.Priority,
+		arg.DueAt,
+		arg.StartsAt,
+		arg.Rank,
+		arg.ID,
+	)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -327,6 +357,8 @@ func (q *Queries) UpdateTaskMetadata(ctx context.Context, arg UpdateTaskMetadata
 		&i.Priority,
 		&i.DueAt,
 		&i.ShortID,
+		&i.StartsAt,
+		&i.Rank,
 	)
 	return i, err
 }
@@ -338,7 +370,7 @@ SET current_stage = $1::chain_stage,
 WHERE id = $2::uuid
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
-          created_at, edited_at, priority, due_at, short_id
+          created_at, edited_at, priority, due_at, short_id, starts_at, rank
 `
 
 type UpdateTaskStageParams struct {
@@ -366,6 +398,8 @@ func (q *Queries) UpdateTaskStage(ctx context.Context, arg UpdateTaskStageParams
 		&i.Priority,
 		&i.DueAt,
 		&i.ShortID,
+		&i.StartsAt,
+		&i.Rank,
 	)
 	return i, err
 }
@@ -377,7 +411,7 @@ SET state = $1::task_state,
 WHERE id = $2::uuid
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
-          created_at, edited_at, priority, due_at, short_id
+          created_at, edited_at, priority, due_at, short_id, starts_at, rank
 `
 
 type UpdateTaskStateParams struct {
@@ -405,6 +439,8 @@ func (q *Queries) UpdateTaskState(ctx context.Context, arg UpdateTaskStateParams
 		&i.Priority,
 		&i.DueAt,
 		&i.ShortID,
+		&i.StartsAt,
+		&i.Rank,
 	)
 	return i, err
 }

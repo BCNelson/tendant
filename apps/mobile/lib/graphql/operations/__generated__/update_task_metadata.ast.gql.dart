@@ -35,6 +35,24 @@ const UpdateTaskMetadata = _i1.OperationDefinitionNode(
       defaultValue: _i1.DefaultValueNode(value: null),
       directives: [],
     ),
+    _i1.VariableDefinitionNode(
+      variable: _i1.VariableNode(name: _i1.NameNode(value: 'startsAt')),
+      type: _i1.NamedTypeNode(
+        name: _i1.NameNode(value: 'Time'),
+        isNonNull: false,
+      ),
+      defaultValue: _i1.DefaultValueNode(value: null),
+      directives: [],
+    ),
+    _i1.VariableDefinitionNode(
+      variable: _i1.VariableNode(name: _i1.NameNode(value: 'rank')),
+      type: _i1.NamedTypeNode(
+        name: _i1.NameNode(value: 'Float'),
+        isNonNull: false,
+      ),
+      defaultValue: _i1.DefaultValueNode(value: null),
+      directives: [],
+    ),
   ],
   directives: [],
   selectionSet: _i1.SelectionSetNode(selections: [
@@ -53,6 +71,14 @@ const UpdateTaskMetadata = _i1.OperationDefinitionNode(
         _i1.ArgumentNode(
           name: _i1.NameNode(value: 'dueAt'),
           value: _i1.VariableNode(name: _i1.NameNode(value: 'dueAt')),
+        ),
+        _i1.ArgumentNode(
+          name: _i1.NameNode(value: 'startsAt'),
+          value: _i1.VariableNode(name: _i1.NameNode(value: 'startsAt')),
+        ),
+        _i1.ArgumentNode(
+          name: _i1.NameNode(value: 'rank'),
+          value: _i1.VariableNode(name: _i1.NameNode(value: 'rank')),
         ),
       ],
       directives: [],
@@ -73,6 +99,20 @@ const UpdateTaskMetadata = _i1.OperationDefinitionNode(
         ),
         _i1.FieldNode(
           name: _i1.NameNode(value: 'dueAt'),
+          alias: null,
+          arguments: [],
+          directives: [],
+          selectionSet: null,
+        ),
+        _i1.FieldNode(
+          name: _i1.NameNode(value: 'startsAt'),
+          alias: null,
+          arguments: [],
+          directives: [],
+          selectionSet: null,
+        ),
+        _i1.FieldNode(
+          name: _i1.NameNode(value: 'rank'),
           alias: null,
           arguments: [],
           directives: [],

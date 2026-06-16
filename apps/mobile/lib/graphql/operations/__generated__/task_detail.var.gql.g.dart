@@ -8,6 +8,8 @@ part of 'task_detail.var.gql.dart';
 
 Serializer<GTaskDetailVars> _$gTaskDetailVarsSerializer =
     _$GTaskDetailVarsSerializer();
+Serializer<GTaskLinkVars> _$gTaskLinkVarsSerializer =
+    _$GTaskLinkVarsSerializer();
 
 class _$GTaskDetailVarsSerializer
     implements StructuredSerializer<GTaskDetailVars> {
@@ -47,6 +49,26 @@ class _$GTaskDetailVarsSerializer
     }
 
     return result.build();
+  }
+}
+
+class _$GTaskLinkVarsSerializer implements StructuredSerializer<GTaskLinkVars> {
+  @override
+  final Iterable<Type> types = const [GTaskLinkVars, _$GTaskLinkVars];
+  @override
+  final String wireName = 'GTaskLinkVars';
+
+  @override
+  Iterable<Object?> serialize(Serializers serializers, GTaskLinkVars object,
+      {FullType specifiedType = FullType.unspecified}) {
+    return <Object?>[];
+  }
+
+  @override
+  GTaskLinkVars deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    return GTaskLinkVarsBuilder().build();
   }
 }
 
@@ -124,6 +146,61 @@ class GTaskDetailVarsBuilder
           id: BuiltValueNullFieldError.checkNotNull(
               id, r'GTaskDetailVars', 'id'),
         );
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GTaskLinkVars extends GTaskLinkVars {
+  factory _$GTaskLinkVars([void Function(GTaskLinkVarsBuilder)? updates]) =>
+      (GTaskLinkVarsBuilder()..update(updates))._build();
+
+  _$GTaskLinkVars._() : super._();
+  @override
+  GTaskLinkVars rebuild(void Function(GTaskLinkVarsBuilder) updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GTaskLinkVarsBuilder toBuilder() => GTaskLinkVarsBuilder()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GTaskLinkVars;
+  }
+
+  @override
+  int get hashCode {
+    return 343030072;
+  }
+
+  @override
+  String toString() {
+    return newBuiltValueToStringHelper(r'GTaskLinkVars').toString();
+  }
+}
+
+class GTaskLinkVarsBuilder
+    implements Builder<GTaskLinkVars, GTaskLinkVarsBuilder> {
+  _$GTaskLinkVars? _$v;
+
+  GTaskLinkVarsBuilder();
+
+  @override
+  void replace(GTaskLinkVars other) {
+    _$v = other as _$GTaskLinkVars;
+  }
+
+  @override
+  void update(void Function(GTaskLinkVarsBuilder)? updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GTaskLinkVars build() => _build();
+
+  _$GTaskLinkVars _build() {
+    final _$result = _$v ?? _$GTaskLinkVars._();
     replace(_$result);
     return _$result;
   }

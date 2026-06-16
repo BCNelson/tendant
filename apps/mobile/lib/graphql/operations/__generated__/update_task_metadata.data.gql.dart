@@ -57,6 +57,8 @@ abstract class GUpdateTaskMetadataData_updateTaskMetadata
   String get id;
   _i2.GTaskPriority get priority;
   _i2.GTime? get dueAt;
+  _i2.GTime? get startsAt;
+  double? get rank;
   static Serializer<GUpdateTaskMetadataData_updateTaskMetadata>
       get serializer => _$gUpdateTaskMetadataDataUpdateTaskMetadataSerializer;
 

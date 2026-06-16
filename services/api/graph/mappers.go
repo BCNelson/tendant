@@ -58,6 +58,14 @@ func mapTaskWithAutonomy(t *db.Task, autonomy model.AutonomyLevel) (*model.Task,
 		ts := t.DueAt.Time
 		out.DueAt = &ts
 	}
+	if t.StartsAt.Valid {
+		ts := t.StartsAt.Time
+		out.StartsAt = &ts
+	}
+	if t.Rank != nil {
+		r := *t.Rank
+		out.Rank = &r
+	}
 	if err := unmarshalJSON(t.Provenance, &out.Provenance); err != nil {
 		return nil, fmt.Errorf("provenance: %w", err)
 	}

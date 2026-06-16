@@ -48,6 +48,23 @@ type Task {
   # The category triage assigned this task (from findings.structured.category);
   # null when uncategorized or the key no longer resolves.
   category: TaskCategory
+  # True when the task is not yet eligible to execute — it has unmet blockers
+  # (a blocker not in a terminal state) or a startsAt still in the future.
+  blocked: Boolean!
+  # Tasks that must clear before this task can execute.
+  blockedBy: [Task!]!
+  # Tasks this task blocks.
+  blocks: [Task!]!
+  # Parent task, if this is a subtask.
+  parent: Task
+  # Child subtasks (ordered by rank, then recency).
+  subtasks: [Task!]!
+  # Non-blocking related tasks (either direction).
+  related: [Task!]!
+  # The canonical task this one duplicates, if marked a duplicate.
+  duplicateOf: Task
+  # Tasks marked as duplicates of this task.
+  duplicates: [Task!]!
   id: ID!  globalUri: String!
   # Short, human-facing task number (#1, #2, …), monotonic per instance and
   # distinct from the uuid `id`. Stable once assigned.
@@ -57,9 +74,13 @@ type Task {
   currentStage: ChainStage!
   autonomy: AutonomyLevel!
   # Owner-set metadata (composed on the create screen). priority is never null
-  # (defaults to NORMAL); dueAt is an optional deadline.
+  # (defaults to NORMAL); dueAt is an optional deadline; startsAt is an optional
+  # earliest-start that gates eligibility; rank is an optional manual ordering
+  # weight (lower sorts first) within a priority band.
   priority: TaskPriority!
   dueAt: Time
+  startsAt: Time
+  rank: Float
   provenance: JSON
   contextRefs: JSON
   findings: JSON
@@ -112,10 +133,16 @@ type Mutation {
   # OWNER-ONLY. Upserts an owner rule read by owner.rule(key).
   # Errors: PERMISSION_DENIED, INVALID_RULE.
   setOwnerRule(key: String!, value: String!): OwnerRule!
-  createTask(title: String!, description: String, priority: TaskPriority, dueAt: Time): Task!
+  # Add a directed relation between two tasks. Rejects self-links, exact
+  # duplicates, a second parent/canonical, and cycles (for BLOCKS / SUBTASK_OF).
+  addTaskRelation(fromTaskId: ID!, toTaskId: ID!, kind: TaskRelationKind!): TaskRelation!
+  # Remove a directed relation. Returns true if a relation was removed.
+  removeTaskRelation(fromTaskId: ID!, toTaskId: ID!, kind: TaskRelationKind!): Boolean!
+  createTask(title: String!, description: String, priority: TaskPriority, dueAt: Time, startsAt: Time, rank: Float): Task!
   # Edit owner-set metadata after creation. Replace semantics: priority is
-  # required (a task always has one); dueAt null clears any deadline.
-  updateTaskMetadata(taskId: ID!, priority: TaskPriority!, dueAt: Time): Task!
+  # required (a task always has one); a null dueAt/startsAt/rank clears the
+  # corresponding deadline/start/ordering weight.
+  updateTaskMetadata(taskId: ID!, priority: TaskPriority!, dueAt: Time, startsAt: Time, rank: Float): Task!
   completeTask(taskId: ID!, result: JSON): Task!
   cancelTask(taskId: ID!): Task!
   acceptProposedTask(taskId: ID!): Task!
@@ -348,6 +375,26 @@ type ApprovalRequest implements PendingDecision {
   # is implicit in the gate_verdict audit row) or when the overseer was
   # not consulted.
   overseerEvaluation: OverseerEvaluation
+}
+
+# =========================================================================
+# Task graph — directed task↔task relations + dependency gating (migration 00021).
+# Strictly additive (versioning policy Path 1).
+# =========================================================================
+
+# Directed relation kinds (edge: from --kind--> to):
+#   BLOCKS       — `from` must reach a terminal state before `to` can execute.
+#   SUBTASK_OF   — `from` is a child of `to` (a task has at most one parent).
+#   RELATED      — non-blocking "see also" link (surfaced both directions).
+#   DUPLICATE_OF — `from` duplicates canonical `to` (at most one canonical).
+enum TaskRelationKind { BLOCKS SUBTASK_OF RELATED DUPLICATE_OF }
+
+type TaskRelation {
+  id: ID!
+  kind: TaskRelationKind!
+  from: Task!
+  to: Task!
+  createdAt: Time!
 }
 
 # Tendant operator-edge GraphQL — v1.

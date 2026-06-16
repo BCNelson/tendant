@@ -1,0 +1,47 @@
+# =========================================================================
+# Task graph — directed task↔task relations + dependency gating (migration 00021).
+# Strictly additive (versioning policy Path 1).
+# =========================================================================
+
+# Directed relation kinds (edge: from --kind--> to):
+#   BLOCKS       — `from` must reach a terminal state before `to` can execute.
+#   SUBTASK_OF   — `from` is a child of `to` (a task has at most one parent).
+#   RELATED      — non-blocking "see also" link (surfaced both directions).
+#   DUPLICATE_OF — `from` duplicates canonical `to` (at most one canonical).
+enum TaskRelationKind { BLOCKS SUBTASK_OF RELATED DUPLICATE_OF }
+
+type TaskRelation {
+  id: ID!
+  kind: TaskRelationKind!
+  from: Task!
+  to: Task!
+  createdAt: Time!
+}
+
+extend type Task {
+  # True when the task is not yet eligible to execute — it has unmet blockers
+  # (a blocker not in a terminal state) or a startsAt still in the future.
+  blocked: Boolean!
+  # Tasks that must clear before this task can execute.
+  blockedBy: [Task!]!
+  # Tasks this task blocks.
+  blocks: [Task!]!
+  # Parent task, if this is a subtask.
+  parent: Task
+  # Child subtasks (ordered by rank, then recency).
+  subtasks: [Task!]!
+  # Non-blocking related tasks (either direction).
+  related: [Task!]!
+  # The canonical task this one duplicates, if marked a duplicate.
+  duplicateOf: Task
+  # Tasks marked as duplicates of this task.
+  duplicates: [Task!]!
+}
+
+extend type Mutation {
+  # Add a directed relation between two tasks. Rejects self-links, exact
+  # duplicates, a second parent/canonical, and cycles (for BLOCKS / SUBTASK_OF).
+  addTaskRelation(fromTaskId: ID!, toTaskId: ID!, kind: TaskRelationKind!): TaskRelation!
+  # Remove a directed relation. Returns true if a relation was removed.
+  removeTaskRelation(fromTaskId: ID!, toTaskId: ID!, kind: TaskRelationKind!): Boolean!
+}

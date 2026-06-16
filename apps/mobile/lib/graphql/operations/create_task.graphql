@@ -3,12 +3,16 @@ mutation CreateTask(
   $description: String
   $priority: TaskPriority
   $dueAt: Time
+  $startsAt: Time
+  $rank: Float
 ) {
   createTask(
     title: $title
     description: $description
     priority: $priority
     dueAt: $dueAt
+    startsAt: $startsAt
+    rank: $rank
   ) {
     id
     shortId

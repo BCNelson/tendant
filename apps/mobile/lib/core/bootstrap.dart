@@ -24,6 +24,7 @@ import '../graphql/operations/__generated__/tasks.data.gql.dart';
 import '../graphql/operations/__generated__/task_detail.req.gql.dart';
 import '../graphql/operations/__generated__/task_detail.data.gql.dart';
 import '../graphql/operations/__generated__/update_task_metadata.req.gql.dart';
+import '../graphql/operations/__generated__/task_relations.req.gql.dart';
 import '../graphql/operations/__generated__/proposed_task.req.gql.dart';
 
 import '../features/pairing/pairing_page.dart';
@@ -123,6 +124,8 @@ List<Override> ferryOverrides() => [
           String? description,
           String? priority,
           DateTime? dueAt,
+          DateTime? startsAt,
+          double? rank,
         }) async {
           await runOnceRequired(
             client,
@@ -135,10 +138,14 @@ List<Override> ferryOverrides() => [
               // null priority → omit the var so the server applies NORMAL.
               ..vars.priority =
                   (priority == null) ? null : GTaskPriority.valueOf(priority)
-              // dueAt is sent as a UTC ISO-8601 Time scalar; null → no deadline.
+              // dueAt/startsAt are UTC ISO-8601 Time scalars; null → unset.
               ..vars.dueAt = (dueAt == null)
                   ? null
-                  : GTime(dueAt.toUtc().toIso8601String()).toBuilder()),
+                  : GTime(dueAt.toUtc().toIso8601String()).toBuilder()
+              ..vars.startsAt = (startsAt == null)
+                  ? null
+                  : GTime(startsAt.toUtc().toIso8601String()).toBuilder()
+              ..vars.rank = rank),
           );
         };
       }),
@@ -195,7 +202,10 @@ List<Override> ferryOverrides() => [
       updateTaskMetadataProvider.overrideWith((ref) async {
         final client = ref.watch(ferryClientProvider);
         return (String taskId,
-            {required String priority, DateTime? dueAt}) async {
+            {required String priority,
+            DateTime? dueAt,
+            DateTime? startsAt,
+            double? rank}) async {
           await runOnceRequired(
             client,
             GUpdateTaskMetadataReq((b) => b
@@ -203,7 +213,45 @@ List<Override> ferryOverrides() => [
               ..vars.priority = GTaskPriority.valueOf(priority)
               ..vars.dueAt = (dueAt == null)
                   ? null
-                  : GTime(dueAt.toUtc().toIso8601String()).toBuilder()),
+                  : GTime(dueAt.toUtc().toIso8601String()).toBuilder()
+              ..vars.startsAt = (startsAt == null)
+                  ? null
+                  : GTime(startsAt.toUtc().toIso8601String()).toBuilder()
+              ..vars.rank = rank),
+          );
+        };
+      }),
+
+      // ---- Task-graph relation mutations ------------------------------
+      addTaskRelationProvider.overrideWith((ref) async {
+        final client = ref.watch(ferryClientProvider);
+        return ({
+          required String fromTaskId,
+          required String toTaskId,
+          required String kind,
+        }) async {
+          await runOnceRequired(
+            client,
+            GAddTaskRelationReq((b) => b
+              ..vars.fromTaskId = fromTaskId
+              ..vars.toTaskId = toTaskId
+              ..vars.kind = GTaskRelationKind.valueOf(kind)),
+          );
+        };
+      }),
+      removeTaskRelationProvider.overrideWith((ref) async {
+        final client = ref.watch(ferryClientProvider);
+        return ({
+          required String fromTaskId,
+          required String toTaskId,
+          required String kind,
+        }) async {
+          await runOnceRequired(
+            client,
+            GRemoveTaskRelationReq((b) => b
+              ..vars.fromTaskId = fromTaskId
+              ..vars.toTaskId = toTaskId
+              ..vars.kind = GTaskRelationKind.valueOf(kind)),
           );
         };
       }),
@@ -529,6 +577,16 @@ Map<String, dynamic> _asMap(Object? jsonValue) {
   return v is Map ? v.cast<String, dynamic>() : <String, dynamic>{};
 }
 
+// _mapTaskLink maps the shared TaskLink fragment (id/shortId/title/state) into
+// the presentation-layer TaskLinkRef. The fragment generates a `GTaskLink`
+// interface every relation field implements, so one mapper covers them all.
+TaskLinkRef _mapTaskLink(GTaskLink l) => TaskLinkRef(
+      id: l.id,
+      shortId: l.shortId,
+      title: l.title,
+      state: l.state.name,
+    );
+
 TaskDetail _mapTaskDetail(GTaskDetailData_task t) {
   return TaskDetail(
     id: t.id,
@@ -540,6 +598,18 @@ TaskDetail _mapTaskDetail(GTaskDetailData_task t) {
     autonomy: t.autonomy.name,
     priority: t.priority.name,
     dueAt: t.dueAt == null ? null : DateTime.tryParse(t.dueAt!.value)?.toLocal(),
+    startsAt: t.startsAt == null
+        ? null
+        : DateTime.tryParse(t.startsAt!.value)?.toLocal(),
+    rank: t.rank,
+    blocked: t.blocked,
+    blockedBy: [for (final l in t.blockedBy) _mapTaskLink(l)],
+    blocks: [for (final l in t.blocks) _mapTaskLink(l)],
+    parent: t.parent == null ? null : _mapTaskLink(t.parent!),
+    subtasks: [for (final l in t.subtasks) _mapTaskLink(l)],
+    related: [for (final l in t.related) _mapTaskLink(l)],
+    duplicateOf: t.duplicateOf == null ? null : _mapTaskLink(t.duplicateOf!),
+    duplicates: [for (final l in t.duplicates) _mapTaskLink(l)],
     findings: _asMap(t.findings?.value),
     stageSlots: [
       for (final s in t.stageSlots)

@@ -16,6 +16,12 @@ Serializers _$serializers = (Serializers().toBuilder()
       ..add(GAcceptProposedTaskData_acceptProposedTask.serializer)
       ..add(GAcceptProposedTaskReq.serializer)
       ..add(GAcceptProposedTaskVars.serializer)
+      ..add(GAddTaskRelationData.serializer)
+      ..add(GAddTaskRelationData_addTaskRelation.serializer)
+      ..add(GAddTaskRelationData_addTaskRelation_from.serializer)
+      ..add(GAddTaskRelationData_addTaskRelation_to.serializer)
+      ..add(GAddTaskRelationReq.serializer)
+      ..add(GAddTaskRelationVars.serializer)
       ..add(GAgentAssignmentData.serializer)
       ..add(GAgentAssignmentData_agentAssignment.serializer)
       ..add(GAgentAssignmentData_agentAssignment_task.serializer)
@@ -180,6 +186,9 @@ Serializers _$serializers = (Serializers().toBuilder()
       ..add(GRejectApprovalData_rejectApproval.serializer)
       ..add(GRejectApprovalReq.serializer)
       ..add(GRejectApprovalVars.serializer)
+      ..add(GRemoveTaskRelationData.serializer)
+      ..add(GRemoveTaskRelationReq.serializer)
+      ..add(GRemoveTaskRelationVars.serializer)
       ..add(GSendFeedbackMessageData.serializer)
       ..add(GSendFeedbackMessageData_sendFeedbackMessage.serializer)
       ..add(GSendFeedbackMessageData_sendFeedbackMessage_messages.serializer)
@@ -208,11 +217,22 @@ Serializers _$serializers = (Serializers().toBuilder()
       ..add(GTaskDetailData.serializer)
       ..add(GTaskDetailData_task.serializer)
       ..add(GTaskDetailData_task_activity.serializer)
+      ..add(GTaskDetailData_task_blockedBy.serializer)
+      ..add(GTaskDetailData_task_blocks.serializer)
+      ..add(GTaskDetailData_task_duplicateOf.serializer)
+      ..add(GTaskDetailData_task_duplicates.serializer)
+      ..add(GTaskDetailData_task_parent.serializer)
+      ..add(GTaskDetailData_task_related.serializer)
       ..add(GTaskDetailData_task_stageSlots.serializer)
       ..add(GTaskDetailData_task_stageSlots_occupant.serializer)
+      ..add(GTaskDetailData_task_subtasks.serializer)
       ..add(GTaskDetailReq.serializer)
       ..add(GTaskDetailVars.serializer)
+      ..add(GTaskLinkData.serializer)
+      ..add(GTaskLinkReq.serializer)
+      ..add(GTaskLinkVars.serializer)
       ..add(GTaskPriority.serializer)
+      ..add(GTaskRelationKind.serializer)
       ..add(GTaskStageSlotsData.serializer)
       ..add(GTaskStageSlotsData_task.serializer)
       ..add(GTaskStageSlotsData_task_stageSlots.serializer)
@@ -276,6 +296,26 @@ Serializers _$serializers = (Serializers().toBuilder()
           const FullType(BuiltList,
               const [const FullType(GTaskChangedData_taskChanged_stageSlots)]),
           () => ListBuilder<GTaskChangedData_taskChanged_stageSlots>())
+      ..addBuilderFactory(
+          const FullType(BuiltList,
+              const [const FullType(GTaskDetailData_task_blockedBy)]),
+          () => ListBuilder<GTaskDetailData_task_blockedBy>())
+      ..addBuilderFactory(
+          const FullType(
+              BuiltList, const [const FullType(GTaskDetailData_task_blocks)]),
+          () => ListBuilder<GTaskDetailData_task_blocks>())
+      ..addBuilderFactory(
+          const FullType(
+              BuiltList, const [const FullType(GTaskDetailData_task_subtasks)]),
+          () => ListBuilder<GTaskDetailData_task_subtasks>())
+      ..addBuilderFactory(
+          const FullType(
+              BuiltList, const [const FullType(GTaskDetailData_task_related)]),
+          () => ListBuilder<GTaskDetailData_task_related>())
+      ..addBuilderFactory(
+          const FullType(BuiltList,
+              const [const FullType(GTaskDetailData_task_duplicates)]),
+          () => ListBuilder<GTaskDetailData_task_duplicates>())
       ..addBuilderFactory(
           const FullType(BuiltList,
               const [const FullType(GTaskDetailData_task_stageSlots)]),

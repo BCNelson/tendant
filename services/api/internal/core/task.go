@@ -37,12 +37,14 @@ func CreateTask(
 	dctx dbos.DBOSContext,
 	title, description string,
 ) (CreatedTask, error) {
-	return CreateTaskWithMeta(ctx, pool, dctx, title, description, db.TaskPriorityNormal, nil)
+	return CreateTaskWithMeta(ctx, pool, dctx, title, description, db.TaskPriorityNormal, nil, nil, nil)
 }
 
 // CreateTaskWithMeta is CreateTask plus the owner-set metadata composed on the
-// create screen: a coarse priority dial and an optional due date. priority must
-// be one of the db.TaskPriority* values; dueAt may be nil (no deadline).
+// create screen: a coarse priority dial, an optional due date, an optional
+// start date (gates eligibility), and an optional manual ordering rank.
+// priority must be one of the db.TaskPriority* values; dueAt/startsAt may be
+// nil (no deadline/start); rank may be nil (no manual ordering weight).
 func CreateTaskWithMeta(
 	ctx context.Context,
 	pool *pgxpool.Pool,
@@ -50,6 +52,8 @@ func CreateTaskWithMeta(
 	title, description string,
 	priority db.TaskPriority,
 	dueAt *time.Time,
+	startsAt *time.Time,
+	rank *float64,
 ) (CreatedTask, error) {
 	if title == "" {
 		return CreatedTask{}, fmt.Errorf("title is required")
@@ -67,6 +71,10 @@ func CreateTaskWithMeta(
 	if dueAt != nil {
 		due = pgtype.Timestamptz{Time: *dueAt, Valid: true}
 	}
+	var starts pgtype.Timestamptz
+	if startsAt != nil {
+		starts = pgtype.Timestamptz{Time: *startsAt, Valid: true}
+	}
 
 	q := db.New(pool)
 	row, err := q.CreateTask(ctx, db.CreateTaskParams{
@@ -78,6 +86,8 @@ func CreateTaskWithMeta(
 		CurrentStage: lifecycle.StageCreation,
 		Priority:     priority,
 		DueAt:        due,
+		StartsAt:     starts,
+		Rank:         rank,
 	})
 	if err != nil {
 		return CreatedTask{}, fmt.Errorf("create task: %w", err)

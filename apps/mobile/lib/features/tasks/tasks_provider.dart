@@ -59,20 +59,74 @@ final taskDetailProvider =
 });
 
 /// UpdateTaskMetadataFn edits a task's owner-set metadata after creation.
-/// `priority` is one of LOW/NORMAL/HIGH/URGENT; `dueAt` null clears any
-/// existing deadline ("replace" semantics, matching the server mutation).
+/// `priority` is one of LOW/NORMAL/HIGH/URGENT; `dueAt`/`startsAt`/`rank` null
+/// clears the corresponding field ("replace" semantics, matching the server
+/// mutation — the form always sends the desired final state).
 typedef UpdateTaskMetadataFn = Future<void> Function(
   String taskId, {
   required String priority,
   DateTime? dueAt,
+  DateTime? startsAt,
+  double? rank,
 });
 
 /// updateTaskMetadataProvider exposes the `updateTaskMetadata` mutation.
 /// Stubbed here; the bootstrap layer overrides it against the Ferry op.
 final updateTaskMetadataProvider = FutureProvider<UpdateTaskMetadataFn>(
-  (ref) async => (_, {required String priority, DateTime? dueAt}) async {
+  (ref) async => (
+    _, {
+    required String priority,
+    DateTime? dueAt,
+    DateTime? startsAt,
+    double? rank,
+  }) async {
     throw UnimplementedError(
       'updateTaskMetadataProvider not wired — override in core/bootstrap.dart',
+    );
+  },
+);
+
+/// AddTaskRelationFn adds a directed relation `fromTaskId --kind--> toTaskId`
+/// via the `addTaskRelation` mutation. `kind` is the server enum wire name
+/// (BLOCKS / SUBTASK_OF / RELATED / DUPLICATE_OF). Throws on server rejection
+/// (self-link, duplicate, cycle, second parent/canonical).
+typedef AddTaskRelationFn = Future<void> Function({
+  required String fromTaskId,
+  required String toTaskId,
+  required String kind,
+});
+
+/// addTaskRelationProvider exposes `addTaskRelation`. Stubbed; bootstrap
+/// overrides it against the Ferry op.
+final addTaskRelationProvider = FutureProvider<AddTaskRelationFn>(
+  (ref) async => ({
+    required String fromTaskId,
+    required String toTaskId,
+    required String kind,
+  }) async {
+    throw UnimplementedError(
+      'addTaskRelationProvider not wired — override in core/bootstrap.dart',
+    );
+  },
+);
+
+/// RemoveTaskRelationFn removes a directed relation via `removeTaskRelation`.
+typedef RemoveTaskRelationFn = Future<void> Function({
+  required String fromTaskId,
+  required String toTaskId,
+  required String kind,
+});
+
+/// removeTaskRelationProvider exposes `removeTaskRelation`. Stubbed; bootstrap
+/// overrides it against the Ferry op.
+final removeTaskRelationProvider = FutureProvider<RemoveTaskRelationFn>(
+  (ref) async => ({
+    required String fromTaskId,
+    required String toTaskId,
+    required String kind,
+  }) async {
+    throw UnimplementedError(
+      'removeTaskRelationProvider not wired — override in core/bootstrap.dart',
     );
   },
 );

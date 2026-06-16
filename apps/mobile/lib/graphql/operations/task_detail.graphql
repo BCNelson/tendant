@@ -1,5 +1,13 @@
-# Full task detail: header, stage occupancy, agent output (findings), and the
-# complete audit timeline (agent runs, tool calls, actions).
+# Full task detail: header, scheduling, the task-graph relations, stage
+# occupancy, agent output (findings), and the complete audit timeline.
+
+# A lightweight reference to a linked task, reused by every relation field.
+fragment TaskLink on Task {
+  id
+  shortId
+  title
+  state
+}
 
 query TaskDetail($id: ID!) {
   task(id: $id) {
@@ -12,6 +20,16 @@ query TaskDetail($id: ID!) {
     autonomy
     priority
     dueAt
+    startsAt
+    rank
+    blocked
+    blockedBy { ...TaskLink }
+    blocks { ...TaskLink }
+    parent { ...TaskLink }
+    subtasks { ...TaskLink }
+    related { ...TaskLink }
+    duplicateOf { ...TaskLink }
+    duplicates { ...TaskLink }
     findings
     stageSlots {
       stage

@@ -1,0 +1,22 @@
+# Task-graph relation mutations (Path-1 additive surface).
+
+mutation AddTaskRelation(
+  $fromTaskId: ID!
+  $toTaskId: ID!
+  $kind: TaskRelationKind!
+) {
+  addTaskRelation(fromTaskId: $fromTaskId, toTaskId: $toTaskId, kind: $kind) {
+    id
+    kind
+    from { id }
+    to { id }
+  }
+}
+
+mutation RemoveTaskRelation(
+  $fromTaskId: ID!
+  $toTaskId: ID!
+  $kind: TaskRelationKind!
+) {
+  removeTaskRelation(fromTaskId: $fromTaskId, toTaskId: $toTaskId, kind: $kind)
+}

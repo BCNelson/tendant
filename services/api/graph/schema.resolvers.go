@@ -142,7 +142,7 @@ func (r *feedbackRequestResolver) Context(ctx context.Context, obj *model.Feedba
 }
 
 // CreateTask is the resolver for the createTask field.
-func (r *mutationResolver) CreateTask(ctx context.Context, title string, description *string, priority *model.TaskPriority, dueAt *time.Time) (*model.Task, error) {
+func (r *mutationResolver) CreateTask(ctx context.Context, title string, description *string, priority *model.TaskPriority, dueAt *time.Time, startsAt *time.Time, rank *float64) (*model.Task, error) {
 	if r.DBOS == nil {
 		return nil, fmt.Errorf("chain workflow not available — DBOS context is nil")
 	}
@@ -150,7 +150,7 @@ func (r *mutationResolver) CreateTask(ctx context.Context, title string, descrip
 	if description != nil {
 		desc = *description
 	}
-	created, err := core.CreateTaskWithMeta(ctx, r.Pool, r.DBOS, title, desc, lowerTaskPriority(priority), dueAt)
+	created, err := core.CreateTaskWithMeta(ctx, r.Pool, r.DBOS, title, desc, lowerTaskPriority(priority), dueAt, startsAt, rank)
 	if err != nil {
 		return nil, fmt.Errorf("create task: %w", err)
 	}
@@ -164,7 +164,7 @@ func (r *mutationResolver) CreateTask(ctx context.Context, title string, descrip
 // UpdateTaskMetadata edits the owner-set metadata (priority + due date) after
 // creation. Replace semantics: priority is always set; a nil dueAt clears any
 // existing deadline.
-func (r *mutationResolver) UpdateTaskMetadata(ctx context.Context, taskID string, priority model.TaskPriority, dueAt *time.Time) (*model.Task, error) {
+func (r *mutationResolver) UpdateTaskMetadata(ctx context.Context, taskID string, priority model.TaskPriority, dueAt *time.Time, startsAt *time.Time, rank *float64) (*model.Task, error) {
 	tid, err := uuid.Parse(taskID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid id: %w", err)
@@ -173,10 +173,16 @@ func (r *mutationResolver) UpdateTaskMetadata(ctx context.Context, taskID string
 	if dueAt != nil {
 		due = pgtype.Timestamptz{Time: *dueAt, Valid: true}
 	}
+	var starts pgtype.Timestamptz
+	if startsAt != nil {
+		starts = pgtype.Timestamptz{Time: *startsAt, Valid: true}
+	}
 	t, err := r.Queries.UpdateTaskMetadata(ctx, db.UpdateTaskMetadataParams{
 		ID:       tid,
 		Priority: db.TaskPriority(strings.ToLower(string(priority))),
 		DueAt:    due,
+		StartsAt: starts,
+		Rank:     rank,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -299,8 +305,17 @@ func (r *mutationResolver) CancelTask(ctx context.Context, taskID string) (*mode
 			_ = cerr
 		}
 		// Unblock the workflow's Recv so the goroutine returns instead of
-		// sitting on its stage topic until the DBOS context shuts down.
+		// sitting on its stage topic until the DBOS context shuts down. A task
+		// parked in the readiness gate waits on the blocked topic instead of a
+		// stage topic, so send the sentinel there too.
 		_ = chain.Resolve(r.DBOS, live.DbosWorkflowID, chain.TopicForStage(t.CurrentStage), chain.CancelSentinel())
+		_ = chain.Resolve(r.DBOS, live.DbosWorkflowID, chain.BlockedTopic(tid), chain.CancelSentinel())
+	}
+
+	// The cancelled task is now terminal — wake every task it was blocking so
+	// their readiness gates re-evaluate.
+	if werr := chain.WakeDependents(ctx, r.DBOS, r.Queries, tid); werr != nil {
+		return nil, fmt.Errorf("wake dependents: %w", werr)
 	}
 
 	t2, err := r.Queries.GetTask(ctx, tid)
@@ -380,6 +395,10 @@ func (r *mutationResolver) DismissProposedTask(ctx context.Context, taskID strin
 		return nil
 	}); err != nil {
 		return nil, err
+	}
+	// A dismissed task is terminal — wake every task it was blocking.
+	if werr := chain.WakeDependents(ctx, r.DBOS, r.Queries, tid); werr != nil {
+		return nil, fmt.Errorf("wake dependents: %w", werr)
 	}
 	t2, err := r.Queries.GetTask(ctx, tid)
 	if err != nil {

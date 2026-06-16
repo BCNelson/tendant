@@ -10,6 +10,25 @@ Serializer<GTaskDetailData> _$gTaskDetailDataSerializer =
     _$GTaskDetailDataSerializer();
 Serializer<GTaskDetailData_task> _$gTaskDetailDataTaskSerializer =
     _$GTaskDetailData_taskSerializer();
+Serializer<GTaskDetailData_task_blockedBy>
+    _$gTaskDetailDataTaskBlockedBySerializer =
+    _$GTaskDetailData_task_blockedBySerializer();
+Serializer<GTaskDetailData_task_blocks> _$gTaskDetailDataTaskBlocksSerializer =
+    _$GTaskDetailData_task_blocksSerializer();
+Serializer<GTaskDetailData_task_parent> _$gTaskDetailDataTaskParentSerializer =
+    _$GTaskDetailData_task_parentSerializer();
+Serializer<GTaskDetailData_task_subtasks>
+    _$gTaskDetailDataTaskSubtasksSerializer =
+    _$GTaskDetailData_task_subtasksSerializer();
+Serializer<GTaskDetailData_task_related>
+    _$gTaskDetailDataTaskRelatedSerializer =
+    _$GTaskDetailData_task_relatedSerializer();
+Serializer<GTaskDetailData_task_duplicateOf>
+    _$gTaskDetailDataTaskDuplicateOfSerializer =
+    _$GTaskDetailData_task_duplicateOfSerializer();
+Serializer<GTaskDetailData_task_duplicates>
+    _$gTaskDetailDataTaskDuplicatesSerializer =
+    _$GTaskDetailData_task_duplicatesSerializer();
 Serializer<GTaskDetailData_task_stageSlots>
     _$gTaskDetailDataTaskStageSlotsSerializer =
     _$GTaskDetailData_task_stageSlotsSerializer();
@@ -19,6 +38,8 @@ Serializer<GTaskDetailData_task_stageSlots_occupant>
 Serializer<GTaskDetailData_task_activity>
     _$gTaskDetailDataTaskActivitySerializer =
     _$GTaskDetailData_task_activitySerializer();
+Serializer<GTaskLinkData> _$gTaskLinkDataSerializer =
+    _$GTaskLinkDataSerializer();
 
 class _$GTaskDetailDataSerializer
     implements StructuredSerializer<GTaskDetailData> {
@@ -111,6 +132,29 @@ class _$GTaskDetailData_taskSerializer
       'priority',
       serializers.serialize(object.priority,
           specifiedType: const FullType(_i2.GTaskPriority)),
+      'blocked',
+      serializers.serialize(object.blocked,
+          specifiedType: const FullType(bool)),
+      'blockedBy',
+      serializers.serialize(object.blockedBy,
+          specifiedType: const FullType(BuiltList,
+              const [const FullType(GTaskDetailData_task_blockedBy)])),
+      'blocks',
+      serializers.serialize(object.blocks,
+          specifiedType: const FullType(
+              BuiltList, const [const FullType(GTaskDetailData_task_blocks)])),
+      'subtasks',
+      serializers.serialize(object.subtasks,
+          specifiedType: const FullType(BuiltList,
+              const [const FullType(GTaskDetailData_task_subtasks)])),
+      'related',
+      serializers.serialize(object.related,
+          specifiedType: const FullType(
+              BuiltList, const [const FullType(GTaskDetailData_task_related)])),
+      'duplicates',
+      serializers.serialize(object.duplicates,
+          specifiedType: const FullType(BuiltList,
+              const [const FullType(GTaskDetailData_task_duplicates)])),
       'stageSlots',
       serializers.serialize(object.stageSlots,
           specifiedType: const FullType(BuiltList,
@@ -134,6 +178,34 @@ class _$GTaskDetailData_taskSerializer
         ..add('dueAt')
         ..add(serializers.serialize(value,
             specifiedType: const FullType(_i2.GTime)));
+    }
+    value = object.startsAt;
+    if (value != null) {
+      result
+        ..add('startsAt')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(_i2.GTime)));
+    }
+    value = object.rank;
+    if (value != null) {
+      result
+        ..add('rank')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(double)));
+    }
+    value = object.parent;
+    if (value != null) {
+      result
+        ..add('parent')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(GTaskDetailData_task_parent)));
+    }
+    value = object.duplicateOf;
+    if (value != null) {
+      result
+        ..add('duplicateOf')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(GTaskDetailData_task_duplicateOf)));
     }
     value = object.findings;
     if (value != null) {
@@ -200,6 +272,59 @@ class _$GTaskDetailData_taskSerializer
           result.dueAt.replace(serializers.deserialize(value,
               specifiedType: const FullType(_i2.GTime))! as _i2.GTime);
           break;
+        case 'startsAt':
+          result.startsAt.replace(serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTime))! as _i2.GTime);
+          break;
+        case 'rank':
+          result.rank = serializers.deserialize(value,
+              specifiedType: const FullType(double)) as double?;
+          break;
+        case 'blocked':
+          result.blocked = serializers.deserialize(value,
+              specifiedType: const FullType(bool))! as bool;
+          break;
+        case 'blockedBy':
+          result.blockedBy.replace(serializers.deserialize(value,
+              specifiedType: const FullType(BuiltList, const [
+                const FullType(GTaskDetailData_task_blockedBy)
+              ]))! as BuiltList<Object?>);
+          break;
+        case 'blocks':
+          result.blocks.replace(serializers.deserialize(value,
+              specifiedType: const FullType(BuiltList, const [
+                const FullType(GTaskDetailData_task_blocks)
+              ]))! as BuiltList<Object?>);
+          break;
+        case 'parent':
+          result.parent.replace(serializers.deserialize(value,
+                  specifiedType: const FullType(GTaskDetailData_task_parent))!
+              as GTaskDetailData_task_parent);
+          break;
+        case 'subtasks':
+          result.subtasks.replace(serializers.deserialize(value,
+              specifiedType: const FullType(BuiltList, const [
+                const FullType(GTaskDetailData_task_subtasks)
+              ]))! as BuiltList<Object?>);
+          break;
+        case 'related':
+          result.related.replace(serializers.deserialize(value,
+              specifiedType: const FullType(BuiltList, const [
+                const FullType(GTaskDetailData_task_related)
+              ]))! as BuiltList<Object?>);
+          break;
+        case 'duplicateOf':
+          result.duplicateOf.replace(serializers.deserialize(value,
+                  specifiedType:
+                      const FullType(GTaskDetailData_task_duplicateOf))!
+              as GTaskDetailData_task_duplicateOf);
+          break;
+        case 'duplicates':
+          result.duplicates.replace(serializers.deserialize(value,
+              specifiedType: const FullType(BuiltList, const [
+                const FullType(GTaskDetailData_task_duplicates)
+              ]))! as BuiltList<Object?>);
+          break;
         case 'findings':
           result.findings = serializers.deserialize(value,
               specifiedType: const FullType(_i3.JsonObject)) as _i3.JsonObject?;
@@ -215,6 +340,510 @@ class _$GTaskDetailData_taskSerializer
               specifiedType: const FullType(BuiltList, const [
                 const FullType(GTaskDetailData_task_activity)
               ]))! as BuiltList<Object?>);
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GTaskDetailData_task_blockedBySerializer
+    implements StructuredSerializer<GTaskDetailData_task_blockedBy> {
+  @override
+  final Iterable<Type> types = const [
+    GTaskDetailData_task_blockedBy,
+    _$GTaskDetailData_task_blockedBy
+  ];
+  @override
+  final String wireName = 'GTaskDetailData_task_blockedBy';
+
+  @override
+  Iterable<Object?> serialize(
+      Serializers serializers, GTaskDetailData_task_blockedBy object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+      'id',
+      serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'shortId',
+      serializers.serialize(object.shortId, specifiedType: const FullType(int)),
+      'title',
+      serializers.serialize(object.title,
+          specifiedType: const FullType(String)),
+      'state',
+      serializers.serialize(object.state,
+          specifiedType: const FullType(_i2.GTaskState)),
+    ];
+
+    return result;
+  }
+
+  @override
+  GTaskDetailData_task_blockedBy deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = GTaskDetailData_task_blockedByBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'id':
+          result.id = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'shortId':
+          result.shortId = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
+          break;
+        case 'title':
+          result.title = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'state':
+          result.state = serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTaskState))! as _i2.GTaskState;
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GTaskDetailData_task_blocksSerializer
+    implements StructuredSerializer<GTaskDetailData_task_blocks> {
+  @override
+  final Iterable<Type> types = const [
+    GTaskDetailData_task_blocks,
+    _$GTaskDetailData_task_blocks
+  ];
+  @override
+  final String wireName = 'GTaskDetailData_task_blocks';
+
+  @override
+  Iterable<Object?> serialize(
+      Serializers serializers, GTaskDetailData_task_blocks object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+      'id',
+      serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'shortId',
+      serializers.serialize(object.shortId, specifiedType: const FullType(int)),
+      'title',
+      serializers.serialize(object.title,
+          specifiedType: const FullType(String)),
+      'state',
+      serializers.serialize(object.state,
+          specifiedType: const FullType(_i2.GTaskState)),
+    ];
+
+    return result;
+  }
+
+  @override
+  GTaskDetailData_task_blocks deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = GTaskDetailData_task_blocksBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'id':
+          result.id = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'shortId':
+          result.shortId = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
+          break;
+        case 'title':
+          result.title = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'state':
+          result.state = serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTaskState))! as _i2.GTaskState;
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GTaskDetailData_task_parentSerializer
+    implements StructuredSerializer<GTaskDetailData_task_parent> {
+  @override
+  final Iterable<Type> types = const [
+    GTaskDetailData_task_parent,
+    _$GTaskDetailData_task_parent
+  ];
+  @override
+  final String wireName = 'GTaskDetailData_task_parent';
+
+  @override
+  Iterable<Object?> serialize(
+      Serializers serializers, GTaskDetailData_task_parent object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+      'id',
+      serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'shortId',
+      serializers.serialize(object.shortId, specifiedType: const FullType(int)),
+      'title',
+      serializers.serialize(object.title,
+          specifiedType: const FullType(String)),
+      'state',
+      serializers.serialize(object.state,
+          specifiedType: const FullType(_i2.GTaskState)),
+    ];
+
+    return result;
+  }
+
+  @override
+  GTaskDetailData_task_parent deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = GTaskDetailData_task_parentBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'id':
+          result.id = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'shortId':
+          result.shortId = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
+          break;
+        case 'title':
+          result.title = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'state':
+          result.state = serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTaskState))! as _i2.GTaskState;
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GTaskDetailData_task_subtasksSerializer
+    implements StructuredSerializer<GTaskDetailData_task_subtasks> {
+  @override
+  final Iterable<Type> types = const [
+    GTaskDetailData_task_subtasks,
+    _$GTaskDetailData_task_subtasks
+  ];
+  @override
+  final String wireName = 'GTaskDetailData_task_subtasks';
+
+  @override
+  Iterable<Object?> serialize(
+      Serializers serializers, GTaskDetailData_task_subtasks object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+      'id',
+      serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'shortId',
+      serializers.serialize(object.shortId, specifiedType: const FullType(int)),
+      'title',
+      serializers.serialize(object.title,
+          specifiedType: const FullType(String)),
+      'state',
+      serializers.serialize(object.state,
+          specifiedType: const FullType(_i2.GTaskState)),
+    ];
+
+    return result;
+  }
+
+  @override
+  GTaskDetailData_task_subtasks deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = GTaskDetailData_task_subtasksBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'id':
+          result.id = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'shortId':
+          result.shortId = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
+          break;
+        case 'title':
+          result.title = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'state':
+          result.state = serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTaskState))! as _i2.GTaskState;
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GTaskDetailData_task_relatedSerializer
+    implements StructuredSerializer<GTaskDetailData_task_related> {
+  @override
+  final Iterable<Type> types = const [
+    GTaskDetailData_task_related,
+    _$GTaskDetailData_task_related
+  ];
+  @override
+  final String wireName = 'GTaskDetailData_task_related';
+
+  @override
+  Iterable<Object?> serialize(
+      Serializers serializers, GTaskDetailData_task_related object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+      'id',
+      serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'shortId',
+      serializers.serialize(object.shortId, specifiedType: const FullType(int)),
+      'title',
+      serializers.serialize(object.title,
+          specifiedType: const FullType(String)),
+      'state',
+      serializers.serialize(object.state,
+          specifiedType: const FullType(_i2.GTaskState)),
+    ];
+
+    return result;
+  }
+
+  @override
+  GTaskDetailData_task_related deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = GTaskDetailData_task_relatedBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'id':
+          result.id = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'shortId':
+          result.shortId = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
+          break;
+        case 'title':
+          result.title = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'state':
+          result.state = serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTaskState))! as _i2.GTaskState;
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GTaskDetailData_task_duplicateOfSerializer
+    implements StructuredSerializer<GTaskDetailData_task_duplicateOf> {
+  @override
+  final Iterable<Type> types = const [
+    GTaskDetailData_task_duplicateOf,
+    _$GTaskDetailData_task_duplicateOf
+  ];
+  @override
+  final String wireName = 'GTaskDetailData_task_duplicateOf';
+
+  @override
+  Iterable<Object?> serialize(
+      Serializers serializers, GTaskDetailData_task_duplicateOf object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+      'id',
+      serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'shortId',
+      serializers.serialize(object.shortId, specifiedType: const FullType(int)),
+      'title',
+      serializers.serialize(object.title,
+          specifiedType: const FullType(String)),
+      'state',
+      serializers.serialize(object.state,
+          specifiedType: const FullType(_i2.GTaskState)),
+    ];
+
+    return result;
+  }
+
+  @override
+  GTaskDetailData_task_duplicateOf deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = GTaskDetailData_task_duplicateOfBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'id':
+          result.id = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'shortId':
+          result.shortId = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
+          break;
+        case 'title':
+          result.title = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'state':
+          result.state = serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTaskState))! as _i2.GTaskState;
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GTaskDetailData_task_duplicatesSerializer
+    implements StructuredSerializer<GTaskDetailData_task_duplicates> {
+  @override
+  final Iterable<Type> types = const [
+    GTaskDetailData_task_duplicates,
+    _$GTaskDetailData_task_duplicates
+  ];
+  @override
+  final String wireName = 'GTaskDetailData_task_duplicates';
+
+  @override
+  Iterable<Object?> serialize(
+      Serializers serializers, GTaskDetailData_task_duplicates object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+      'id',
+      serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'shortId',
+      serializers.serialize(object.shortId, specifiedType: const FullType(int)),
+      'title',
+      serializers.serialize(object.title,
+          specifiedType: const FullType(String)),
+      'state',
+      serializers.serialize(object.state,
+          specifiedType: const FullType(_i2.GTaskState)),
+    ];
+
+    return result;
+  }
+
+  @override
+  GTaskDetailData_task_duplicates deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = GTaskDetailData_task_duplicatesBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'id':
+          result.id = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'shortId':
+          result.shortId = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
+          break;
+        case 'title':
+          result.title = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'state':
+          result.state = serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTaskState))! as _i2.GTaskState;
           break;
       }
     }
@@ -461,6 +1090,73 @@ class _$GTaskDetailData_task_activitySerializer
   }
 }
 
+class _$GTaskLinkDataSerializer implements StructuredSerializer<GTaskLinkData> {
+  @override
+  final Iterable<Type> types = const [GTaskLinkData, _$GTaskLinkData];
+  @override
+  final String wireName = 'GTaskLinkData';
+
+  @override
+  Iterable<Object?> serialize(Serializers serializers, GTaskLinkData object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+      'id',
+      serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'shortId',
+      serializers.serialize(object.shortId, specifiedType: const FullType(int)),
+      'title',
+      serializers.serialize(object.title,
+          specifiedType: const FullType(String)),
+      'state',
+      serializers.serialize(object.state,
+          specifiedType: const FullType(_i2.GTaskState)),
+    ];
+
+    return result;
+  }
+
+  @override
+  GTaskLinkData deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = GTaskLinkDataBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'id':
+          result.id = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'shortId':
+          result.shortId = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
+          break;
+        case 'title':
+          result.title = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'state':
+          result.state = serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTaskState))! as _i2.GTaskState;
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
 class _$GTaskDetailData extends GTaskDetailData {
   @override
   final String G__typename;
@@ -591,6 +1287,26 @@ class _$GTaskDetailData_task extends GTaskDetailData_task {
   @override
   final _i2.GTime? dueAt;
   @override
+  final _i2.GTime? startsAt;
+  @override
+  final double? rank;
+  @override
+  final bool blocked;
+  @override
+  final BuiltList<GTaskDetailData_task_blockedBy> blockedBy;
+  @override
+  final BuiltList<GTaskDetailData_task_blocks> blocks;
+  @override
+  final GTaskDetailData_task_parent? parent;
+  @override
+  final BuiltList<GTaskDetailData_task_subtasks> subtasks;
+  @override
+  final BuiltList<GTaskDetailData_task_related> related;
+  @override
+  final GTaskDetailData_task_duplicateOf? duplicateOf;
+  @override
+  final BuiltList<GTaskDetailData_task_duplicates> duplicates;
+  @override
   final _i3.JsonObject? findings;
   @override
   final BuiltList<GTaskDetailData_task_stageSlots> stageSlots;
@@ -612,6 +1328,16 @@ class _$GTaskDetailData_task extends GTaskDetailData_task {
       required this.autonomy,
       required this.priority,
       this.dueAt,
+      this.startsAt,
+      this.rank,
+      required this.blocked,
+      required this.blockedBy,
+      required this.blocks,
+      this.parent,
+      required this.subtasks,
+      required this.related,
+      this.duplicateOf,
+      required this.duplicates,
       this.findings,
       required this.stageSlots,
       required this.activity})
@@ -639,6 +1365,16 @@ class _$GTaskDetailData_task extends GTaskDetailData_task {
         autonomy == other.autonomy &&
         priority == other.priority &&
         dueAt == other.dueAt &&
+        startsAt == other.startsAt &&
+        rank == other.rank &&
+        blocked == other.blocked &&
+        blockedBy == other.blockedBy &&
+        blocks == other.blocks &&
+        parent == other.parent &&
+        subtasks == other.subtasks &&
+        related == other.related &&
+        duplicateOf == other.duplicateOf &&
+        duplicates == other.duplicates &&
         findings == other.findings &&
         stageSlots == other.stageSlots &&
         activity == other.activity;
@@ -657,6 +1393,16 @@ class _$GTaskDetailData_task extends GTaskDetailData_task {
     _$hash = $jc(_$hash, autonomy.hashCode);
     _$hash = $jc(_$hash, priority.hashCode);
     _$hash = $jc(_$hash, dueAt.hashCode);
+    _$hash = $jc(_$hash, startsAt.hashCode);
+    _$hash = $jc(_$hash, rank.hashCode);
+    _$hash = $jc(_$hash, blocked.hashCode);
+    _$hash = $jc(_$hash, blockedBy.hashCode);
+    _$hash = $jc(_$hash, blocks.hashCode);
+    _$hash = $jc(_$hash, parent.hashCode);
+    _$hash = $jc(_$hash, subtasks.hashCode);
+    _$hash = $jc(_$hash, related.hashCode);
+    _$hash = $jc(_$hash, duplicateOf.hashCode);
+    _$hash = $jc(_$hash, duplicates.hashCode);
     _$hash = $jc(_$hash, findings.hashCode);
     _$hash = $jc(_$hash, stageSlots.hashCode);
     _$hash = $jc(_$hash, activity.hashCode);
@@ -677,6 +1423,16 @@ class _$GTaskDetailData_task extends GTaskDetailData_task {
           ..add('autonomy', autonomy)
           ..add('priority', priority)
           ..add('dueAt', dueAt)
+          ..add('startsAt', startsAt)
+          ..add('rank', rank)
+          ..add('blocked', blocked)
+          ..add('blockedBy', blockedBy)
+          ..add('blocks', blocks)
+          ..add('parent', parent)
+          ..add('subtasks', subtasks)
+          ..add('related', related)
+          ..add('duplicateOf', duplicateOf)
+          ..add('duplicates', duplicates)
           ..add('findings', findings)
           ..add('stageSlots', stageSlots)
           ..add('activity', activity))
@@ -729,6 +1485,60 @@ class GTaskDetailData_taskBuilder
   _i2.GTimeBuilder get dueAt => _$this._dueAt ??= _i2.GTimeBuilder();
   set dueAt(_i2.GTimeBuilder? dueAt) => _$this._dueAt = dueAt;
 
+  _i2.GTimeBuilder? _startsAt;
+  _i2.GTimeBuilder get startsAt => _$this._startsAt ??= _i2.GTimeBuilder();
+  set startsAt(_i2.GTimeBuilder? startsAt) => _$this._startsAt = startsAt;
+
+  double? _rank;
+  double? get rank => _$this._rank;
+  set rank(double? rank) => _$this._rank = rank;
+
+  bool? _blocked;
+  bool? get blocked => _$this._blocked;
+  set blocked(bool? blocked) => _$this._blocked = blocked;
+
+  ListBuilder<GTaskDetailData_task_blockedBy>? _blockedBy;
+  ListBuilder<GTaskDetailData_task_blockedBy> get blockedBy =>
+      _$this._blockedBy ??= ListBuilder<GTaskDetailData_task_blockedBy>();
+  set blockedBy(ListBuilder<GTaskDetailData_task_blockedBy>? blockedBy) =>
+      _$this._blockedBy = blockedBy;
+
+  ListBuilder<GTaskDetailData_task_blocks>? _blocks;
+  ListBuilder<GTaskDetailData_task_blocks> get blocks =>
+      _$this._blocks ??= ListBuilder<GTaskDetailData_task_blocks>();
+  set blocks(ListBuilder<GTaskDetailData_task_blocks>? blocks) =>
+      _$this._blocks = blocks;
+
+  GTaskDetailData_task_parentBuilder? _parent;
+  GTaskDetailData_task_parentBuilder get parent =>
+      _$this._parent ??= GTaskDetailData_task_parentBuilder();
+  set parent(GTaskDetailData_task_parentBuilder? parent) =>
+      _$this._parent = parent;
+
+  ListBuilder<GTaskDetailData_task_subtasks>? _subtasks;
+  ListBuilder<GTaskDetailData_task_subtasks> get subtasks =>
+      _$this._subtasks ??= ListBuilder<GTaskDetailData_task_subtasks>();
+  set subtasks(ListBuilder<GTaskDetailData_task_subtasks>? subtasks) =>
+      _$this._subtasks = subtasks;
+
+  ListBuilder<GTaskDetailData_task_related>? _related;
+  ListBuilder<GTaskDetailData_task_related> get related =>
+      _$this._related ??= ListBuilder<GTaskDetailData_task_related>();
+  set related(ListBuilder<GTaskDetailData_task_related>? related) =>
+      _$this._related = related;
+
+  GTaskDetailData_task_duplicateOfBuilder? _duplicateOf;
+  GTaskDetailData_task_duplicateOfBuilder get duplicateOf =>
+      _$this._duplicateOf ??= GTaskDetailData_task_duplicateOfBuilder();
+  set duplicateOf(GTaskDetailData_task_duplicateOfBuilder? duplicateOf) =>
+      _$this._duplicateOf = duplicateOf;
+
+  ListBuilder<GTaskDetailData_task_duplicates>? _duplicates;
+  ListBuilder<GTaskDetailData_task_duplicates> get duplicates =>
+      _$this._duplicates ??= ListBuilder<GTaskDetailData_task_duplicates>();
+  set duplicates(ListBuilder<GTaskDetailData_task_duplicates>? duplicates) =>
+      _$this._duplicates = duplicates;
+
   _i3.JsonObject? _findings;
   _i3.JsonObject? get findings => _$this._findings;
   set findings(_i3.JsonObject? findings) => _$this._findings = findings;
@@ -762,6 +1572,16 @@ class GTaskDetailData_taskBuilder
       _autonomy = $v.autonomy;
       _priority = $v.priority;
       _dueAt = $v.dueAt?.toBuilder();
+      _startsAt = $v.startsAt?.toBuilder();
+      _rank = $v.rank;
+      _blocked = $v.blocked;
+      _blockedBy = $v.blockedBy.toBuilder();
+      _blocks = $v.blocks.toBuilder();
+      _parent = $v.parent?.toBuilder();
+      _subtasks = $v.subtasks.toBuilder();
+      _related = $v.related.toBuilder();
+      _duplicateOf = $v.duplicateOf?.toBuilder();
+      _duplicates = $v.duplicates.toBuilder();
       _findings = $v.findings;
       _stageSlots = $v.stageSlots.toBuilder();
       _activity = $v.activity.toBuilder();
@@ -806,6 +1626,17 @@ class GTaskDetailData_taskBuilder
             priority: BuiltValueNullFieldError.checkNotNull(
                 priority, r'GTaskDetailData_task', 'priority'),
             dueAt: _dueAt?.build(),
+            startsAt: _startsAt?.build(),
+            rank: rank,
+            blocked: BuiltValueNullFieldError.checkNotNull(
+                blocked, r'GTaskDetailData_task', 'blocked'),
+            blockedBy: blockedBy.build(),
+            blocks: blocks.build(),
+            parent: _parent?.build(),
+            subtasks: subtasks.build(),
+            related: related.build(),
+            duplicateOf: _duplicateOf?.build(),
+            duplicates: duplicates.build(),
             findings: findings,
             stageSlots: stageSlots.build(),
             activity: activity.build(),
@@ -815,6 +1646,23 @@ class GTaskDetailData_taskBuilder
       try {
         _$failedField = 'dueAt';
         _dueAt?.build();
+        _$failedField = 'startsAt';
+        _startsAt?.build();
+
+        _$failedField = 'blockedBy';
+        blockedBy.build();
+        _$failedField = 'blocks';
+        blocks.build();
+        _$failedField = 'parent';
+        _parent?.build();
+        _$failedField = 'subtasks';
+        subtasks.build();
+        _$failedField = 'related';
+        related.build();
+        _$failedField = 'duplicateOf';
+        _duplicateOf?.build();
+        _$failedField = 'duplicates';
+        duplicates.build();
 
         _$failedField = 'stageSlots';
         stageSlots.build();
@@ -826,6 +1674,1002 @@ class GTaskDetailData_taskBuilder
       }
       rethrow;
     }
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GTaskDetailData_task_blockedBy extends GTaskDetailData_task_blockedBy {
+  @override
+  final String G__typename;
+  @override
+  final String id;
+  @override
+  final int shortId;
+  @override
+  final String title;
+  @override
+  final _i2.GTaskState state;
+
+  factory _$GTaskDetailData_task_blockedBy(
+          [void Function(GTaskDetailData_task_blockedByBuilder)? updates]) =>
+      (GTaskDetailData_task_blockedByBuilder()..update(updates))._build();
+
+  _$GTaskDetailData_task_blockedBy._(
+      {required this.G__typename,
+      required this.id,
+      required this.shortId,
+      required this.title,
+      required this.state})
+      : super._();
+  @override
+  GTaskDetailData_task_blockedBy rebuild(
+          void Function(GTaskDetailData_task_blockedByBuilder) updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GTaskDetailData_task_blockedByBuilder toBuilder() =>
+      GTaskDetailData_task_blockedByBuilder()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GTaskDetailData_task_blockedBy &&
+        G__typename == other.G__typename &&
+        id == other.id &&
+        shortId == other.shortId &&
+        title == other.title &&
+        state == other.state;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, shortId.hashCode);
+    _$hash = $jc(_$hash, title.hashCode);
+    _$hash = $jc(_$hash, state.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(r'GTaskDetailData_task_blockedBy')
+          ..add('G__typename', G__typename)
+          ..add('id', id)
+          ..add('shortId', shortId)
+          ..add('title', title)
+          ..add('state', state))
+        .toString();
+  }
+}
+
+class GTaskDetailData_task_blockedByBuilder
+    implements
+        Builder<GTaskDetailData_task_blockedBy,
+            GTaskDetailData_task_blockedByBuilder> {
+  _$GTaskDetailData_task_blockedBy? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  String? _id;
+  String? get id => _$this._id;
+  set id(String? id) => _$this._id = id;
+
+  int? _shortId;
+  int? get shortId => _$this._shortId;
+  set shortId(int? shortId) => _$this._shortId = shortId;
+
+  String? _title;
+  String? get title => _$this._title;
+  set title(String? title) => _$this._title = title;
+
+  _i2.GTaskState? _state;
+  _i2.GTaskState? get state => _$this._state;
+  set state(_i2.GTaskState? state) => _$this._state = state;
+
+  GTaskDetailData_task_blockedByBuilder() {
+    GTaskDetailData_task_blockedBy._initializeBuilder(this);
+  }
+
+  GTaskDetailData_task_blockedByBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _id = $v.id;
+      _shortId = $v.shortId;
+      _title = $v.title;
+      _state = $v.state;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(GTaskDetailData_task_blockedBy other) {
+    _$v = other as _$GTaskDetailData_task_blockedBy;
+  }
+
+  @override
+  void update(void Function(GTaskDetailData_task_blockedByBuilder)? updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GTaskDetailData_task_blockedBy build() => _build();
+
+  _$GTaskDetailData_task_blockedBy _build() {
+    final _$result = _$v ??
+        _$GTaskDetailData_task_blockedBy._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(
+              G__typename, r'GTaskDetailData_task_blockedBy', 'G__typename'),
+          id: BuiltValueNullFieldError.checkNotNull(
+              id, r'GTaskDetailData_task_blockedBy', 'id'),
+          shortId: BuiltValueNullFieldError.checkNotNull(
+              shortId, r'GTaskDetailData_task_blockedBy', 'shortId'),
+          title: BuiltValueNullFieldError.checkNotNull(
+              title, r'GTaskDetailData_task_blockedBy', 'title'),
+          state: BuiltValueNullFieldError.checkNotNull(
+              state, r'GTaskDetailData_task_blockedBy', 'state'),
+        );
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GTaskDetailData_task_blocks extends GTaskDetailData_task_blocks {
+  @override
+  final String G__typename;
+  @override
+  final String id;
+  @override
+  final int shortId;
+  @override
+  final String title;
+  @override
+  final _i2.GTaskState state;
+
+  factory _$GTaskDetailData_task_blocks(
+          [void Function(GTaskDetailData_task_blocksBuilder)? updates]) =>
+      (GTaskDetailData_task_blocksBuilder()..update(updates))._build();
+
+  _$GTaskDetailData_task_blocks._(
+      {required this.G__typename,
+      required this.id,
+      required this.shortId,
+      required this.title,
+      required this.state})
+      : super._();
+  @override
+  GTaskDetailData_task_blocks rebuild(
+          void Function(GTaskDetailData_task_blocksBuilder) updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GTaskDetailData_task_blocksBuilder toBuilder() =>
+      GTaskDetailData_task_blocksBuilder()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GTaskDetailData_task_blocks &&
+        G__typename == other.G__typename &&
+        id == other.id &&
+        shortId == other.shortId &&
+        title == other.title &&
+        state == other.state;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, shortId.hashCode);
+    _$hash = $jc(_$hash, title.hashCode);
+    _$hash = $jc(_$hash, state.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(r'GTaskDetailData_task_blocks')
+          ..add('G__typename', G__typename)
+          ..add('id', id)
+          ..add('shortId', shortId)
+          ..add('title', title)
+          ..add('state', state))
+        .toString();
+  }
+}
+
+class GTaskDetailData_task_blocksBuilder
+    implements
+        Builder<GTaskDetailData_task_blocks,
+            GTaskDetailData_task_blocksBuilder> {
+  _$GTaskDetailData_task_blocks? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  String? _id;
+  String? get id => _$this._id;
+  set id(String? id) => _$this._id = id;
+
+  int? _shortId;
+  int? get shortId => _$this._shortId;
+  set shortId(int? shortId) => _$this._shortId = shortId;
+
+  String? _title;
+  String? get title => _$this._title;
+  set title(String? title) => _$this._title = title;
+
+  _i2.GTaskState? _state;
+  _i2.GTaskState? get state => _$this._state;
+  set state(_i2.GTaskState? state) => _$this._state = state;
+
+  GTaskDetailData_task_blocksBuilder() {
+    GTaskDetailData_task_blocks._initializeBuilder(this);
+  }
+
+  GTaskDetailData_task_blocksBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _id = $v.id;
+      _shortId = $v.shortId;
+      _title = $v.title;
+      _state = $v.state;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(GTaskDetailData_task_blocks other) {
+    _$v = other as _$GTaskDetailData_task_blocks;
+  }
+
+  @override
+  void update(void Function(GTaskDetailData_task_blocksBuilder)? updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GTaskDetailData_task_blocks build() => _build();
+
+  _$GTaskDetailData_task_blocks _build() {
+    final _$result = _$v ??
+        _$GTaskDetailData_task_blocks._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(
+              G__typename, r'GTaskDetailData_task_blocks', 'G__typename'),
+          id: BuiltValueNullFieldError.checkNotNull(
+              id, r'GTaskDetailData_task_blocks', 'id'),
+          shortId: BuiltValueNullFieldError.checkNotNull(
+              shortId, r'GTaskDetailData_task_blocks', 'shortId'),
+          title: BuiltValueNullFieldError.checkNotNull(
+              title, r'GTaskDetailData_task_blocks', 'title'),
+          state: BuiltValueNullFieldError.checkNotNull(
+              state, r'GTaskDetailData_task_blocks', 'state'),
+        );
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GTaskDetailData_task_parent extends GTaskDetailData_task_parent {
+  @override
+  final String G__typename;
+  @override
+  final String id;
+  @override
+  final int shortId;
+  @override
+  final String title;
+  @override
+  final _i2.GTaskState state;
+
+  factory _$GTaskDetailData_task_parent(
+          [void Function(GTaskDetailData_task_parentBuilder)? updates]) =>
+      (GTaskDetailData_task_parentBuilder()..update(updates))._build();
+
+  _$GTaskDetailData_task_parent._(
+      {required this.G__typename,
+      required this.id,
+      required this.shortId,
+      required this.title,
+      required this.state})
+      : super._();
+  @override
+  GTaskDetailData_task_parent rebuild(
+          void Function(GTaskDetailData_task_parentBuilder) updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GTaskDetailData_task_parentBuilder toBuilder() =>
+      GTaskDetailData_task_parentBuilder()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GTaskDetailData_task_parent &&
+        G__typename == other.G__typename &&
+        id == other.id &&
+        shortId == other.shortId &&
+        title == other.title &&
+        state == other.state;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, shortId.hashCode);
+    _$hash = $jc(_$hash, title.hashCode);
+    _$hash = $jc(_$hash, state.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(r'GTaskDetailData_task_parent')
+          ..add('G__typename', G__typename)
+          ..add('id', id)
+          ..add('shortId', shortId)
+          ..add('title', title)
+          ..add('state', state))
+        .toString();
+  }
+}
+
+class GTaskDetailData_task_parentBuilder
+    implements
+        Builder<GTaskDetailData_task_parent,
+            GTaskDetailData_task_parentBuilder> {
+  _$GTaskDetailData_task_parent? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  String? _id;
+  String? get id => _$this._id;
+  set id(String? id) => _$this._id = id;
+
+  int? _shortId;
+  int? get shortId => _$this._shortId;
+  set shortId(int? shortId) => _$this._shortId = shortId;
+
+  String? _title;
+  String? get title => _$this._title;
+  set title(String? title) => _$this._title = title;
+
+  _i2.GTaskState? _state;
+  _i2.GTaskState? get state => _$this._state;
+  set state(_i2.GTaskState? state) => _$this._state = state;
+
+  GTaskDetailData_task_parentBuilder() {
+    GTaskDetailData_task_parent._initializeBuilder(this);
+  }
+
+  GTaskDetailData_task_parentBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _id = $v.id;
+      _shortId = $v.shortId;
+      _title = $v.title;
+      _state = $v.state;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(GTaskDetailData_task_parent other) {
+    _$v = other as _$GTaskDetailData_task_parent;
+  }
+
+  @override
+  void update(void Function(GTaskDetailData_task_parentBuilder)? updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GTaskDetailData_task_parent build() => _build();
+
+  _$GTaskDetailData_task_parent _build() {
+    final _$result = _$v ??
+        _$GTaskDetailData_task_parent._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(
+              G__typename, r'GTaskDetailData_task_parent', 'G__typename'),
+          id: BuiltValueNullFieldError.checkNotNull(
+              id, r'GTaskDetailData_task_parent', 'id'),
+          shortId: BuiltValueNullFieldError.checkNotNull(
+              shortId, r'GTaskDetailData_task_parent', 'shortId'),
+          title: BuiltValueNullFieldError.checkNotNull(
+              title, r'GTaskDetailData_task_parent', 'title'),
+          state: BuiltValueNullFieldError.checkNotNull(
+              state, r'GTaskDetailData_task_parent', 'state'),
+        );
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GTaskDetailData_task_subtasks extends GTaskDetailData_task_subtasks {
+  @override
+  final String G__typename;
+  @override
+  final String id;
+  @override
+  final int shortId;
+  @override
+  final String title;
+  @override
+  final _i2.GTaskState state;
+
+  factory _$GTaskDetailData_task_subtasks(
+          [void Function(GTaskDetailData_task_subtasksBuilder)? updates]) =>
+      (GTaskDetailData_task_subtasksBuilder()..update(updates))._build();
+
+  _$GTaskDetailData_task_subtasks._(
+      {required this.G__typename,
+      required this.id,
+      required this.shortId,
+      required this.title,
+      required this.state})
+      : super._();
+  @override
+  GTaskDetailData_task_subtasks rebuild(
+          void Function(GTaskDetailData_task_subtasksBuilder) updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GTaskDetailData_task_subtasksBuilder toBuilder() =>
+      GTaskDetailData_task_subtasksBuilder()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GTaskDetailData_task_subtasks &&
+        G__typename == other.G__typename &&
+        id == other.id &&
+        shortId == other.shortId &&
+        title == other.title &&
+        state == other.state;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, shortId.hashCode);
+    _$hash = $jc(_$hash, title.hashCode);
+    _$hash = $jc(_$hash, state.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(r'GTaskDetailData_task_subtasks')
+          ..add('G__typename', G__typename)
+          ..add('id', id)
+          ..add('shortId', shortId)
+          ..add('title', title)
+          ..add('state', state))
+        .toString();
+  }
+}
+
+class GTaskDetailData_task_subtasksBuilder
+    implements
+        Builder<GTaskDetailData_task_subtasks,
+            GTaskDetailData_task_subtasksBuilder> {
+  _$GTaskDetailData_task_subtasks? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  String? _id;
+  String? get id => _$this._id;
+  set id(String? id) => _$this._id = id;
+
+  int? _shortId;
+  int? get shortId => _$this._shortId;
+  set shortId(int? shortId) => _$this._shortId = shortId;
+
+  String? _title;
+  String? get title => _$this._title;
+  set title(String? title) => _$this._title = title;
+
+  _i2.GTaskState? _state;
+  _i2.GTaskState? get state => _$this._state;
+  set state(_i2.GTaskState? state) => _$this._state = state;
+
+  GTaskDetailData_task_subtasksBuilder() {
+    GTaskDetailData_task_subtasks._initializeBuilder(this);
+  }
+
+  GTaskDetailData_task_subtasksBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _id = $v.id;
+      _shortId = $v.shortId;
+      _title = $v.title;
+      _state = $v.state;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(GTaskDetailData_task_subtasks other) {
+    _$v = other as _$GTaskDetailData_task_subtasks;
+  }
+
+  @override
+  void update(void Function(GTaskDetailData_task_subtasksBuilder)? updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GTaskDetailData_task_subtasks build() => _build();
+
+  _$GTaskDetailData_task_subtasks _build() {
+    final _$result = _$v ??
+        _$GTaskDetailData_task_subtasks._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(
+              G__typename, r'GTaskDetailData_task_subtasks', 'G__typename'),
+          id: BuiltValueNullFieldError.checkNotNull(
+              id, r'GTaskDetailData_task_subtasks', 'id'),
+          shortId: BuiltValueNullFieldError.checkNotNull(
+              shortId, r'GTaskDetailData_task_subtasks', 'shortId'),
+          title: BuiltValueNullFieldError.checkNotNull(
+              title, r'GTaskDetailData_task_subtasks', 'title'),
+          state: BuiltValueNullFieldError.checkNotNull(
+              state, r'GTaskDetailData_task_subtasks', 'state'),
+        );
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GTaskDetailData_task_related extends GTaskDetailData_task_related {
+  @override
+  final String G__typename;
+  @override
+  final String id;
+  @override
+  final int shortId;
+  @override
+  final String title;
+  @override
+  final _i2.GTaskState state;
+
+  factory _$GTaskDetailData_task_related(
+          [void Function(GTaskDetailData_task_relatedBuilder)? updates]) =>
+      (GTaskDetailData_task_relatedBuilder()..update(updates))._build();
+
+  _$GTaskDetailData_task_related._(
+      {required this.G__typename,
+      required this.id,
+      required this.shortId,
+      required this.title,
+      required this.state})
+      : super._();
+  @override
+  GTaskDetailData_task_related rebuild(
+          void Function(GTaskDetailData_task_relatedBuilder) updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GTaskDetailData_task_relatedBuilder toBuilder() =>
+      GTaskDetailData_task_relatedBuilder()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GTaskDetailData_task_related &&
+        G__typename == other.G__typename &&
+        id == other.id &&
+        shortId == other.shortId &&
+        title == other.title &&
+        state == other.state;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, shortId.hashCode);
+    _$hash = $jc(_$hash, title.hashCode);
+    _$hash = $jc(_$hash, state.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(r'GTaskDetailData_task_related')
+          ..add('G__typename', G__typename)
+          ..add('id', id)
+          ..add('shortId', shortId)
+          ..add('title', title)
+          ..add('state', state))
+        .toString();
+  }
+}
+
+class GTaskDetailData_task_relatedBuilder
+    implements
+        Builder<GTaskDetailData_task_related,
+            GTaskDetailData_task_relatedBuilder> {
+  _$GTaskDetailData_task_related? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  String? _id;
+  String? get id => _$this._id;
+  set id(String? id) => _$this._id = id;
+
+  int? _shortId;
+  int? get shortId => _$this._shortId;
+  set shortId(int? shortId) => _$this._shortId = shortId;
+
+  String? _title;
+  String? get title => _$this._title;
+  set title(String? title) => _$this._title = title;
+
+  _i2.GTaskState? _state;
+  _i2.GTaskState? get state => _$this._state;
+  set state(_i2.GTaskState? state) => _$this._state = state;
+
+  GTaskDetailData_task_relatedBuilder() {
+    GTaskDetailData_task_related._initializeBuilder(this);
+  }
+
+  GTaskDetailData_task_relatedBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _id = $v.id;
+      _shortId = $v.shortId;
+      _title = $v.title;
+      _state = $v.state;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(GTaskDetailData_task_related other) {
+    _$v = other as _$GTaskDetailData_task_related;
+  }
+
+  @override
+  void update(void Function(GTaskDetailData_task_relatedBuilder)? updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GTaskDetailData_task_related build() => _build();
+
+  _$GTaskDetailData_task_related _build() {
+    final _$result = _$v ??
+        _$GTaskDetailData_task_related._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(
+              G__typename, r'GTaskDetailData_task_related', 'G__typename'),
+          id: BuiltValueNullFieldError.checkNotNull(
+              id, r'GTaskDetailData_task_related', 'id'),
+          shortId: BuiltValueNullFieldError.checkNotNull(
+              shortId, r'GTaskDetailData_task_related', 'shortId'),
+          title: BuiltValueNullFieldError.checkNotNull(
+              title, r'GTaskDetailData_task_related', 'title'),
+          state: BuiltValueNullFieldError.checkNotNull(
+              state, r'GTaskDetailData_task_related', 'state'),
+        );
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GTaskDetailData_task_duplicateOf
+    extends GTaskDetailData_task_duplicateOf {
+  @override
+  final String G__typename;
+  @override
+  final String id;
+  @override
+  final int shortId;
+  @override
+  final String title;
+  @override
+  final _i2.GTaskState state;
+
+  factory _$GTaskDetailData_task_duplicateOf(
+          [void Function(GTaskDetailData_task_duplicateOfBuilder)? updates]) =>
+      (GTaskDetailData_task_duplicateOfBuilder()..update(updates))._build();
+
+  _$GTaskDetailData_task_duplicateOf._(
+      {required this.G__typename,
+      required this.id,
+      required this.shortId,
+      required this.title,
+      required this.state})
+      : super._();
+  @override
+  GTaskDetailData_task_duplicateOf rebuild(
+          void Function(GTaskDetailData_task_duplicateOfBuilder) updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GTaskDetailData_task_duplicateOfBuilder toBuilder() =>
+      GTaskDetailData_task_duplicateOfBuilder()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GTaskDetailData_task_duplicateOf &&
+        G__typename == other.G__typename &&
+        id == other.id &&
+        shortId == other.shortId &&
+        title == other.title &&
+        state == other.state;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, shortId.hashCode);
+    _$hash = $jc(_$hash, title.hashCode);
+    _$hash = $jc(_$hash, state.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(r'GTaskDetailData_task_duplicateOf')
+          ..add('G__typename', G__typename)
+          ..add('id', id)
+          ..add('shortId', shortId)
+          ..add('title', title)
+          ..add('state', state))
+        .toString();
+  }
+}
+
+class GTaskDetailData_task_duplicateOfBuilder
+    implements
+        Builder<GTaskDetailData_task_duplicateOf,
+            GTaskDetailData_task_duplicateOfBuilder> {
+  _$GTaskDetailData_task_duplicateOf? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  String? _id;
+  String? get id => _$this._id;
+  set id(String? id) => _$this._id = id;
+
+  int? _shortId;
+  int? get shortId => _$this._shortId;
+  set shortId(int? shortId) => _$this._shortId = shortId;
+
+  String? _title;
+  String? get title => _$this._title;
+  set title(String? title) => _$this._title = title;
+
+  _i2.GTaskState? _state;
+  _i2.GTaskState? get state => _$this._state;
+  set state(_i2.GTaskState? state) => _$this._state = state;
+
+  GTaskDetailData_task_duplicateOfBuilder() {
+    GTaskDetailData_task_duplicateOf._initializeBuilder(this);
+  }
+
+  GTaskDetailData_task_duplicateOfBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _id = $v.id;
+      _shortId = $v.shortId;
+      _title = $v.title;
+      _state = $v.state;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(GTaskDetailData_task_duplicateOf other) {
+    _$v = other as _$GTaskDetailData_task_duplicateOf;
+  }
+
+  @override
+  void update(void Function(GTaskDetailData_task_duplicateOfBuilder)? updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GTaskDetailData_task_duplicateOf build() => _build();
+
+  _$GTaskDetailData_task_duplicateOf _build() {
+    final _$result = _$v ??
+        _$GTaskDetailData_task_duplicateOf._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(
+              G__typename, r'GTaskDetailData_task_duplicateOf', 'G__typename'),
+          id: BuiltValueNullFieldError.checkNotNull(
+              id, r'GTaskDetailData_task_duplicateOf', 'id'),
+          shortId: BuiltValueNullFieldError.checkNotNull(
+              shortId, r'GTaskDetailData_task_duplicateOf', 'shortId'),
+          title: BuiltValueNullFieldError.checkNotNull(
+              title, r'GTaskDetailData_task_duplicateOf', 'title'),
+          state: BuiltValueNullFieldError.checkNotNull(
+              state, r'GTaskDetailData_task_duplicateOf', 'state'),
+        );
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GTaskDetailData_task_duplicates
+    extends GTaskDetailData_task_duplicates {
+  @override
+  final String G__typename;
+  @override
+  final String id;
+  @override
+  final int shortId;
+  @override
+  final String title;
+  @override
+  final _i2.GTaskState state;
+
+  factory _$GTaskDetailData_task_duplicates(
+          [void Function(GTaskDetailData_task_duplicatesBuilder)? updates]) =>
+      (GTaskDetailData_task_duplicatesBuilder()..update(updates))._build();
+
+  _$GTaskDetailData_task_duplicates._(
+      {required this.G__typename,
+      required this.id,
+      required this.shortId,
+      required this.title,
+      required this.state})
+      : super._();
+  @override
+  GTaskDetailData_task_duplicates rebuild(
+          void Function(GTaskDetailData_task_duplicatesBuilder) updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GTaskDetailData_task_duplicatesBuilder toBuilder() =>
+      GTaskDetailData_task_duplicatesBuilder()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GTaskDetailData_task_duplicates &&
+        G__typename == other.G__typename &&
+        id == other.id &&
+        shortId == other.shortId &&
+        title == other.title &&
+        state == other.state;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, shortId.hashCode);
+    _$hash = $jc(_$hash, title.hashCode);
+    _$hash = $jc(_$hash, state.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(r'GTaskDetailData_task_duplicates')
+          ..add('G__typename', G__typename)
+          ..add('id', id)
+          ..add('shortId', shortId)
+          ..add('title', title)
+          ..add('state', state))
+        .toString();
+  }
+}
+
+class GTaskDetailData_task_duplicatesBuilder
+    implements
+        Builder<GTaskDetailData_task_duplicates,
+            GTaskDetailData_task_duplicatesBuilder> {
+  _$GTaskDetailData_task_duplicates? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  String? _id;
+  String? get id => _$this._id;
+  set id(String? id) => _$this._id = id;
+
+  int? _shortId;
+  int? get shortId => _$this._shortId;
+  set shortId(int? shortId) => _$this._shortId = shortId;
+
+  String? _title;
+  String? get title => _$this._title;
+  set title(String? title) => _$this._title = title;
+
+  _i2.GTaskState? _state;
+  _i2.GTaskState? get state => _$this._state;
+  set state(_i2.GTaskState? state) => _$this._state = state;
+
+  GTaskDetailData_task_duplicatesBuilder() {
+    GTaskDetailData_task_duplicates._initializeBuilder(this);
+  }
+
+  GTaskDetailData_task_duplicatesBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _id = $v.id;
+      _shortId = $v.shortId;
+      _title = $v.title;
+      _state = $v.state;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(GTaskDetailData_task_duplicates other) {
+    _$v = other as _$GTaskDetailData_task_duplicates;
+  }
+
+  @override
+  void update(void Function(GTaskDetailData_task_duplicatesBuilder)? updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GTaskDetailData_task_duplicates build() => _build();
+
+  _$GTaskDetailData_task_duplicates _build() {
+    final _$result = _$v ??
+        _$GTaskDetailData_task_duplicates._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(
+              G__typename, r'GTaskDetailData_task_duplicates', 'G__typename'),
+          id: BuiltValueNullFieldError.checkNotNull(
+              id, r'GTaskDetailData_task_duplicates', 'id'),
+          shortId: BuiltValueNullFieldError.checkNotNull(
+              shortId, r'GTaskDetailData_task_duplicates', 'shortId'),
+          title: BuiltValueNullFieldError.checkNotNull(
+              title, r'GTaskDetailData_task_duplicates', 'title'),
+          state: BuiltValueNullFieldError.checkNotNull(
+              state, r'GTaskDetailData_task_duplicates', 'state'),
+        );
     replace(_$result);
     return _$result;
   }
@@ -1282,6 +3126,142 @@ class GTaskDetailData_task_activityBuilder
       }
       rethrow;
     }
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GTaskLinkData extends GTaskLinkData {
+  @override
+  final String G__typename;
+  @override
+  final String id;
+  @override
+  final int shortId;
+  @override
+  final String title;
+  @override
+  final _i2.GTaskState state;
+
+  factory _$GTaskLinkData([void Function(GTaskLinkDataBuilder)? updates]) =>
+      (GTaskLinkDataBuilder()..update(updates))._build();
+
+  _$GTaskLinkData._(
+      {required this.G__typename,
+      required this.id,
+      required this.shortId,
+      required this.title,
+      required this.state})
+      : super._();
+  @override
+  GTaskLinkData rebuild(void Function(GTaskLinkDataBuilder) updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GTaskLinkDataBuilder toBuilder() => GTaskLinkDataBuilder()..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other is GTaskLinkData &&
+        G__typename == other.G__typename &&
+        id == other.id &&
+        shortId == other.shortId &&
+        title == other.title &&
+        state == other.state;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, shortId.hashCode);
+    _$hash = $jc(_$hash, title.hashCode);
+    _$hash = $jc(_$hash, state.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(r'GTaskLinkData')
+          ..add('G__typename', G__typename)
+          ..add('id', id)
+          ..add('shortId', shortId)
+          ..add('title', title)
+          ..add('state', state))
+        .toString();
+  }
+}
+
+class GTaskLinkDataBuilder
+    implements Builder<GTaskLinkData, GTaskLinkDataBuilder> {
+  _$GTaskLinkData? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  String? _id;
+  String? get id => _$this._id;
+  set id(String? id) => _$this._id = id;
+
+  int? _shortId;
+  int? get shortId => _$this._shortId;
+  set shortId(int? shortId) => _$this._shortId = shortId;
+
+  String? _title;
+  String? get title => _$this._title;
+  set title(String? title) => _$this._title = title;
+
+  _i2.GTaskState? _state;
+  _i2.GTaskState? get state => _$this._state;
+  set state(_i2.GTaskState? state) => _$this._state = state;
+
+  GTaskLinkDataBuilder() {
+    GTaskLinkData._initializeBuilder(this);
+  }
+
+  GTaskLinkDataBuilder get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _id = $v.id;
+      _shortId = $v.shortId;
+      _title = $v.title;
+      _state = $v.state;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(GTaskLinkData other) {
+    _$v = other as _$GTaskLinkData;
+  }
+
+  @override
+  void update(void Function(GTaskLinkDataBuilder)? updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GTaskLinkData build() => _build();
+
+  _$GTaskLinkData _build() {
+    final _$result = _$v ??
+        _$GTaskLinkData._(
+          G__typename: BuiltValueNullFieldError.checkNotNull(
+              G__typename, r'GTaskLinkData', 'G__typename'),
+          id: BuiltValueNullFieldError.checkNotNull(id, r'GTaskLinkData', 'id'),
+          shortId: BuiltValueNullFieldError.checkNotNull(
+              shortId, r'GTaskLinkData', 'shortId'),
+          title: BuiltValueNullFieldError.checkNotNull(
+              title, r'GTaskLinkData', 'title'),
+          state: BuiltValueNullFieldError.checkNotNull(
+              state, r'GTaskLinkData', 'state'),
+        );
     replace(_$result);
     return _$result;
   }

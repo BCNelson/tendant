@@ -342,6 +342,8 @@ type Task struct {
 	Autonomy       AutonomyLevel    `json:"autonomy"`
 	Priority       TaskPriority     `json:"priority"`
 	DueAt          *time.Time       `json:"dueAt,omitempty"`
+	StartsAt       *time.Time       `json:"startsAt,omitempty"`
+	Rank           *float64         `json:"rank,omitempty"`
 	Provenance     map[string]any   `json:"provenance,omitempty"`
 	ContextRefs    map[string]any   `json:"contextRefs,omitempty"`
 	Findings       map[string]any   `json:"findings,omitempty"`
@@ -350,6 +352,14 @@ type Task struct {
 	CreatedAt      time.Time        `json:"createdAt"`
 	EditedAt       *time.Time       `json:"editedAt,omitempty"`
 	Category       *TaskCategory    `json:"category,omitempty"`
+	Blocked        bool             `json:"blocked"`
+	BlockedBy      []*Task          `json:"blockedBy"`
+	Blocks         []*Task          `json:"blocks"`
+	Parent         *Task            `json:"parent,omitempty"`
+	Subtasks       []*Task          `json:"subtasks"`
+	Related        []*Task          `json:"related"`
+	DuplicateOf    *Task            `json:"duplicateOf,omitempty"`
+	Duplicates     []*Task          `json:"duplicates"`
 	StageSlots     []*StageSlot     `json:"stageSlots"`
 	Activity       []*ActivityEvent `json:"activity"`
 }
@@ -371,6 +381,14 @@ type TaskConnection struct {
 type TaskEdge struct {
 	Node   *Task  `json:"node"`
 	Cursor string `json:"cursor"`
+}
+
+type TaskRelation struct {
+	ID        string           `json:"id"`
+	Kind      TaskRelationKind `json:"kind"`
+	From      *Task            `json:"from"`
+	To        *Task            `json:"to"`
+	CreatedAt time.Time        `json:"createdAt"`
 }
 
 type Tool struct {
@@ -855,6 +873,65 @@ func (e *TaskPriority) UnmarshalJSON(b []byte) error {
 }
 
 func (e TaskPriority) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type TaskRelationKind string
+
+const (
+	TaskRelationKindBlocks      TaskRelationKind = "BLOCKS"
+	TaskRelationKindSubtaskOf   TaskRelationKind = "SUBTASK_OF"
+	TaskRelationKindRelated     TaskRelationKind = "RELATED"
+	TaskRelationKindDuplicateOf TaskRelationKind = "DUPLICATE_OF"
+)
+
+var AllTaskRelationKind = []TaskRelationKind{
+	TaskRelationKindBlocks,
+	TaskRelationKindSubtaskOf,
+	TaskRelationKindRelated,
+	TaskRelationKindDuplicateOf,
+}
+
+func (e TaskRelationKind) IsValid() bool {
+	switch e {
+	case TaskRelationKindBlocks, TaskRelationKindSubtaskOf, TaskRelationKindRelated, TaskRelationKindDuplicateOf:
+		return true
+	}
+	return false
+}
+
+func (e TaskRelationKind) String() string {
+	return string(e)
+}
+
+func (e *TaskRelationKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = TaskRelationKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid TaskRelationKind", str)
+	}
+	return nil
+}
+
+func (e TaskRelationKind) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *TaskRelationKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e TaskRelationKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

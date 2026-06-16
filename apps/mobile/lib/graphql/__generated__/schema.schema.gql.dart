@@ -85,6 +85,26 @@ class GGateScriptStatus extends EnumClass {
       _$gGateScriptStatusValueOf(name);
 }
 
+class GTaskRelationKind extends EnumClass {
+  const GTaskRelationKind._(String name) : super(name);
+
+  static const GTaskRelationKind BLOCKS = _$gTaskRelationKindBLOCKS;
+
+  static const GTaskRelationKind SUBTASK_OF = _$gTaskRelationKindSUBTASK_OF;
+
+  static const GTaskRelationKind RELATED = _$gTaskRelationKindRELATED;
+
+  static const GTaskRelationKind DUPLICATE_OF = _$gTaskRelationKindDUPLICATE_OF;
+
+  static Serializer<GTaskRelationKind> get serializer =>
+      _$gTaskRelationKindSerializer;
+
+  static BuiltSet<GTaskRelationKind> get values => _$gTaskRelationKindValues;
+
+  static GTaskRelationKind valueOf(String name) =>
+      _$gTaskRelationKindValueOf(name);
+}
+
 abstract class GTime implements Built<GTime, GTimeBuilder> {
   GTime._();
 

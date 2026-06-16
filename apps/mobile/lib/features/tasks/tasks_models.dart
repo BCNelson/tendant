@@ -147,8 +147,59 @@ class ActivityEventRef {
   });
 }
 
-/// Full detail for one task: header, stage occupancy, the agent output
-/// (findings), and the complete activity timeline.
+/// TaskLinkRef is a lightweight reference to a task on the other end of a
+/// relation edge (blocker, subtask, parent, related, duplicate). Just enough to
+/// render a tappable tile that deep-links to that task's detail page.
+class TaskLinkRef {
+  final String id;
+  final int shortId;
+  final String title;
+  final String state;
+
+  const TaskLinkRef({
+    required this.id,
+    required this.shortId,
+    required this.title,
+    required this.state,
+  });
+}
+
+/// The four directed task↔task relation kinds (server `TaskRelationKind`).
+enum TaskRelationKind { blocks, subtaskOf, related, duplicateOf }
+
+extension TaskRelationKindWire on TaskRelationKind {
+  /// The server enum name (e.g. BLOCKS, SUBTASK_OF).
+  String get wire {
+    switch (this) {
+      case TaskRelationKind.blocks:
+        return 'BLOCKS';
+      case TaskRelationKind.subtaskOf:
+        return 'SUBTASK_OF';
+      case TaskRelationKind.related:
+        return 'RELATED';
+      case TaskRelationKind.duplicateOf:
+        return 'DUPLICATE_OF';
+    }
+  }
+
+  /// Human-facing label for the add-relation picker, phrased as "this task ___
+  /// the chosen task" (the edge is from this task → the chosen task).
+  String get pickerLabel {
+    switch (this) {
+      case TaskRelationKind.blocks:
+        return 'Blocks';
+      case TaskRelationKind.subtaskOf:
+        return 'Is a subtask of';
+      case TaskRelationKind.related:
+        return 'Is related to';
+      case TaskRelationKind.duplicateOf:
+        return 'Is a duplicate of';
+    }
+  }
+}
+
+/// Full detail for one task: header, scheduling, the task-graph relations, stage
+/// occupancy, the agent output (findings), and the complete activity timeline.
 class TaskDetail {
   final String id;
   final int shortId; // short, human-facing task number (#N), distinct from id
@@ -159,6 +210,16 @@ class TaskDetail {
   final String autonomy;
   final String priority; // TaskPriority, e.g. NORMAL
   final DateTime? dueAt; // optional deadline (local time)
+  final DateTime? startsAt; // optional earliest-start, gates eligibility
+  final double? rank; // optional manual ordering weight (lower sorts first)
+  final bool blocked; // unmet blockers or a future startsAt
+  final List<TaskLinkRef> blockedBy; // must clear before this task can execute
+  final List<TaskLinkRef> blocks; // tasks this task blocks
+  final TaskLinkRef? parent; // parent task, if this is a subtask
+  final List<TaskLinkRef> subtasks; // child subtasks
+  final List<TaskLinkRef> related; // non-blocking related tasks
+  final TaskLinkRef? duplicateOf; // canonical task this one duplicates
+  final List<TaskLinkRef> duplicates; // tasks marked duplicates of this one
   final Map<String, dynamic> findings;
   final List<TaskStageOccupancy> stageSlots;
   final List<ActivityEventRef> activity;
@@ -173,6 +234,16 @@ class TaskDetail {
     required this.autonomy,
     this.priority = 'NORMAL',
     this.dueAt,
+    this.startsAt,
+    this.rank,
+    this.blocked = false,
+    this.blockedBy = const [],
+    this.blocks = const [],
+    this.parent,
+    this.subtasks = const [],
+    this.related = const [],
+    this.duplicateOf,
+    this.duplicates = const [],
     required this.findings,
     required this.stageSlots,
     required this.activity,

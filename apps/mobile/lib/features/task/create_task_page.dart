@@ -27,8 +27,10 @@ String _formatDate(DateTime d) =>
 class _CreateTaskPageState extends ConsumerState<CreateTaskPage> {
   final _title = TextEditingController();
   final _description = TextEditingController();
+  final _rank = TextEditingController();
   String _priority = 'NORMAL';
   DateTime? _dueAt;
+  DateTime? _startsAt;
   String? _error;
   bool _submitting = false;
 
@@ -36,18 +38,19 @@ class _CreateTaskPageState extends ConsumerState<CreateTaskPage> {
   void dispose() {
     _title.dispose();
     _description.dispose();
+    _rank.dispose();
     super.dispose();
   }
 
-  Future<void> _pickDueDate() async {
+  Future<void> _pickDate(DateTime? current, ValueChanged<DateTime> onPicked) async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _dueAt ?? now,
+      initialDate: current ?? now,
       firstDate: DateTime(now.year - 1),
       lastDate: DateTime(now.year + 5),
     );
-    if (picked != null) setState(() => _dueAt = picked);
+    if (picked != null) onPicked(picked);
   }
 
   Future<void> _submit() async {
@@ -56,6 +59,15 @@ class _CreateTaskPageState extends ConsumerState<CreateTaskPage> {
     if (title.isEmpty) {
       setState(() => _error = 'A title is required.');
       return;
+    }
+    final rankText = _rank.text.trim();
+    double? rank;
+    if (rankText.isNotEmpty) {
+      rank = double.tryParse(rankText);
+      if (rank == null) {
+        setState(() => _error = 'Rank must be a number.');
+        return;
+      }
     }
     setState(() {
       _submitting = true;
@@ -68,6 +80,8 @@ class _CreateTaskPageState extends ConsumerState<CreateTaskPage> {
         description: description.isEmpty ? null : description,
         priority: _priority,
         dueAt: _dueAt,
+        startsAt: _startsAt,
+        rank: rank,
       );
       if (mounted) context.go('/inbox');
     } catch (e) {
@@ -124,7 +138,8 @@ class _CreateTaskPageState extends ConsumerState<CreateTaskPage> {
                   : _formatDate(_dueAt!)),
               trailing: _dueAt == null
                   ? TextButton(
-                      onPressed: _pickDueDate,
+                      onPressed: () =>
+                          _pickDate(_dueAt, (d) => setState(() => _dueAt = d)),
                       child: const Text('Set'),
                     )
                   : IconButton(
@@ -132,7 +147,38 @@ class _CreateTaskPageState extends ConsumerState<CreateTaskPage> {
                       tooltip: 'Clear due date',
                       onPressed: () => setState(() => _dueAt = null),
                     ),
-              onTap: _pickDueDate,
+              onTap: () => _pickDate(_dueAt, (d) => setState(() => _dueAt = d)),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.play_circle_outline),
+              title: const Text('Start date'),
+              subtitle: Text(_startsAt == null
+                  ? 'Optional — gates eligibility until then'
+                  : _formatDate(_startsAt!)),
+              trailing: _startsAt == null
+                  ? TextButton(
+                      onPressed: () => _pickDate(
+                          _startsAt, (d) => setState(() => _startsAt = d)),
+                      child: const Text('Set'),
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.clear),
+                      tooltip: 'Clear start date',
+                      onPressed: () => setState(() => _startsAt = null),
+                    ),
+              onTap: () =>
+                  _pickDate(_startsAt, (d) => setState(() => _startsAt = d)),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _rank,
+              decoration: const InputDecoration(
+                labelText: 'Rank',
+                helperText: 'Optional — lower sorts first',
+              ),
+              keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true, signed: true),
             ),
             const SizedBox(height: 16),
             if (_error != null)
