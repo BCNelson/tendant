@@ -296,7 +296,9 @@ func parseAgentStage(s string) (db.AgentStage, error) {
 		return db.AgentStageExpansion, nil
 	case "execution":
 		return db.AgentStageExecution, nil
+	case "feedback":
+		return db.AgentStageFeedback, nil
 	default:
-		return "", fmt.Errorf("invalid stage %q (want triage|expansion|execution)", s)
+		return "", fmt.Errorf("invalid stage %q (want triage|expansion|execution|feedback)", s)
 	}
 }

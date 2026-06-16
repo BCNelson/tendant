@@ -21,9 +21,12 @@ func NewLLMAgentClient(client llm.Client) AgentModelClient {
 
 func (c *llmAgentClient) Chat(ctx context.Context, req ChatRequest) (ChatResponse, error) {
 	lreq := llm.Request{
-		Model:    req.Model,
-		System:   req.System,
-		Messages: make([]llm.Message, 0, len(req.Messages)),
+		Model:          req.Model,
+		System:         req.System,
+		Messages:       make([]llm.Message, 0, len(req.Messages)),
+		ForceTool:      req.ForceTool,
+		ResponseFormat: req.ResponseFormat,
+		MaxTokens:      req.MaxTokens,
 	}
 	for _, m := range req.Messages {
 		lreq.Messages = append(lreq.Messages, llm.Message{Role: m.Role, Content: m.Content})

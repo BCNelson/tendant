@@ -21,6 +21,16 @@ type ChatRequest struct {
 	System   string    // agent's system prompt from AgentConfig
 	Messages []Message // accumulated conversation history
 	Tools    []ToolDef // only the allowlisted tools
+	// ForceTool, when set, names a tool the model MUST call this turn (tool_choice).
+	// Used by the conversational structured-output path (Runner.Converse) to force
+	// a single structured answer; empty for the autonomous plan→act→observe loop.
+	ForceTool string
+	// ResponseFormat, when "json_object", asks the provider for a JSON object reply
+	// so OpenAI-compatible endpoints that ignore tool_choice still emit decodable
+	// structured output. Empty for the free-form loop.
+	ResponseFormat string
+	// MaxTokens caps the reply length; 0 ⇒ the provider/connection default.
+	MaxTokens int
 }
 
 // ChatResponse is the model's reply to a ChatRequest.

@@ -21,6 +21,7 @@ const (
 	AgentStageTriage    AgentStage = "triage"
 	AgentStageExpansion AgentStage = "expansion"
 	AgentStageExecution AgentStage = "execution"
+	AgentStageFeedback  AgentStage = "feedback"
 )
 
 func (e *AgentStage) Scan(src interface{}) error {

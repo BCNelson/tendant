@@ -32,6 +32,7 @@ func TestDefaultAgentDefs_ParseAndShape(t *testing.T) {
 		"email-specialist":      db.AgentStageExecution,
 		"general-executor":      db.AgentStageExecution,
 		"code-executor":         db.AgentStageExecution,
+		"feedback":              db.AgentStageFeedback,
 	}
 	require.Len(t, entries, len(wantStages))
 

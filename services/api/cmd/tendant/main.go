@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/bcnelson/tendant/services/api/graph"
+	"github.com/bcnelson/tendant/services/api/internal/agent"
 	"github.com/bcnelson/tendant/services/api/internal/auth"
 	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/chain"
@@ -231,7 +232,7 @@ func runServe(logLevel *slog.LevelVar) error {
 	// The feedback agent's read-only window onto each completed task (digest +
 	// context tools). Shared by the converser (opener + replies) and the workflow.
 	feedbackRetriever := feedback.NewDBRetriever(q)
-	feedbackConverser := buildFeedbackConverser(cfg, llmRegistry, feedbackRetriever)
+	feedbackConverser := buildFeedbackConverser(cfg, llmRegistry, q, feedbackRetriever)
 	durable.RegisterChainWorkflow(dctx, pool, q, agentRouter, agentRunner, ownerURI, pushAdapter, feedback.Enqueuer{})
 	durable.RegisterPushQueue(dctx)
 	durable.RegisterToolCallWorkflow(dctx, pool, q, toolRegistry, calibrator)
@@ -490,23 +491,33 @@ func calibrationConfigFrom(cfg *config.Config, ov *config.Overlay) calibration.C
 // wins; otherwise the legacy overseer.provider switch applies. Empty / "log" /
 // any failure → deterministic LogProvider (CI default + production fallback if
 // real-provider creds are missing).
-// buildFeedbackConverser selects the post-completion feedback converser. It
-// reuses the agent connection's LLM (the same connection the agent layer routes
-// inference through) when configured; otherwise the deterministic StubConverser
-// (the secure/cheap default, CI parity).
-func buildFeedbackConverser(cfg *config.Config, reg *llm.Registry, retriever feedback.Retriever) feedback.Converser {
+// buildFeedbackConverser selects the post-completion feedback converser. When an
+// agent connection is configured it runs the feedback agent through the SAME
+// agent.Runner the specialists use (Converse path): prompt + model come from the
+// feedback agent_configs row, the gather/finalize mechanics from the shared loop.
+// Otherwise it falls back to the deterministic StubConverser (the secure/cheap
+// default, CI parity).
+func buildFeedbackConverser(cfg *config.Config, reg *llm.Registry, q *db.Queries, retriever feedback.Retriever) feedback.Converser {
 	name := cfg.Agent.Connection
 	if name == "" {
 		slog.Info("feedback.converser", "source", "stub")
 		return feedback.StubConverser{}
 	}
-	client, ok := reg.Get(name)
+	conn, ok := reg.Connection(name)
 	if !ok {
 		slog.Warn("feedback: agent connection not found; using stub converser", "connection", name)
 		return feedback.StubConverser{}
 	}
-	slog.Info("feedback.converser", "source", "llm", "connection", name, "model", client.Model())
-	return feedback.NewLLMConverser(client, retriever)
+	client, err := agent.NewAgentClientFromConnection(conn)
+	if err != nil {
+		slog.Warn("feedback: agent model client build failed; using stub converser", "connection", name, "err", err)
+		return feedback.StubConverser{}
+	}
+	// Converse needs only the model client + Queries (system-prompt assembly +
+	// model resolution); it never gates or dispatches catalog tools.
+	engine := &agent.Runner{Client: client, Queries: q}
+	slog.Info("feedback.converser", "source", "llm", "connection", name, "model", conn.Model)
+	return feedback.NewLLMConverser(engine, q, retriever, conn.Model)
 }
 
 func buildOverseerProvider(cfg *config.Config, reg *llm.Registry) (overseer.Provider, string) {

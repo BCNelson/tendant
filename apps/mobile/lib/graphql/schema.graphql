@@ -463,8 +463,8 @@ type FeedbackRequest implements PendingDecision {
   id: ID!  task: Task!  createdAt: Time!
   messages: [FeedbackMessage!]!
   # The agent's current draft of standing guidance — what acceptFeedbackGuidance
-  # pre-fills (the owner can edit it before accepting). Null/empty until the
-  # conversation yields a durable lesson.
+  # pre-fills (the owner can edit it before accepting). Populated as soon as the
+  # owner voices an actionable preference; null/empty only before then.
   draftGuidance: String
   # A read-only digest of what happened on the completed task — the same context
   # the feedback agent saw, surfaced so the owner understands the basis for its
