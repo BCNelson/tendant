@@ -6,6 +6,7 @@ import 'package:tendant/features/tasks/tasks_provider.dart';
 
 TaskRef _task(String id, String state) => TaskRef(
       id: id,
+      shortId: 1,
       title: 'task-$id',
       state: state,
       currentStage: 'EXECUTION',

@@ -40,6 +40,7 @@ func mapTaskWithAutonomy(t *db.Task, autonomy model.AutonomyLevel) (*model.Task,
 	out := &model.Task{
 		ID:           t.ID.String(),
 		GlobalURI:    t.GlobalUri,
+		ShortID:      int(t.ShortID),
 		Title:        t.Title,
 		Description:  t.Description,
 		State:        upperTaskState(t.State),

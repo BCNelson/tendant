@@ -28,6 +28,7 @@ class _FeedbackDetailPageState extends ConsumerState<FeedbackDetailPage> {
   bool _seeded = false;
   bool _busy = false;
   String _taskTitle = '';
+  int? _taskShortId;
   List<FeedbackMessageView> _messages = const [];
   FeedbackContextView? _context;
   GuidanceScopeView _scope = GuidanceScopeView.global;
@@ -44,6 +45,7 @@ class _FeedbackDetailPageState extends ConsumerState<FeedbackDetailPage> {
   void _seed(FeedbackConversationView c) {
     _seeded = true;
     _taskTitle = c.taskTitle;
+    _taskShortId = c.taskShortId;
     _messages = c.messages;
     _context = c.context;
     _draftCtrl.text = c.draftGuidance ?? '';
@@ -128,7 +130,11 @@ class _FeedbackDetailPageState extends ConsumerState<FeedbackDetailPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_taskTitle.isEmpty ? 'Feedback' : 'Feedback · $_taskTitle'),
+        title: Text(_taskTitle.isEmpty
+            ? 'Feedback'
+            : _taskShortId == null
+                ? 'Feedback · $_taskTitle'
+                : 'Feedback · #$_taskShortId  $_taskTitle'),
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),

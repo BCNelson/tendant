@@ -17,6 +17,7 @@ subscription InboxEntryArrived {
         id
         task {
           id
+          shortId
           title
           state
           priority
@@ -30,6 +31,7 @@ subscription InboxEntryArrived {
         ask
         task {
           id
+          shortId
           title
           state
           currentStage
@@ -51,6 +53,7 @@ subscription InboxEntryArrived {
         id
         task {
           id
+          shortId
           title
         }
       }

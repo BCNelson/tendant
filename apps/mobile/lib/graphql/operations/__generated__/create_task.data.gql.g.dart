@@ -81,6 +81,8 @@ class _$GCreateTaskData_createTaskSerializer
           specifiedType: const FullType(String)),
       'id',
       serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'shortId',
+      serializers.serialize(object.shortId, specifiedType: const FullType(int)),
       'title',
       serializers.serialize(object.title,
           specifiedType: const FullType(String)),
@@ -111,6 +113,10 @@ class _$GCreateTaskData_createTaskSerializer
         case 'id':
           result.id = serializers.deserialize(value,
               specifiedType: const FullType(String))! as String;
+          break;
+        case 'shortId':
+          result.shortId = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
           break;
         case 'title':
           result.title = serializers.deserialize(value,
@@ -243,6 +249,8 @@ class _$GCreateTaskData_createTask extends GCreateTaskData_createTask {
   @override
   final String id;
   @override
+  final int shortId;
+  @override
   final String title;
   @override
   final _i2.GTaskState state;
@@ -254,6 +262,7 @@ class _$GCreateTaskData_createTask extends GCreateTaskData_createTask {
   _$GCreateTaskData_createTask._(
       {required this.G__typename,
       required this.id,
+      required this.shortId,
       required this.title,
       required this.state})
       : super._();
@@ -272,6 +281,7 @@ class _$GCreateTaskData_createTask extends GCreateTaskData_createTask {
     return other is GCreateTaskData_createTask &&
         G__typename == other.G__typename &&
         id == other.id &&
+        shortId == other.shortId &&
         title == other.title &&
         state == other.state;
   }
@@ -281,6 +291,7 @@ class _$GCreateTaskData_createTask extends GCreateTaskData_createTask {
     var _$hash = 0;
     _$hash = $jc(_$hash, G__typename.hashCode);
     _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, shortId.hashCode);
     _$hash = $jc(_$hash, title.hashCode);
     _$hash = $jc(_$hash, state.hashCode);
     _$hash = $jf(_$hash);
@@ -292,6 +303,7 @@ class _$GCreateTaskData_createTask extends GCreateTaskData_createTask {
     return (newBuiltValueToStringHelper(r'GCreateTaskData_createTask')
           ..add('G__typename', G__typename)
           ..add('id', id)
+          ..add('shortId', shortId)
           ..add('title', title)
           ..add('state', state))
         .toString();
@@ -311,6 +323,10 @@ class GCreateTaskData_createTaskBuilder
   String? get id => _$this._id;
   set id(String? id) => _$this._id = id;
 
+  int? _shortId;
+  int? get shortId => _$this._shortId;
+  set shortId(int? shortId) => _$this._shortId = shortId;
+
   String? _title;
   String? get title => _$this._title;
   set title(String? title) => _$this._title = title;
@@ -328,6 +344,7 @@ class GCreateTaskData_createTaskBuilder
     if ($v != null) {
       _G__typename = $v.G__typename;
       _id = $v.id;
+      _shortId = $v.shortId;
       _title = $v.title;
       _state = $v.state;
       _$v = null;
@@ -355,6 +372,8 @@ class GCreateTaskData_createTaskBuilder
               G__typename, r'GCreateTaskData_createTask', 'G__typename'),
           id: BuiltValueNullFieldError.checkNotNull(
               id, r'GCreateTaskData_createTask', 'id'),
+          shortId: BuiltValueNullFieldError.checkNotNull(
+              shortId, r'GCreateTaskData_createTask', 'shortId'),
           title: BuiltValueNullFieldError.checkNotNull(
               title, r'GCreateTaskData_createTask', 'title'),
           state: BuiltValueNullFieldError.checkNotNull(

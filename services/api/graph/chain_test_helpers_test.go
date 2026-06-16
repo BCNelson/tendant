@@ -28,12 +28,15 @@ import (
 )
 
 // chainEnv holds the boot products of a single test: pool, dbos context,
-// HTTP handler. Tests own teardown via testing.T cleanup hooks.
+// HTTP handler. Tests own teardown via testing.T cleanup hooks. executorID is
+// retained so recovery tests can reboot DBOS on a fresh pool under the same
+// executor (Launch recovery looks up pending workflows by executor id).
 type chainEnv struct {
-	pool    *pgxpool.Pool
-	dctx    dbos.DBOSContext
-	handler http.Handler
-	queries *db.Queries
+	pool       *pgxpool.Pool
+	dctx       dbos.DBOSContext
+	handler    http.Handler
+	queries    *db.Queries
+	executorID string
 }
 
 // chainEnvConfig carries optional overrides for newChainEnv. The zero value
@@ -82,8 +85,26 @@ func newChainEnv(t *testing.T, opts ...chainEnvOpt) *chainEnv {
 	pool := testutil.TestDB(t)
 	dsn := pool.Config().ConnConfig.ConnString()
 	require.NoError(t, db.Migrate(ctx, dsn))
+	require.NoError(t, core.SeedOwner(ctx, db.New(pool)))
+
+	executorID := "test-" + uuid.New().String()
+	env := bootChainEnv(t, ctx, pool, executorID, cfg)
+	t.Cleanup(func() {
+		durable.Shutdown(env.dctx, 5*time.Second)
+	})
+	return env
+}
+
+// bootChainEnv registers every workflow + builds the GraphQL handler on an
+// EXISTING pool under the given DBOS executor id, returning a ready chainEnv.
+// Unlike newChainEnv it does NOT create/seed the database (the caller seeds the
+// owner once before the first boot) and does NOT register a DBOS-shutdown
+// cleanup (the caller owns dctx teardown). That makes it safe to call a second
+// time on a fresh pool with the same executor id to simulate a server restart
+// — see rebootChainEnv. The owner must already exist in the pool's database.
+func bootChainEnv(t *testing.T, ctx context.Context, pool *pgxpool.Pool, executorID string, cfg *chainEnvConfig) *chainEnv {
+	t.Helper()
 	q := db.New(pool)
-	require.NoError(t, core.SeedOwner(ctx, q))
 
 	// Phase 3 tool registry. Default is send-email-only; tests may inject one
 	// with a failing provider via withToolRegistry.
@@ -102,7 +123,6 @@ func newChainEnv(t *testing.T, opts ...chainEnvOpt) *chainEnv {
 		chainRouter, chainRunner, ownerURI = cfg.agentChain(pool, q, registry)
 	}
 
-	executorID := "test-" + uuid.New().String()
 	dctx, err := durable.Init(ctx, pool, executorID)
 	require.NoError(t, err)
 	durable.RegisterChainWorkflow(dctx, pool, q, chainRouter, chainRunner, ownerURI, nil, nil)
@@ -117,9 +137,6 @@ func newChainEnv(t *testing.T, opts ...chainEnvOpt) *chainEnv {
 	disposer := &intake.Disposer{Pool: pool, DBOS: dctx, Queries: q}
 	intake.RegisterPoll(dctx, pool, q, connRegistry, disposer, nil, nil)
 	require.NoError(t, durable.Launch(dctx))
-	t.Cleanup(func() {
-		durable.Shutdown(dctx, 5*time.Second)
-	})
 
 	// Phase 5: wire a real WazeroRunner-backed gate-script evaluator. It is a
 	// no-op for tools without an active script (every existing test), so it does
@@ -141,7 +158,65 @@ func newChainEnv(t *testing.T, opts ...chainEnvOpt) *chainEnv {
 		},
 		Calibrator: calibration.New(pool, calibration.DefaultConfig(), nil),
 	})
-	return &chainEnv{pool: pool, dctx: dctx, handler: handler, queries: q}
+	return &chainEnv{pool: pool, dctx: dctx, handler: handler, queries: q, executorID: executorID}
+}
+
+// newRecoveryEnv is the first boot for a recovery test: it creates the DB, seeds
+// the owner, and boots DBOS under a stable executor id — but, unlike newChainEnv,
+// registers NO auto DBOS-shutdown cleanup, because the recovery test owns the
+// dctx lifecycle (rebootChainEnv shuts the first dctx down; the caller defers
+// shutdown of the rebooted dctx). Returns the env plus the cfg so the matching
+// reboot re-registers identical wiring.
+func newRecoveryEnv(t *testing.T, opts ...chainEnvOpt) (*chainEnv, *chainEnvConfig) {
+	t.Helper()
+	cfg := &chainEnvConfig{}
+	for _, o := range opts {
+		o(cfg)
+	}
+	ctx := context.Background()
+	pool := testutil.TestDB(t)
+	require.NoError(t, db.Migrate(ctx, pool.Config().ConnConfig.ConnString()))
+	require.NoError(t, core.SeedOwner(ctx, db.New(pool)))
+	executorID := "recovery-" + uuid.New().String()
+	return bootChainEnv(t, ctx, pool, executorID, cfg), cfg
+}
+
+// rebootChainEnv simulates a server restart: it shuts down the current DBOS
+// context, abandons its goroutines, closes the pool, then boots a fresh pool +
+// DBOS context against the SAME database under the SAME executor id so Launch
+// recovery replays any in-flight (PENDING) workflows. cfg must match the boot
+// config so the recovered workflow re-registers with the same wiring. The
+// caller defers Shutdown of the returned env's dctx.
+func rebootChainEnv(t *testing.T, env *chainEnv, cfg *chainEnvConfig) *chainEnv {
+	t.Helper()
+	ctx := context.Background()
+	dsn := env.pool.Config().ConnConfig.ConnString()
+	executorID := env.executorID
+
+	durable.Shutdown(env.dctx, 1*time.Second)
+	env.pool.Close()
+
+	// Mimic kill -9: a graceful shutdown of a blocked Recv could record the
+	// workflow as terminal ERROR (which recovery skips); force any such rows for
+	// this executor back to PENDING so the next Launch recovers them. This runs
+	// BEFORE the reboot's Launch, so it cannot mask a determinism ERROR raised
+	// during recovery replay (that is what requireWorkflowNeverErrors guards).
+	resetPool, err := pgxpool.New(ctx, dsn)
+	require.NoError(t, err)
+	_, err = resetPool.Exec(ctx,
+		`UPDATE dbos.workflow_status SET status = 'PENDING' WHERE executor_id = $1 AND status = 'ERROR'`,
+		executorID)
+	require.NoError(t, err)
+	resetPool.Close()
+
+	pool2, err := pgxpool.New(ctx, dsn)
+	require.NoError(t, err)
+	t.Cleanup(func() { pool2.Close() })
+
+	if cfg == nil {
+		cfg = &chainEnvConfig{}
+	}
+	return bootChainEnv(t, ctx, pool2, executorID, cfg)
 }
 
 // pollUntilAssignmentAt blocks until the task has an open assignment at the

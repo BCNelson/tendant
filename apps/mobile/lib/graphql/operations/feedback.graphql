@@ -9,6 +9,7 @@ query FeedbackRequest($id: ID!) {
       draftGuidance
       task {
         id
+        shortId
         title
       }
       messages {

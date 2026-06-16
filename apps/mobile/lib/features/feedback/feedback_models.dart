@@ -23,6 +23,7 @@ class FeedbackConversationView {
   const FeedbackConversationView({
     required this.id,
     required this.taskTitle,
+    this.taskShortId,
     required this.draftGuidance,
     required this.messages,
     this.context,
@@ -30,6 +31,7 @@ class FeedbackConversationView {
 
   final String id;
   final String taskTitle;
+  final int? taskShortId; // short, human-facing task number (#N)
   final String? draftGuidance;
   final List<FeedbackMessageView> messages;
 

@@ -31,6 +31,9 @@ type WorkflowRef { id: ID!  startedAt: Time! }
 
 type Task {
   id: ID!  globalUri: String!
+  # Short, human-facing task number (#1, #2, …), monotonic per instance and
+  # distinct from the uuid `id`. Stable once assigned.
+  shortId: Int!
   title: String!  description: String
   state: TaskState!
   currentStage: ChainStage!

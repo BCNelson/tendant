@@ -94,6 +94,7 @@ class TaskStageOccupancy {
 /// TaskRef is the lightweight shape the tasks provider hands to the UI.
 class TaskRef {
   final String id;
+  final int shortId; // short, human-facing task number (#N), distinct from id
   final String title;
   final String state; // TaskState, e.g. EXECUTING
   final String currentStage; // ChainStage, e.g. EXECUTION
@@ -103,6 +104,7 @@ class TaskRef {
 
   const TaskRef({
     required this.id,
+    required this.shortId,
     required this.title,
     required this.state,
     required this.currentStage,
@@ -149,6 +151,7 @@ class ActivityEventRef {
 /// (findings), and the complete activity timeline.
 class TaskDetail {
   final String id;
+  final int shortId; // short, human-facing task number (#N), distinct from id
   final String title;
   final String? description;
   final String state;
@@ -162,6 +165,7 @@ class TaskDetail {
 
   const TaskDetail({
     required this.id,
+    required this.shortId,
     required this.title,
     this.description,
     required this.state,

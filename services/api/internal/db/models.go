@@ -625,6 +625,7 @@ type Task struct {
 	EditedAt       pgtype.Timestamptz `json:"edited_at"`
 	Priority       TaskPriority       `json:"priority"`
 	DueAt          pgtype.Timestamptz `json:"due_at"`
+	ShortID        int64              `json:"short_id"`
 }
 
 type TaskCategory struct {

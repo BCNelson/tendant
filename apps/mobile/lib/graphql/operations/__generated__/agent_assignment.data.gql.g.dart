@@ -189,6 +189,8 @@ class _$GAgentAssignmentData_agentAssignment_taskSerializer
           specifiedType: const FullType(String)),
       'id',
       serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'shortId',
+      serializers.serialize(object.shortId, specifiedType: const FullType(int)),
       'title',
       serializers.serialize(object.title,
           specifiedType: const FullType(String)),
@@ -229,6 +231,10 @@ class _$GAgentAssignmentData_agentAssignment_taskSerializer
         case 'id':
           result.id = serializers.deserialize(value,
               specifiedType: const FullType(String))! as String;
+          break;
+        case 'shortId':
+          result.shortId = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
           break;
         case 'title':
           result.title = serializers.deserialize(value,
@@ -563,6 +569,8 @@ class _$GAgentAssignmentData_agentAssignment_task
   @override
   final String id;
   @override
+  final int shortId;
+  @override
   final String title;
   @override
   final String? description;
@@ -580,6 +588,7 @@ class _$GAgentAssignmentData_agentAssignment_task
   _$GAgentAssignmentData_agentAssignment_task._(
       {required this.G__typename,
       required this.id,
+      required this.shortId,
       required this.title,
       this.description,
       required this.state,
@@ -601,6 +610,7 @@ class _$GAgentAssignmentData_agentAssignment_task
     return other is GAgentAssignmentData_agentAssignment_task &&
         G__typename == other.G__typename &&
         id == other.id &&
+        shortId == other.shortId &&
         title == other.title &&
         description == other.description &&
         state == other.state &&
@@ -612,6 +622,7 @@ class _$GAgentAssignmentData_agentAssignment_task
     var _$hash = 0;
     _$hash = $jc(_$hash, G__typename.hashCode);
     _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, shortId.hashCode);
     _$hash = $jc(_$hash, title.hashCode);
     _$hash = $jc(_$hash, description.hashCode);
     _$hash = $jc(_$hash, state.hashCode);
@@ -626,6 +637,7 @@ class _$GAgentAssignmentData_agentAssignment_task
             r'GAgentAssignmentData_agentAssignment_task')
           ..add('G__typename', G__typename)
           ..add('id', id)
+          ..add('shortId', shortId)
           ..add('title', title)
           ..add('description', description)
           ..add('state', state)
@@ -647,6 +659,10 @@ class GAgentAssignmentData_agentAssignment_taskBuilder
   String? _id;
   String? get id => _$this._id;
   set id(String? id) => _$this._id = id;
+
+  int? _shortId;
+  int? get shortId => _$this._shortId;
+  set shortId(int? shortId) => _$this._shortId = shortId;
 
   String? _title;
   String? get title => _$this._title;
@@ -674,6 +690,7 @@ class GAgentAssignmentData_agentAssignment_taskBuilder
     if ($v != null) {
       _G__typename = $v.G__typename;
       _id = $v.id;
+      _shortId = $v.shortId;
       _title = $v.title;
       _description = $v.description;
       _state = $v.state;
@@ -705,6 +722,8 @@ class GAgentAssignmentData_agentAssignment_taskBuilder
               r'GAgentAssignmentData_agentAssignment_task', 'G__typename'),
           id: BuiltValueNullFieldError.checkNotNull(
               id, r'GAgentAssignmentData_agentAssignment_task', 'id'),
+          shortId: BuiltValueNullFieldError.checkNotNull(
+              shortId, r'GAgentAssignmentData_agentAssignment_task', 'shortId'),
           title: BuiltValueNullFieldError.checkNotNull(
               title, r'GAgentAssignmentData_agentAssignment_task', 'title'),
           description: description,

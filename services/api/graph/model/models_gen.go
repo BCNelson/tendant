@@ -334,6 +334,7 @@ type Subscription struct {
 type Task struct {
 	ID             string           `json:"id"`
 	GlobalURI      string           `json:"globalUri"`
+	ShortID        int              `json:"shortId"`
 	Title          string           `json:"title"`
 	Description    *string          `json:"description,omitempty"`
 	State          TaskState        `json:"state"`

@@ -407,6 +407,8 @@ class _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskSerializer
           specifiedType: const FullType(String)),
       'id',
       serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'shortId',
+      serializers.serialize(object.shortId, specifiedType: const FullType(int)),
       'title',
       serializers.serialize(object.title,
           specifiedType: const FullType(String)),
@@ -451,6 +453,10 @@ class _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskSerializer
         case 'id':
           result.id = serializers.deserialize(value,
               specifiedType: const FullType(String))! as String;
+          break;
+        case 'shortId':
+          result.shortId = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
           break;
         case 'title':
           result.title = serializers.deserialize(value,
@@ -584,6 +590,8 @@ class _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskSerializer
           specifiedType: const FullType(String)),
       'id',
       serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'shortId',
+      serializers.serialize(object.shortId, specifiedType: const FullType(int)),
       'title',
       serializers.serialize(object.title,
           specifiedType: const FullType(String)),
@@ -618,6 +626,10 @@ class _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskSerializer
         case 'id':
           result.id = serializers.deserialize(value,
               specifiedType: const FullType(String))! as String;
+          break;
+        case 'shortId':
+          result.shortId = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
           break;
         case 'title':
           result.title = serializers.deserialize(value,
@@ -919,6 +931,8 @@ class _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskSerializer
           specifiedType: const FullType(String)),
       'id',
       serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'shortId',
+      serializers.serialize(object.shortId, specifiedType: const FullType(int)),
       'title',
       serializers.serialize(object.title,
           specifiedType: const FullType(String)),
@@ -947,6 +961,10 @@ class _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskSerializer
         case 'id':
           result.id = serializers.deserialize(value,
               specifiedType: const FullType(String))! as String;
+          break;
+        case 'shortId':
+          result.shortId = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
           break;
         case 'title':
           result.title = serializers.deserialize(value,
@@ -1659,6 +1677,8 @@ class _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task
   @override
   final String id;
   @override
+  final int shortId;
+  @override
   final String title;
   @override
   final _i2.GTaskState state;
@@ -1680,6 +1700,7 @@ class _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task
   _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task._(
       {required this.G__typename,
       required this.id,
+      required this.shortId,
       required this.title,
       required this.state,
       required this.priority,
@@ -1706,6 +1727,7 @@ class _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task
             is GInboxFeedData_inboxFeed_entries_item__asActionableTask_task &&
         G__typename == other.G__typename &&
         id == other.id &&
+        shortId == other.shortId &&
         title == other.title &&
         state == other.state &&
         priority == other.priority &&
@@ -1718,6 +1740,7 @@ class _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task
     var _$hash = 0;
     _$hash = $jc(_$hash, G__typename.hashCode);
     _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, shortId.hashCode);
     _$hash = $jc(_$hash, title.hashCode);
     _$hash = $jc(_$hash, state.hashCode);
     _$hash = $jc(_$hash, priority.hashCode);
@@ -1733,6 +1756,7 @@ class _$GInboxFeedData_inboxFeed_entries_item__asActionableTask_task
             r'GInboxFeedData_inboxFeed_entries_item__asActionableTask_task')
           ..add('G__typename', G__typename)
           ..add('id', id)
+          ..add('shortId', shortId)
           ..add('title', title)
           ..add('state', state)
           ..add('priority', priority)
@@ -1755,6 +1779,10 @@ class GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder
   String? _id;
   String? get id => _$this._id;
   set id(String? id) => _$this._id = id;
+
+  int? _shortId;
+  int? get shortId => _$this._shortId;
+  set shortId(int? shortId) => _$this._shortId = shortId;
 
   String? _title;
   String? get title => _$this._title;
@@ -1788,6 +1816,7 @@ class GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder
     if ($v != null) {
       _G__typename = $v.G__typename;
       _id = $v.id;
+      _shortId = $v.shortId;
       _title = $v.title;
       _state = $v.state;
       _priority = $v.priority;
@@ -1830,6 +1859,10 @@ class GInboxFeedData_inboxFeed_entries_item__asActionableTask_taskBuilder
                 id,
                 r'GInboxFeedData_inboxFeed_entries_item__asActionableTask_task',
                 'id'),
+            shortId: BuiltValueNullFieldError.checkNotNull(
+                shortId,
+                r'GInboxFeedData_inboxFeed_entries_item__asActionableTask_task',
+                'shortId'),
             title: BuiltValueNullFieldError.checkNotNull(
                 title,
                 r'GInboxFeedData_inboxFeed_entries_item__asActionableTask_task',
@@ -2055,6 +2088,8 @@ class _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task
   @override
   final String id;
   @override
+  final int shortId;
+  @override
   final String title;
   @override
   final _i2.GTaskState state;
@@ -2072,6 +2107,7 @@ class _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task
   _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task._(
       {required this.G__typename,
       required this.id,
+      required this.shortId,
       required this.title,
       required this.state,
       required this.currentStage})
@@ -2096,6 +2132,7 @@ class _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task
             is GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task &&
         G__typename == other.G__typename &&
         id == other.id &&
+        shortId == other.shortId &&
         title == other.title &&
         state == other.state &&
         currentStage == other.currentStage;
@@ -2106,6 +2143,7 @@ class _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task
     var _$hash = 0;
     _$hash = $jc(_$hash, G__typename.hashCode);
     _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, shortId.hashCode);
     _$hash = $jc(_$hash, title.hashCode);
     _$hash = $jc(_$hash, state.hashCode);
     _$hash = $jc(_$hash, currentStage.hashCode);
@@ -2119,6 +2157,7 @@ class _$GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task
             r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task')
           ..add('G__typename', G__typename)
           ..add('id', id)
+          ..add('shortId', shortId)
           ..add('title', title)
           ..add('state', state)
           ..add('currentStage', currentStage))
@@ -2139,6 +2178,10 @@ class GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder
   String? _id;
   String? get id => _$this._id;
   set id(String? id) => _$this._id = id;
+
+  int? _shortId;
+  int? get shortId => _$this._shortId;
+  set shortId(int? shortId) => _$this._shortId = shortId;
 
   String? _title;
   String? get title => _$this._title;
@@ -2164,6 +2207,7 @@ class GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder
     if ($v != null) {
       _G__typename = $v.G__typename;
       _id = $v.id;
+      _shortId = $v.shortId;
       _title = $v.title;
       _state = $v.state;
       _currentStage = $v.currentStage;
@@ -2202,6 +2246,10 @@ class GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_taskBuilder
               id,
               r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task',
               'id'),
+          shortId: BuiltValueNullFieldError.checkNotNull(
+              shortId,
+              r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task',
+              'shortId'),
           title: BuiltValueNullFieldError.checkNotNull(
               title,
               r'GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task',
@@ -2781,6 +2829,8 @@ class _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task
   @override
   final String id;
   @override
+  final int shortId;
+  @override
   final String title;
 
   factory _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task(
@@ -2792,7 +2842,10 @@ class _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task
           ._build();
 
   _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task._(
-      {required this.G__typename, required this.id, required this.title})
+      {required this.G__typename,
+      required this.id,
+      required this.shortId,
+      required this.title})
       : super._();
   @override
   GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task rebuild(
@@ -2814,6 +2867,7 @@ class _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task
             is GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task &&
         G__typename == other.G__typename &&
         id == other.id &&
+        shortId == other.shortId &&
         title == other.title;
   }
 
@@ -2822,6 +2876,7 @@ class _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task
     var _$hash = 0;
     _$hash = $jc(_$hash, G__typename.hashCode);
     _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, shortId.hashCode);
     _$hash = $jc(_$hash, title.hashCode);
     _$hash = $jf(_$hash);
     return _$hash;
@@ -2833,6 +2888,7 @@ class _$GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task
             r'GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task')
           ..add('G__typename', G__typename)
           ..add('id', id)
+          ..add('shortId', shortId)
           ..add('title', title))
         .toString();
   }
@@ -2852,6 +2908,10 @@ class GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder
   String? get id => _$this._id;
   set id(String? id) => _$this._id = id;
 
+  int? _shortId;
+  int? get shortId => _$this._shortId;
+  set shortId(int? shortId) => _$this._shortId = shortId;
+
   String? _title;
   String? get title => _$this._title;
   set title(String? title) => _$this._title = title;
@@ -2867,6 +2927,7 @@ class GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder
     if ($v != null) {
       _G__typename = $v.G__typename;
       _id = $v.id;
+      _shortId = $v.shortId;
       _title = $v.title;
       _$v = null;
     }
@@ -2903,6 +2964,10 @@ class GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_taskBuilder
               id,
               r'GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task',
               'id'),
+          shortId: BuiltValueNullFieldError.checkNotNull(
+              shortId,
+              r'GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task',
+              'shortId'),
           title: BuiltValueNullFieldError.checkNotNull(
               title,
               r'GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task',

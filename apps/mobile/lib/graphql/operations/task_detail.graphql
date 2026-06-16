@@ -4,6 +4,7 @@
 query TaskDetail($id: ID!) {
   task(id: $id) {
     id
+    shortId
     title
     description
     state

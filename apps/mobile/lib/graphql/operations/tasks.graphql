@@ -5,6 +5,7 @@ query Tasks($first: Int, $after: String, $state: TaskState) {
     edges {
       node {
         id
+        shortId
         title
         state
         currentStage

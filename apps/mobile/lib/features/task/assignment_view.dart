@@ -10,11 +10,13 @@ class AssignmentDetail {
   const AssignmentDetail({
     required this.id,
     required this.taskId,
+    required this.taskShortId,
     required this.ask,
   });
 
   final String id;
   final String taskId;
+  final int taskShortId; // short, human-facing task number (#N)
   final String ask;
 }
 
@@ -83,6 +85,9 @@ class _AssignmentViewState extends ConsumerState<AssignmentView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Text('Task #${a.taskShortId}',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 12),
                 Text('Ask', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 Text(a.ask),

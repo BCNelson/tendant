@@ -4,6 +4,7 @@
 subscription TaskChanged($taskId: ID) {
   taskChanged(taskId: $taskId) {
     id
+    shortId
     title
     state
     currentStage

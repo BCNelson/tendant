@@ -266,6 +266,16 @@ func (r *mutationResolver) CancelTask(ctx context.Context, taskID string) (*mode
 		return nil, taskAlreadyTerminalError(ctx, t.State)
 	}
 
+	// Capture the live chain workflow BEFORE cleanup. HandleCancelCleanup ends
+	// the chain_workflows row (sets ended_at), after which GetLiveWorkflowForTask
+	// returns ErrNoRows — so reading it afterwards would silently skip the
+	// CancelWorkflow + wake-up Send below, leaving the workflow blocked in Recv
+	// until the next restart self-heals it.
+	live, liveErr := r.Queries.GetLiveWorkflowForTask(ctx, tid)
+	if liveErr != nil && !errors.Is(liveErr, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("find live workflow: %w", liveErr)
+	}
+
 	// Cleanup writes (state → HALTED, audit, ended_at).
 	if err := chain.HandleCancelCleanup(ctx, r.Pool, tid); err != nil {
 		return nil, fmt.Errorf("cancel cleanup: %w", err)
@@ -279,23 +289,18 @@ func (r *mutationResolver) CancelTask(ctx context.Context, taskID string) (*mode
 		}
 	}
 
-	// Mark the DBOS workflow Cancelled. Ignore "not found" — the workflow
-	// may have already self-completed in a race with cancellation cleanup.
-	live, err := r.Queries.GetLiveWorkflowForTask(ctx, tid)
-	switch {
-	case err == nil:
+	// Mark the DBOS workflow Cancelled + wake its Recv. ErrNoRows means the
+	// workflow already self-completed in a race with cancellation cleanup —
+	// nothing to cancel on the DBOS side.
+	if liveErr == nil {
 		if cerr := dbos.CancelWorkflow(r.DBOS, live.DbosWorkflowID); cerr != nil {
-			// Already-cancelled or non-existent — log via err but continue.
-			// The cleanup writes above are the source of truth for owner-visible state.
+			// Already-cancelled or non-existent — the cleanup writes above are
+			// the source of truth for owner-visible state.
 			_ = cerr
 		}
 		// Unblock the workflow's Recv so the goroutine returns instead of
 		// sitting on its stage topic until the DBOS context shuts down.
 		_ = chain.Resolve(r.DBOS, live.DbosWorkflowID, chain.TopicForStage(t.CurrentStage), chain.CancelSentinel())
-	case errors.Is(err, pgx.ErrNoRows):
-		// No live workflow row — nothing to cancel on the DBOS side.
-	default:
-		return nil, fmt.Errorf("find live workflow: %w", err)
 	}
 
 	t2, err := r.Queries.GetTask(ctx, tid)

@@ -386,16 +386,25 @@ func runOpenAssignmentStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, s
 	if handoffReason != "" {
 		ask = "An automated specialist handed this task to you: " + handoffReason
 	}
-	var outerAssignmentID uuid.UUID
-	_, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (struct{}, error) {
+	// The assignment id is returned from the step (not captured via a closure
+	// variable) so it survives recovery: on replay DBOS returns the memoized
+	// result without executing the closure, so any value set inside the closure
+	// would be lost. Gating the post-commit enqueue_push step on a closure-set
+	// id therefore diverged between the original run (id non-nil → enqueue_push
+	// recorded) and recovery (id nil → enqueue_push skipped, Recv reached),
+	// which DBOS detects as a non-deterministic step sequence and poisons the
+	// workflow to terminal ERROR. Returning the id keeps the gate deterministic.
+	outerAssignmentID, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (uuid.UUID, error) {
+		var assignmentID uuid.UUID
 		stepCtx = detachCancel(stepCtx)
 		err := pgx.BeginFunc(stepCtx, d.pool, func(tx pgx.Tx) error {
 			q := db.New(tx)
-			if _, fErr := q.FindOpenAssignmentForStage(stepCtx, db.FindOpenAssignmentForStageParams{
+			if existing, fErr := q.FindOpenAssignmentForStage(stepCtx, db.FindOpenAssignmentForStageParams{
 				TaskID: taskID,
 				Stage:  stage,
 			}); fErr == nil {
-				return nil // recovery: existing open row, no need to re-insert
+				assignmentID = existing.ID // recovery: existing open row, no need to re-insert
+				return nil
 			} else if !errors.Is(fErr, pgx.ErrNoRows) {
 				return fErr
 			}
@@ -429,12 +438,10 @@ func runOpenAssignmentStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, s
 			if _, werr := lifecycle.WriteAuditMessage(stepCtx, tx, taskID, lifecycle.SystemActorURI, lifecycle.KindAssignmentCreated, payload, parent); werr != nil {
 				return werr
 			}
-			// Stash assignment id + recipient on the step's outer state so
-			// the post-commit push enqueue can read them.
-			outerAssignmentID = row.ID
+			assignmentID = row.ID
 			return nil
 		})
-		return struct{}{}, err
+		return assignmentID, err
 	}, dbos.WithStepName("chain.open_assignment."+string(stage)))
 	if err != nil {
 		return err

@@ -91,6 +91,8 @@ class _$GTaskChangedData_taskChangedSerializer
           specifiedType: const FullType(String)),
       'id',
       serializers.serialize(object.id, specifiedType: const FullType(String)),
+      'shortId',
+      serializers.serialize(object.shortId, specifiedType: const FullType(int)),
       'title',
       serializers.serialize(object.title,
           specifiedType: const FullType(String)),
@@ -149,6 +151,10 @@ class _$GTaskChangedData_taskChangedSerializer
         case 'id':
           result.id = serializers.deserialize(value,
               specifiedType: const FullType(String))! as String;
+          break;
+        case 'shortId':
+          result.shortId = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
           break;
         case 'title':
           result.title = serializers.deserialize(value,
@@ -512,6 +518,8 @@ class _$GTaskChangedData_taskChanged extends GTaskChangedData_taskChanged {
   @override
   final String id;
   @override
+  final int shortId;
+  @override
   final String title;
   @override
   final _i2.GTaskState state;
@@ -535,6 +543,7 @@ class _$GTaskChangedData_taskChanged extends GTaskChangedData_taskChanged {
   _$GTaskChangedData_taskChanged._(
       {required this.G__typename,
       required this.id,
+      required this.shortId,
       required this.title,
       required this.state,
       required this.currentStage,
@@ -559,6 +568,7 @@ class _$GTaskChangedData_taskChanged extends GTaskChangedData_taskChanged {
     return other is GTaskChangedData_taskChanged &&
         G__typename == other.G__typename &&
         id == other.id &&
+        shortId == other.shortId &&
         title == other.title &&
         state == other.state &&
         currentStage == other.currentStage &&
@@ -574,6 +584,7 @@ class _$GTaskChangedData_taskChanged extends GTaskChangedData_taskChanged {
     var _$hash = 0;
     _$hash = $jc(_$hash, G__typename.hashCode);
     _$hash = $jc(_$hash, id.hashCode);
+    _$hash = $jc(_$hash, shortId.hashCode);
     _$hash = $jc(_$hash, title.hashCode);
     _$hash = $jc(_$hash, state.hashCode);
     _$hash = $jc(_$hash, currentStage.hashCode);
@@ -591,6 +602,7 @@ class _$GTaskChangedData_taskChanged extends GTaskChangedData_taskChanged {
     return (newBuiltValueToStringHelper(r'GTaskChangedData_taskChanged')
           ..add('G__typename', G__typename)
           ..add('id', id)
+          ..add('shortId', shortId)
           ..add('title', title)
           ..add('state', state)
           ..add('currentStage', currentStage)
@@ -616,6 +628,10 @@ class GTaskChangedData_taskChangedBuilder
   String? _id;
   String? get id => _$this._id;
   set id(String? id) => _$this._id = id;
+
+  int? _shortId;
+  int? get shortId => _$this._shortId;
+  set shortId(int? shortId) => _$this._shortId = shortId;
 
   String? _title;
   String? get title => _$this._title;
@@ -667,6 +683,7 @@ class GTaskChangedData_taskChangedBuilder
     if ($v != null) {
       _G__typename = $v.G__typename;
       _id = $v.id;
+      _shortId = $v.shortId;
       _title = $v.title;
       _state = $v.state;
       _currentStage = $v.currentStage;
@@ -702,6 +719,8 @@ class GTaskChangedData_taskChangedBuilder
                 G__typename, r'GTaskChangedData_taskChanged', 'G__typename'),
             id: BuiltValueNullFieldError.checkNotNull(
                 id, r'GTaskChangedData_taskChanged', 'id'),
+            shortId: BuiltValueNullFieldError.checkNotNull(
+                shortId, r'GTaskChangedData_taskChanged', 'shortId'),
             title: BuiltValueNullFieldError.checkNotNull(
                 title, r'GTaskChangedData_taskChanged', 'title'),
             state: BuiltValueNullFieldError.checkNotNull(

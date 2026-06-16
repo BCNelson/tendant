@@ -175,6 +175,7 @@ abstract class GFeedbackRequestData_pendingDecision__asFeedbackRequest_task
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
   String get id;
+  int get shortId;
   String get title;
   static Serializer<
           GFeedbackRequestData_pendingDecision__asFeedbackRequest_task>

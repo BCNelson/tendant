@@ -241,6 +241,7 @@ abstract class GInboxFeedData_inboxFeed_entries_item__asActionableTask_task
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
   String get id;
+  int get shortId;
   String get title;
   _i2.GTaskState get state;
   _i2.GTaskPriority get priority;
@@ -326,6 +327,7 @@ abstract class GInboxFeedData_inboxFeed_entries_item__asAgentAssignment_task
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
   String get id;
+  int get shortId;
   String get title;
   _i2.GTaskState get state;
   _i2.GChainStage get currentStage;
@@ -527,6 +529,7 @@ abstract class GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
   String get id;
+  int get shortId;
   String get title;
   static Serializer<
           GInboxFeedData_inboxFeed_entries_item__asFeedbackRequest_task>

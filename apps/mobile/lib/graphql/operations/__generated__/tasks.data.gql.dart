@@ -109,6 +109,7 @@ abstract class GTasksData_tasks_edges_node
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
   String get id;
+  int get shortId;
   String get title;
   _i2.GTaskState get state;
   _i2.GChainStage get currentStage;

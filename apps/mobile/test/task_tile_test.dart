@@ -12,6 +12,7 @@ TaskRef _task({
 }) =>
     TaskRef(
       id: 't1',
+      shortId: 42,
       title: 'Call Mom',
       state: state,
       currentStage: currentStage,
@@ -37,7 +38,7 @@ void main() {
       MaterialApp(home: Scaffold(body: TaskTile(task: task))),
     );
 
-    expect(find.text('Call Mom'), findsOneWidget);
+    expect(find.text('#42  Call Mom'), findsOneWidget);
     expect(find.text('EXECUTION · general-executor'), findsOneWidget);
     expect(find.text('EXECUTING'), findsOneWidget);
     // A running agent shows the robot icon.

@@ -15,6 +15,7 @@ class InboxEntryRef {
     required this.subtitle,
     this.unread = false,
     this.taskId,
+    this.taskShortId,
     this.priority,
     this.dueAt,
     this.taskState,
@@ -35,11 +36,21 @@ class InboxEntryRef {
   /// Per-message state: true when inbox_messages.read_at is still null.
   final bool unread;
 
+  /// The referenced task's short number (#N), when the entry hangs off a task
+  /// (ActionableTask / AgentAssignment / FeedbackRequest); null otherwise.
+  final int? taskShortId;
+
   // ActionableTask inline-action metadata (null for the other kinds).
   final String? taskId;
   final String? priority;
   final DateTime? dueAt;
   final String? taskState;
+
+  /// The title with the task's `#N` short number prefixed, when the entry
+  /// references a task. Falls back to the bare title for task-less kinds
+  /// (approvals, promotions).
+  String get titleWithTag =>
+      taskShortId == null ? title : '#$taskShortId  $title';
 
   bool get isActionableTask => messageType == 'actionable_task';
   bool get isAssignment => messageType == 'agent_assignment';

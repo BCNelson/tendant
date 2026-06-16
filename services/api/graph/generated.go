@@ -365,6 +365,7 @@ type ComplexityRoot struct {
 		OpenAssignment func(childComplexity int) int
 		Priority       func(childComplexity int) int
 		Provenance     func(childComplexity int) int
+		ShortID        func(childComplexity int) int
 		StageSlots     func(childComplexity int) int
 		State          func(childComplexity int) int
 		Title          func(childComplexity int) int
@@ -2111,6 +2112,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Task.Provenance(childComplexity), true
+	case "Task.shortId":
+		if e.ComplexityRoot.Task.ShortID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Task.ShortID(childComplexity), true
 	case "Task.stageSlots":
 		if e.ComplexityRoot.Task.StageSlots == nil {
 			break
@@ -2797,6 +2804,8 @@ func (ec *executionContext) childFields_Task(ctx context.Context, field graphql.
 		return ec.fieldContext_Task_id(ctx, field)
 	case "globalUri":
 		return ec.fieldContext_Task_globalUri(ctx, field)
+	case "shortId":
+		return ec.fieldContext_Task_shortId(ctx, field)
 	case "title":
 		return ec.fieldContext_Task_title(ctx, field)
 	case "description":
@@ -10072,6 +10081,29 @@ func (ec *executionContext) fieldContext_Task_globalUri(_ context.Context, field
 	return graphql.NewScalarFieldContext("Task", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _Task_shortId(ctx context.Context, field graphql.CollectedField, obj *model.Task) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Task_shortId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ShortID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Task_shortId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Task", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _Task_title(ctx context.Context, field graphql.CollectedField, obj *model.Task) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15142,6 +15174,11 @@ func (ec *executionContext) _Task(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "globalUri":
 			out.Values[i] = ec._Task_globalUri(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "shortId":
+			out.Values[i] = ec._Task_shortId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

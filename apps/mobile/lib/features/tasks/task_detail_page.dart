@@ -26,7 +26,7 @@ class TaskDetailPage extends ConsumerWidget {
     final task = detail.value;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Task'),
+        title: Text(task == null ? 'Task' : 'Task #${task.shortId}'),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
@@ -63,7 +63,8 @@ class _DetailBody extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
-        Text(task.title, style: Theme.of(context).textTheme.titleLarge),
+        Text('#${task.shortId}  ${task.title}',
+            style: Theme.of(context).textTheme.titleLarge),
         if (task.description != null && task.description!.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(task.description!),

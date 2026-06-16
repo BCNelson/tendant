@@ -49,6 +49,9 @@ type Task {
   # null when uncategorized or the key no longer resolves.
   category: TaskCategory
   id: ID!  globalUri: String!
+  # Short, human-facing task number (#1, #2, …), monotonic per instance and
+  # distinct from the uuid `id`. Stable once assigned.
+  shortId: Int!
   title: String!  description: String
   state: TaskState!
   currentStage: ChainStage!
@@ -121,7 +124,10 @@ type Mutation {
   revokeSession(sessionId: ID!): Session!
   registerDeviceToken(token: String!, platform: DevicePlatform!): Boolean!
   unregisterDeviceToken(token: String!): Boolean!
-
+  # Phase 9 additive: per-message inbox state on the first-class inbox_messages
+  # row. markInboxRead stamps read/seen; dismissInboxMessage soft-dismisses the
+  # message from the active inbox WITHOUT resolving the underlying source row
+  # (the action it represents is unaffected). Both are recipient-scoped.
   markInboxRead(id: ID!): InboxMessageState!
   dismissInboxMessage(id: ID!): InboxMessageState!
   approveArtifact(decisionId: ID!): PendingDecision!
@@ -509,9 +515,16 @@ union InboxItem = ApprovalRequest | AgentQuestion | PromotionProposal | AgentAss
 type InboxEntry {
   id: ID!
   kind: String!
+  # Phase 9 additive: the fine-grained message type carried on the first-class
+  # inbox_messages row — the single discriminator the client dispatches a detail
+  # page on (approval_request | agent_question | promotion_proposal |
+  # feedback_request | agent_assignment | actionable_task | …). Strictly more
+  # specific than `kind`, which only names the source table.
   messageType: String!
   createdAt: Time!
   urgency: Float!
+  # Phase 9 additive: per-message state from inbox_messages. Null until the
+  # owner reads / dismisses the message (see markInboxRead / dismissInboxMessage).
   readAt: Time
   dismissedAt: Time
   item: InboxItem!
@@ -523,6 +536,9 @@ type InboxFeedPage {
   nextCursor: String
 }
 
+# Phase 9 additive: the per-message state of a first-class inbox_messages row,
+# returned by the read/dismiss mutations so the client can update one tile
+# without re-fetching the feed.
 type InboxMessageState {
   id: ID!
   seenAt: Time

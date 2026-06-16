@@ -53,6 +53,7 @@ abstract class GTaskDetailData_task
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
   String get id;
+  int get shortId;
   String get title;
   String? get description;
   _i2.GTaskState get state;

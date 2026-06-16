@@ -99,7 +99,11 @@ List<Override> ferryOverrides() => [
         );
         final a = data?.agentAssignment;
         if (a == null) return null;
-        return AssignmentDetail(id: a.id, taskId: a.task.id, ask: a.ask);
+        return AssignmentDetail(
+            id: a.id,
+            taskId: a.task.id,
+            taskShortId: a.task.shortId,
+            ask: a.ask);
       }),
       completeTaskProvider.overrideWith((ref) async {
         final client = ref.watch(ferryClientProvider);
@@ -335,6 +339,7 @@ InboxFeedResult _mapInboxFeed(GInboxFeedData data) {
           title: a.task.title,
           subtitle: 'Proposed',
           taskId: a.task.id,
+          taskShortId: a.task.shortId,
           priority: a.task.priority.name,
           dueAt: a.task.dueAt == null
               ? null
@@ -354,6 +359,7 @@ InboxFeedResult _mapInboxFeed(GInboxFeedData data) {
           itemId: asn.id,
           title: asn.task.title,
           subtitle: asn.ask,
+          taskShortId: asn.task.shortId,
         ));
         break;
       case 'ApprovalRequest':
@@ -410,6 +416,7 @@ InboxFeedResult _mapInboxFeed(GInboxFeedData data) {
           itemId: f.id,
           title: 'Feedback: ${f.task.title}',
           subtitle: 'How did this task go? Tap to chat.',
+          taskShortId: f.task.shortId,
         ));
         break;
     }
@@ -505,6 +512,7 @@ List<TaskRef> _mapTasks(GTasksData data) {
     ];
     out.add(TaskRef(
       id: n.id,
+      shortId: n.shortId,
       title: n.title,
       state: n.state.name,
       currentStage: n.currentStage.name,
@@ -524,6 +532,7 @@ Map<String, dynamic> _asMap(Object? jsonValue) {
 TaskDetail _mapTaskDetail(GTaskDetailData_task t) {
   return TaskDetail(
     id: t.id,
+    shortId: t.shortId,
     title: t.title,
     description: t.description,
     state: t.state.name,
@@ -667,6 +676,7 @@ FeedbackConversationView? _mapFeedbackConvo(
   return FeedbackConversationView(
     id: f.id,
     taskTitle: f.task.title,
+    taskShortId: f.task.shortId,
     draftGuidance: f.draftGuidance,
     messages: [
       for (final m in f.messages)

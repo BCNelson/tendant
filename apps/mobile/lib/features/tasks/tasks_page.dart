@@ -110,7 +110,7 @@ class TaskTile extends StatelessWidget {
 
     return ListTile(
       leading: Icon(icon, color: iconColor),
-      title: Text(task.title),
+      title: Text('#${task.shortId}  ${task.title}'),
       subtitle: Text(_subtitle(task, slot)),
       trailing: _StatePill(state: task.state),
       onTap: () => context.push('/tasks/${task.id}'),

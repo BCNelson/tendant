@@ -220,7 +220,7 @@ class _GenericInboxCardState extends ConsumerState<_GenericInboxCard> {
               ),
             Expanded(
               child: Text(
-                e.title.isEmpty ? _fallbackTitle() : e.title,
+                e.title.isEmpty ? _fallbackTitle() : e.titleWithTag,
                 style:
                     _read ? null : const TextStyle(fontWeight: FontWeight.w600),
               ),
@@ -296,7 +296,7 @@ class _ActionableTaskCardState extends ConsumerState<_ActionableTaskCard> {
               contentPadding: EdgeInsets.zero,
               leading: _UrgencyLeading(
                   urgency: e.urgency, icon: Icons.flag_outlined),
-              title: Text(e.title.isEmpty ? 'New task' : e.title),
+              title: Text(e.title.isEmpty ? 'New task' : e.titleWithTag),
               subtitle: _ProposedSubtitle(entry: e),
               onTap: () => context.push('/tasks/${e.taskId}'),
             ),

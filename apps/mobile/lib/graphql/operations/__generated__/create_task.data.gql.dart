@@ -52,6 +52,7 @@ abstract class GCreateTaskData_createTask
   @BuiltValueField(wireName: '__typename')
   String get G__typename;
   String get id;
+  int get shortId;
   String get title;
   _i2.GTaskState get state;
   static Serializer<GCreateTaskData_createTask> get serializer =>

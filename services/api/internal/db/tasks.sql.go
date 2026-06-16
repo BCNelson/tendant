@@ -18,7 +18,7 @@ VALUES ($1, $2, $3, $4, $6::task_state, $7::chain_stage,
         $5, $8::uuid)
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
-          created_at, edited_at, priority, due_at
+          created_at, edited_at, priority, due_at, short_id
 `
 
 type CreateIntakeTaskParams struct {
@@ -63,6 +63,7 @@ func (q *Queries) CreateIntakeTask(ctx context.Context, arg CreateIntakeTaskPara
 		&i.EditedAt,
 		&i.Priority,
 		&i.DueAt,
+		&i.ShortID,
 	)
 	return i, err
 }
@@ -73,7 +74,7 @@ VALUES ($1, $2, $3, $4, $5::task_state, $6::chain_stage,
         $7::task_priority, $8::timestamptz)
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
-          created_at, edited_at, priority, due_at
+          created_at, edited_at, priority, due_at, short_id
 `
 
 type CreateTaskParams struct {
@@ -118,6 +119,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		&i.EditedAt,
 		&i.Priority,
 		&i.DueAt,
+		&i.ShortID,
 	)
 	return i, err
 }
@@ -125,7 +127,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 const getTask = `-- name: GetTask :one
 SELECT id, global_uri, title, description, state, current_stage,
        provenance, context_refs, findings, intake_signal_id,
-       created_at, edited_at, priority, due_at
+       created_at, edited_at, priority, due_at, short_id
 FROM tasks
 WHERE id = $1
 `
@@ -148,6 +150,7 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (Task, error) {
 		&i.EditedAt,
 		&i.Priority,
 		&i.DueAt,
+		&i.ShortID,
 	)
 	return i, err
 }
@@ -155,7 +158,7 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (Task, error) {
 const getTaskByIntakeSignal = `-- name: GetTaskByIntakeSignal :one
 SELECT id, global_uri, title, description, state, current_stage,
        provenance, context_refs, findings, intake_signal_id,
-       created_at, edited_at, priority, due_at
+       created_at, edited_at, priority, due_at, short_id
 FROM tasks
 WHERE intake_signal_id = $1
 LIMIT 1
@@ -182,6 +185,7 @@ func (q *Queries) GetTaskByIntakeSignal(ctx context.Context, intakeSignalID pgty
 		&i.EditedAt,
 		&i.Priority,
 		&i.DueAt,
+		&i.ShortID,
 	)
 	return i, err
 }
@@ -189,7 +193,7 @@ func (q *Queries) GetTaskByIntakeSignal(ctx context.Context, intakeSignalID pgty
 const getTaskForUpdate = `-- name: GetTaskForUpdate :one
 SELECT id, global_uri, title, description, state, current_stage,
        provenance, context_refs, findings, intake_signal_id,
-       created_at, edited_at, priority, due_at
+       created_at, edited_at, priority, due_at, short_id
 FROM tasks
 WHERE id = $1
 FOR UPDATE
@@ -214,6 +218,7 @@ func (q *Queries) GetTaskForUpdate(ctx context.Context, id uuid.UUID) (Task, err
 		&i.EditedAt,
 		&i.Priority,
 		&i.DueAt,
+		&i.ShortID,
 	)
 	return i, err
 }
@@ -221,7 +226,7 @@ func (q *Queries) GetTaskForUpdate(ctx context.Context, id uuid.UUID) (Task, err
 const listTasks = `-- name: ListTasks :many
 SELECT id, global_uri, title, description, state, current_stage,
        provenance, context_refs, findings, intake_signal_id,
-       created_at, edited_at, priority, due_at
+       created_at, edited_at, priority, due_at, short_id
 FROM tasks
 WHERE ($1::task_state IS NULL OR state = $1::task_state)
   AND (
@@ -271,6 +276,7 @@ func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, e
 			&i.EditedAt,
 			&i.Priority,
 			&i.DueAt,
+			&i.ShortID,
 		); err != nil {
 			return nil, err
 		}
@@ -290,7 +296,7 @@ SET priority = $1::task_priority,
 WHERE id = $3::uuid
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
-          created_at, edited_at, priority, due_at
+          created_at, edited_at, priority, due_at, short_id
 `
 
 type UpdateTaskMetadataParams struct {
@@ -320,6 +326,7 @@ func (q *Queries) UpdateTaskMetadata(ctx context.Context, arg UpdateTaskMetadata
 		&i.EditedAt,
 		&i.Priority,
 		&i.DueAt,
+		&i.ShortID,
 	)
 	return i, err
 }
@@ -331,7 +338,7 @@ SET current_stage = $1::chain_stage,
 WHERE id = $2::uuid
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
-          created_at, edited_at, priority, due_at
+          created_at, edited_at, priority, due_at, short_id
 `
 
 type UpdateTaskStageParams struct {
@@ -358,6 +365,7 @@ func (q *Queries) UpdateTaskStage(ctx context.Context, arg UpdateTaskStageParams
 		&i.EditedAt,
 		&i.Priority,
 		&i.DueAt,
+		&i.ShortID,
 	)
 	return i, err
 }
@@ -369,7 +377,7 @@ SET state = $1::task_state,
 WHERE id = $2::uuid
 RETURNING id, global_uri, title, description, state, current_stage,
           provenance, context_refs, findings, intake_signal_id,
-          created_at, edited_at, priority, due_at
+          created_at, edited_at, priority, due_at, short_id
 `
 
 type UpdateTaskStateParams struct {
@@ -396,6 +404,7 @@ func (q *Queries) UpdateTaskState(ctx context.Context, arg UpdateTaskStateParams
 		&i.EditedAt,
 		&i.Priority,
 		&i.DueAt,
+		&i.ShortID,
 	)
 	return i, err
 }

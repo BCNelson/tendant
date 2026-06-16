@@ -15,6 +15,7 @@ query InboxFeed($first: Int, $after: String) {
           id
           task {
             id
+            shortId
             title
             state
             priority
@@ -28,6 +29,7 @@ query InboxFeed($first: Int, $after: String) {
           ask
           task {
             id
+            shortId
             title
             state
             currentStage
@@ -49,6 +51,7 @@ query InboxFeed($first: Int, $after: String) {
           id
           task {
             id
+            shortId
             title
           }
         }
