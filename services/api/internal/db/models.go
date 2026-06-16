@@ -609,6 +609,24 @@ type IntakeSignal struct {
 	ProcessedAt    pgtype.Timestamptz `json:"processed_at"`
 }
 
+type McpServer struct {
+	ID              uuid.UUID          `json:"id"`
+	Slug            string             `json:"slug"`
+	Name            string             `json:"name"`
+	EndpointUrl     string             `json:"endpoint_url"`
+	Enabled         bool               `json:"enabled"`
+	ProtocolVersion *string            `json:"protocol_version"`
+	Status          string             `json:"status"`
+	LastSyncedAt    pgtype.Timestamptz `json:"last_synced_at"`
+	CreatedAt       time.Time          `json:"created_at"`
+}
+
+type McpServerCredential struct {
+	McpServerID uuid.UUID          `json:"mcp_server_id"`
+	Encrypted   []byte             `json:"encrypted"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+}
+
 type OwnerRule struct {
 	OwnerGlobalUri string    `json:"owner_global_uri"`
 	Key            string    `json:"key"`
@@ -696,14 +714,18 @@ type TaskRelation struct {
 }
 
 type Tool struct {
-	ID                   uuid.UUID       `json:"id"`
-	GlobalUri            string          `json:"global_uri"`
-	Name                 string          `json:"name"`
-	Rung                 string          `json:"rung"`
-	Permissions          json.RawMessage `json:"permissions"`
-	OverseerInstructions *string         `json:"overseer_instructions"`
-	ActiveScriptVersion  *int32          `json:"active_script_version"`
-	TrustScore           float64         `json:"trust_score"`
+	ID                   uuid.UUID          `json:"id"`
+	GlobalUri            string             `json:"global_uri"`
+	Name                 string             `json:"name"`
+	Rung                 string             `json:"rung"`
+	Permissions          json.RawMessage    `json:"permissions"`
+	OverseerInstructions *string            `json:"overseer_instructions"`
+	ActiveScriptVersion  *int32             `json:"active_script_version"`
+	TrustScore           float64            `json:"trust_score"`
+	McpServerID          pgtype.UUID        `json:"mcp_server_id"`
+	InputSchema          []byte             `json:"input_schema"`
+	McpAnnotations       []byte             `json:"mcp_annotations"`
+	RetiredAt            pgtype.Timestamptz `json:"retired_at"`
 }
 
 type ToolOutcome struct {

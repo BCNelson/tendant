@@ -50,6 +50,7 @@ type Options struct {
 	WebhookIngress    http.Handler            // POST /intake/webhook/{connectorID}
 	OAuthCallback     http.Handler            // GET  /oauth/callback/{connectorType}
 	ConnectorResolver graph.ConnectorDeps     // owner-mutation wiring for setConnectorConfig/enableConnector
+	McpResolver       graph.McpDeps           // owner-mutation wiring for the MCP-client edge
 	IntakeRate        IntakeRateProvider      // /healthz intake counters (nil ⇒ block omitted)
 	CalibrationRate   CalibrationRateProvider // /healthz calibration counters (nil ⇒ block omitted)
 	Calibrator        *calibration.Engine     // Phase 8 — flagOutcome + cancel demotion
@@ -84,6 +85,7 @@ func New(pool *pgxpool.Pool, dctx dbos.DBOSContext, opts Options) http.Handler {
 		ToolRegistry:      opts.ToolRegistry,
 		ScriptEvaluator:   opts.GateScript,
 		Connectors:        opts.ConnectorResolver,
+		Mcp:               opts.McpResolver,
 		Calibrator:        opts.Calibrator,
 		ConfigOverlay:     opts.ConfigOverlay,
 		ConfigSnapshot:    opts.ConfigSnapshot,

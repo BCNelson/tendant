@@ -242,6 +242,18 @@ type Mandate struct {
 
 func (Mandate) IsApprovalPayload() {}
 
+type McpServer struct {
+	ID              string     `json:"id"`
+	Slug            string     `json:"slug"`
+	Name            string     `json:"name"`
+	EndpointURL     string     `json:"endpointUrl"`
+	Enabled         bool       `json:"enabled"`
+	Status          string     `json:"status"`
+	ProtocolVersion *string    `json:"protocolVersion,omitempty"`
+	LastSyncedAt    *time.Time `json:"lastSyncedAt,omitempty"`
+	ToolCount       int        `json:"toolCount"`
+}
+
 type Mutation struct {
 }
 

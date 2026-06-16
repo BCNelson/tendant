@@ -4,7 +4,7 @@
 
 -- name: GetToolForUpdate :one
 -- Row-lock a tool for a serialized read-modify-write of trust_score / grants.
-SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
+SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score, mcp_server_id, input_schema, mcp_annotations, retired_at
 FROM tools
 WHERE id = $1
 FOR UPDATE;
@@ -18,7 +18,7 @@ UPDATE tools
    SET trust_score = $2,
        rung        = $3
  WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score;
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score, mcp_server_id, input_schema, mcp_annotations, retired_at;
 
 -- name: MaturedCleanRatioByRoutine :one
 -- Over the last N matured outcomes for a (tool, fingerprint): clean and total.

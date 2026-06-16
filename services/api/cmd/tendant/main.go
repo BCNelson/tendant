@@ -177,6 +177,12 @@ func runServe(logLevel *slog.LevelVar) error {
 	toolRegistry := tools.NewRegistry()
 	toolRegistry.Register(tools.NewSendEmail(nil))
 
+	// 3b'. MCP client edge: the reconcile service + client pool + sealed-cred
+	// store. Adapters for already-discovered MCP tools are rehydrated from the
+	// `tools` table after Launch (below) so a server that is down at boot still
+	// has its gated tool rows.
+	mcpWiring := buildMcpWiring(pool, q, toolRegistry, cfg)
+
 	// 3c. Phase 8 calibration subsystem: config knobs (env → constants), the
 	// rolling /healthz metrics, the Engine (recording + demotion + flag + sweep),
 	// and the intake threshold tuner. The Engine is injected into the tool-call
@@ -290,6 +296,15 @@ func runServe(logLevel *slog.LevelVar) error {
 	// DB-backed and recovered, this just ensures each enabled connector has one.
 	if err := intake.RehydrateSchedules(ctx, dctx); err != nil {
 		slog.Error("intake: schedule rehydration failed", "err", err)
+	}
+
+	// 5c'. Rehydrate the in-process tool-registry adapters for every live MCP
+	// tool from the catalog (no upstream contact — a server down at boot keeps
+	// its gated rows; dispatch fails gracefully if it's still down at call time).
+	if n, err := mcpWiring.service.RehydrateAdapters(ctx); err != nil {
+		slog.Error("mcp: adapter rehydration failed", "err", err)
+	} else if n > 0 {
+		slog.Info("mcp: rehydrated tool adapters", "count", n)
 	}
 
 	// 5d. Phase 8 calibration sweep schedule (DB-backed, crash-recovered). Idempotent.
@@ -410,6 +425,7 @@ func runServe(logLevel *slog.LevelVar) error {
 			WebhookIngress:    webhookIngressHandler(intakeWiring.inbound),
 			OAuthCallback:     oauthCallbackHandler(intakeWiring.credStore, cfg),
 			ConnectorResolver: intakeWiring.connectorResolverDeps(),
+			McpResolver:       mcpWiring.mcpResolverDeps(),
 			IntakeRate:        intakeWiring.metrics,
 			Calibrator:        calibrator,
 			CalibrationRate:   calibMetrics,

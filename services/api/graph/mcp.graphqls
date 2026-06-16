@@ -1,0 +1,56 @@
+# MCP client edge — register external remote MCP servers (Streamable HTTP) and
+# expose each discovered upstream tool as a first-class, gated tendant tool.
+# Additive (Path 1); no change to existing symbols.
+#
+# Every operation is OWNER-PRINCIPAL-ONLY: the resolver MUST reject any viewer
+# with Principal.Kind != "user" with PERMISSION_DENIED *before* any DB read or
+# write (auth.RequireOwner — a structural check). Auth credentials are NEVER
+# exposed here — they live sealed in mcp_server_credentials and never cross the
+# read surface.
+#
+# A discovered tool lands fail-closed (every call trips the gate floor → owner
+# review). The owner tunes a tool's autonomy through the EXISTING
+# setToolPermissions / setToolOverseerInstructions mutations — there is no
+# MCP-specific autonomy path.
+
+type McpServer {
+  id: ID!
+  slug: String!
+  name: String!
+  endpointUrl: String!
+  enabled: Boolean!
+  status: String!
+  protocolVersion: String
+  lastSyncedAt: Time
+  # Count of live (non-retired) tools discovered from this server.
+  toolCount: Int!
+}
+
+extend type Query {
+  # Owner-only. Lists registered MCP servers (which integrations are connected).
+  mcpServers: [McpServer!]!
+}
+
+extend type Mutation {
+  # Owner-only. Register a server. `auth` (optional JSON {header, value}) is
+  # sealed at rest. The server starts disabled; enableMcpServer brings it online
+  # (and runs the first sync).
+  registerMcpServer(slug: String!, name: String!, endpointUrl: String!, authConfig: JSON): McpServer!
+
+  # Owner-only. Update a server's display name / endpoint / auth. Re-syncing is
+  # the separate syncMcpServer mutation.
+  setMcpServerConfig(serverId: ID!, name: String, endpointUrl: String, authConfig: JSON): McpServer!
+
+  # Owner-only. Enable/disable a server. Enabling runs an initial sync (discovers
+  # + registers its tools, fail-closed); disabling retires its tools.
+  enableMcpServer(serverId: ID!, enabled: Boolean!): McpServer!
+
+  # Owner-only. Re-discover an enabled server's tools and reconcile the catalog
+  # (add new, refresh metadata, retire vanished). Owner-tuned permissions are
+  # preserved across syncs.
+  syncMcpServer(serverId: ID!): McpServer!
+
+  # Owner-only. Retire the server's tools (kept for audit history) and delete the
+  # server registration + sealed credentials.
+  removeMcpServer(serverId: ID!): Boolean!
+}

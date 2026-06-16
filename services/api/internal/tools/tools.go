@@ -67,8 +67,11 @@ func IdempotencyKey(ctx context.Context) string {
 	return k
 }
 
-// Registry maps global_uri → Tool. Tools register at boot; lookups are
-// read-only thereafter. Thread-safe.
+// Registry maps global_uri → Tool. The built-in tools register at boot;
+// MCP-backed tools (internal/mcp) register and deregister dynamically as the
+// owner syncs/retires servers. All access is mutex-guarded, so post-boot
+// mutation is safe and is immediately visible to every holder of the shared
+// registry pointer (the tool-call workflow + the resolver). Thread-safe.
 type Registry struct {
 	mu sync.RWMutex
 	m  map[string]Tool
@@ -85,6 +88,25 @@ func (r *Registry) Register(t Tool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.m[t.GlobalURI()] = t
+}
+
+// Deregister removes a tool by URI. Idempotent — removing an absent URI is a
+// no-op. Used when an MCP server is disabled/removed or an upstream tool
+// vanishes on re-sync; the catalog row is retired separately (kept for audit
+// history), so a later proposeToolCall surfaces TOOL_RETIRED rather than
+// dispatching to a missing adapter.
+func (r *Registry) Deregister(uri string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.m, uri)
+}
+
+// Has reports whether a URI is currently registered.
+func (r *Registry) Has(uri string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	_, ok := r.m[uri]
+	return ok
 }
 
 // ByGlobalURI returns the registered tool, or (nil, false) if the URI is

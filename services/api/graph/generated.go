@@ -223,6 +223,18 @@ type ComplexityRoot struct {
 		Guardrails  func(childComplexity int) int
 	}
 
+	McpServer struct {
+		Enabled         func(childComplexity int) int
+		EndpointURL     func(childComplexity int) int
+		ID              func(childComplexity int) int
+		LastSyncedAt    func(childComplexity int) int
+		Name            func(childComplexity int) int
+		ProtocolVersion func(childComplexity int) int
+		Slug            func(childComplexity int) int
+		Status          func(childComplexity int) int
+		ToolCount       func(childComplexity int) int
+	}
+
 	Mutation struct {
 		AcceptFeedbackGuidance      func(childComplexity int, decisionID string, guidance string, scope model.GuidanceScope, agentConfigID *string, rating *int) int
 		AcceptProposedTask          func(childComplexity int, taskID string) int
@@ -243,22 +255,27 @@ type ComplexityRoot struct {
 		DismissInboxMessage         func(childComplexity int, id string) int
 		DismissProposedTask         func(childComplexity int, taskID string, reason *string) int
 		EnableConnector             func(childComplexity int, connectorID string, enabled bool) int
+		EnableMcpServer             func(childComplexity int, serverID string, enabled bool) int
 		FlagOutcome                 func(childComplexity int, taskID string, toolID string, reason *string) int
 		MarkInboxRead               func(childComplexity int, id string) int
 		PairDevice                  func(childComplexity int, password string, displayName string) int
 		ProposeToolCall             func(childComplexity int, taskID string, toolGlobalURI string, payload map[string]any) int
 		RegisterDeviceToken         func(childComplexity int, token string, platform model.DevicePlatform) int
+		RegisterMcpServer           func(childComplexity int, slug string, name string, endpointURL string, authConfig map[string]any) int
 		RejectApproval              func(childComplexity int, decisionID string, reason *string) int
+		RemoveMcpServer             func(childComplexity int, serverID string) int
 		RemoveTaskRelation          func(childComplexity int, fromTaskID string, toTaskID string, kind model.TaskRelationKind) int
 		RespondToPromotion          func(childComplexity int, proposalID string, accept bool) int
 		RevokeSession               func(childComplexity int, sessionID string) int
 		SendFeedbackMessage         func(childComplexity int, decisionID string, text string) int
 		SetConfigEntry              func(childComplexity int, key string, value string) int
 		SetConnectorConfig          func(childComplexity int, connectorID string, config map[string]any) int
+		SetMcpServerConfig          func(childComplexity int, serverID string, name *string, endpointURL *string, authConfig map[string]any) int
 		SetOwnerRule                func(childComplexity int, key string, value string) int
 		SetTaskCategory             func(childComplexity int, input model.SetTaskCategoryInput) int
 		SetToolOverseerInstructions func(childComplexity int, toolID string, instructions string) int
 		SetToolPermissions          func(childComplexity int, toolID string, permissions map[string]any) int
+		SyncMcpServer               func(childComplexity int, serverID string) int
 		UnregisterDeviceToken       func(childComplexity int, token string) int
 		UpdateTaskMetadata          func(childComplexity int, taskID string, priority model.TaskPriority, dueAt *time.Time, startsAt *time.Time, rank *float64) int
 	}
@@ -312,6 +329,7 @@ type ComplexityRoot struct {
 		Connectors      func(childComplexity int) int
 		Inbox           func(childComplexity int, first *int, after *string) int
 		InboxFeed       func(childComplexity int, first *int, after *string) int
+		McpServers      func(childComplexity int) int
 		PendingDecision func(childComplexity int, id string) int
 		Sessions        func(childComplexity int) int
 		Task            func(childComplexity int, id string) int
@@ -476,6 +494,11 @@ type MutationResolver interface {
 	CompileAndAttachGateScript(ctx context.Context, toolID string, source string, manifest map[string]any) (*model.GateScript, error)
 	DisableGateScript(ctx context.Context, toolID string) (*model.Tool, error)
 	SetOwnerRule(ctx context.Context, key string, value string) (*model.OwnerRule, error)
+	RegisterMcpServer(ctx context.Context, slug string, name string, endpointURL string, authConfig map[string]any) (*model.McpServer, error)
+	SetMcpServerConfig(ctx context.Context, serverID string, name *string, endpointURL *string, authConfig map[string]any) (*model.McpServer, error)
+	EnableMcpServer(ctx context.Context, serverID string, enabled bool) (*model.McpServer, error)
+	SyncMcpServer(ctx context.Context, serverID string) (*model.McpServer, error)
+	RemoveMcpServer(ctx context.Context, serverID string) (bool, error)
 	AddTaskRelation(ctx context.Context, fromTaskID string, toTaskID string, kind model.TaskRelationKind) (*model.TaskRelation, error)
 	RemoveTaskRelation(ctx context.Context, fromTaskID string, toTaskID string, kind model.TaskRelationKind) (bool, error)
 	PairDevice(ctx context.Context, password string, displayName string) (*model.SessionMintResult, error)
@@ -510,6 +533,7 @@ type QueryResolver interface {
 	Categories(ctx context.Context) ([]*model.TaskCategory, error)
 	ConfigKeys(ctx context.Context) ([]*model.ConfigKey, error)
 	Connectors(ctx context.Context) ([]*model.Connector, error)
+	McpServers(ctx context.Context) ([]*model.McpServer, error)
 	AgentGuidance(ctx context.Context, status *string) ([]*model.AgentGuidance, error)
 	InboxFeed(ctx context.Context, first *int, after *string) (*model.InboxFeedPage, error)
 	Inbox(ctx context.Context, first *int, after *string) ([]model.InboxItem, error)
@@ -1279,6 +1303,61 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Mandate.Guardrails(childComplexity), true
 
+	case "McpServer.enabled":
+		if e.ComplexityRoot.McpServer.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.McpServer.Enabled(childComplexity), true
+	case "McpServer.endpointUrl":
+		if e.ComplexityRoot.McpServer.EndpointURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.McpServer.EndpointURL(childComplexity), true
+	case "McpServer.id":
+		if e.ComplexityRoot.McpServer.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.McpServer.ID(childComplexity), true
+	case "McpServer.lastSyncedAt":
+		if e.ComplexityRoot.McpServer.LastSyncedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.McpServer.LastSyncedAt(childComplexity), true
+	case "McpServer.name":
+		if e.ComplexityRoot.McpServer.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.McpServer.Name(childComplexity), true
+	case "McpServer.protocolVersion":
+		if e.ComplexityRoot.McpServer.ProtocolVersion == nil {
+			break
+		}
+
+		return e.ComplexityRoot.McpServer.ProtocolVersion(childComplexity), true
+	case "McpServer.slug":
+		if e.ComplexityRoot.McpServer.Slug == nil {
+			break
+		}
+
+		return e.ComplexityRoot.McpServer.Slug(childComplexity), true
+	case "McpServer.status":
+		if e.ComplexityRoot.McpServer.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.McpServer.Status(childComplexity), true
+	case "McpServer.toolCount":
+		if e.ComplexityRoot.McpServer.ToolCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.McpServer.ToolCount(childComplexity), true
+
 	case "Mutation.acceptFeedbackGuidance":
 		if e.ComplexityRoot.Mutation.AcceptFeedbackGuidance == nil {
 			break
@@ -1488,6 +1567,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.EnableConnector(childComplexity, args["connectorId"].(string), args["enabled"].(bool)), true
+	case "Mutation.enableMcpServer":
+		if e.ComplexityRoot.Mutation.EnableMcpServer == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_enableMcpServer_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.EnableMcpServer(childComplexity, args["serverId"].(string), args["enabled"].(bool)), true
 	case "Mutation.flagOutcome":
 		if e.ComplexityRoot.Mutation.FlagOutcome == nil {
 			break
@@ -1543,6 +1633,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RegisterDeviceToken(childComplexity, args["token"].(string), args["platform"].(model.DevicePlatform)), true
+	case "Mutation.registerMcpServer":
+		if e.ComplexityRoot.Mutation.RegisterMcpServer == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_registerMcpServer_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RegisterMcpServer(childComplexity, args["slug"].(string), args["name"].(string), args["endpointUrl"].(string), args["authConfig"].(map[string]any)), true
 	case "Mutation.rejectApproval":
 		if e.ComplexityRoot.Mutation.RejectApproval == nil {
 			break
@@ -1554,6 +1655,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RejectApproval(childComplexity, args["decisionId"].(string), args["reason"].(*string)), true
+	case "Mutation.removeMcpServer":
+		if e.ComplexityRoot.Mutation.RemoveMcpServer == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_removeMcpServer_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RemoveMcpServer(childComplexity, args["serverId"].(string)), true
 	case "Mutation.removeTaskRelation":
 		if e.ComplexityRoot.Mutation.RemoveTaskRelation == nil {
 			break
@@ -1620,6 +1732,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetConnectorConfig(childComplexity, args["connectorId"].(string), args["config"].(map[string]any)), true
+	case "Mutation.setMcpServerConfig":
+		if e.ComplexityRoot.Mutation.SetMcpServerConfig == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setMcpServerConfig_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetMcpServerConfig(childComplexity, args["serverId"].(string), args["name"].(*string), args["endpointUrl"].(*string), args["authConfig"].(map[string]any)), true
 	case "Mutation.setOwnerRule":
 		if e.ComplexityRoot.Mutation.SetOwnerRule == nil {
 			break
@@ -1664,6 +1787,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetToolPermissions(childComplexity, args["toolId"].(string), args["permissions"].(map[string]any)), true
+	case "Mutation.syncMcpServer":
+		if e.ComplexityRoot.Mutation.SyncMcpServer == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_syncMcpServer_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SyncMcpServer(childComplexity, args["serverId"].(string)), true
 	case "Mutation.unregisterDeviceToken":
 		if e.ComplexityRoot.Mutation.UnregisterDeviceToken == nil {
 			break
@@ -1916,6 +2050,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.InboxFeed(childComplexity, args["first"].(*int), args["after"].(*string)), true
 
+	case "Query.mcpServers":
+		if e.ComplexityRoot.Query.McpServers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.McpServers(childComplexity), true
 	case "Query.pendingDecision":
 		if e.ComplexityRoot.Query.PendingDecision == nil {
 			break
@@ -2535,7 +2675,7 @@ func newExecutionContext(
 	}
 }
 
-//go:embed "category.graphqls" "config.graphqls" "connector.graphqls" "gatescript.graphqls" "relations.graphqls" "schema.graphqls"
+//go:embed "category.graphqls" "config.graphqls" "connector.graphqls" "gatescript.graphqls" "mcp.graphqls" "relations.graphqls" "schema.graphqls"
 var sourcesFS embed.FS
 
 func sourceData(filename string) string {
@@ -2551,6 +2691,7 @@ var sources = []*ast.Source{
 	{Name: "config.graphqls", Input: sourceData("config.graphqls"), BuiltIn: false},
 	{Name: "connector.graphqls", Input: sourceData("connector.graphqls"), BuiltIn: false},
 	{Name: "gatescript.graphqls", Input: sourceData("gatescript.graphqls"), BuiltIn: false},
+	{Name: "mcp.graphqls", Input: sourceData("mcp.graphqls"), BuiltIn: false},
 	{Name: "relations.graphqls", Input: sourceData("relations.graphqls"), BuiltIn: false},
 	{Name: "schema.graphqls", Input: sourceData("schema.graphqls"), BuiltIn: false},
 }
@@ -2844,6 +2985,30 @@ func (ec *executionContext) childFields_InboxMessageState(ctx context.Context, f
 		return ec.fieldContext_InboxMessageState_dismissedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type InboxMessageState", field.Name)
+}
+
+func (ec *executionContext) childFields_McpServer(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_McpServer_id(ctx, field)
+	case "slug":
+		return ec.fieldContext_McpServer_slug(ctx, field)
+	case "name":
+		return ec.fieldContext_McpServer_name(ctx, field)
+	case "endpointUrl":
+		return ec.fieldContext_McpServer_endpointUrl(ctx, field)
+	case "enabled":
+		return ec.fieldContext_McpServer_enabled(ctx, field)
+	case "status":
+		return ec.fieldContext_McpServer_status(ctx, field)
+	case "protocolVersion":
+		return ec.fieldContext_McpServer_protocolVersion(ctx, field)
+	case "lastSyncedAt":
+		return ec.fieldContext_McpServer_lastSyncedAt(ctx, field)
+	case "toolCount":
+		return ec.fieldContext_McpServer_toolCount(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type McpServer", field.Name)
 }
 
 func (ec *executionContext) childFields_Notification(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -3656,6 +3821,28 @@ func (ec *executionContext) field_Mutation_enableConnector_args(ctx context.Cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_enableMcpServer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "serverId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["serverId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "enabled",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["enabled"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_flagOutcome_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -3774,6 +3961,44 @@ func (ec *executionContext) field_Mutation_registerDeviceToken_args(ctx context.
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_registerMcpServer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "slug",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["slug"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "name",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "endpointUrl",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["endpointUrl"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "authConfig",
+		func(ctx context.Context, v any) (map[string]any, error) {
+			return ec.unmarshalOJSON2map(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["authConfig"] = arg3
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_rejectApproval_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -3793,6 +4018,20 @@ func (ec *executionContext) field_Mutation_rejectApproval_args(ctx context.Conte
 		return nil, err
 	}
 	args["reason"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_removeMcpServer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "serverId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["serverId"] = arg0
 	return args, nil
 }
 
@@ -3928,6 +4167,44 @@ func (ec *executionContext) field_Mutation_setConnectorConfig_args(ctx context.C
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_setMcpServerConfig_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "serverId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["serverId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "name",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "endpointUrl",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["endpointUrl"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "authConfig",
+		func(ctx context.Context, v any) (map[string]any, error) {
+			return ec.unmarshalOJSON2map(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["authConfig"] = arg3
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_setOwnerRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -4005,6 +4282,20 @@ func (ec *executionContext) field_Mutation_setToolPermissions_args(ctx context.C
 		return nil, err
 	}
 	args["permissions"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_syncMcpServer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "serverId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["serverId"] = arg0
 	return args, nil
 }
 
@@ -7120,6 +7411,213 @@ func (ec *executionContext) fieldContext_Mandate_guardrails(_ context.Context, f
 	return graphql.NewScalarFieldContext("Mandate", field, false, false, errors.New("field of type JSON does not have child fields"))
 }
 
+func (ec *executionContext) _McpServer_id(ctx context.Context, field graphql.CollectedField, obj *model.McpServer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_McpServer_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_McpServer_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("McpServer", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _McpServer_slug(ctx context.Context, field graphql.CollectedField, obj *model.McpServer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_McpServer_slug(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Slug, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_McpServer_slug(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("McpServer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _McpServer_name(ctx context.Context, field graphql.CollectedField, obj *model.McpServer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_McpServer_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_McpServer_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("McpServer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _McpServer_endpointUrl(ctx context.Context, field graphql.CollectedField, obj *model.McpServer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_McpServer_endpointUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndpointURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_McpServer_endpointUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("McpServer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _McpServer_enabled(ctx context.Context, field graphql.CollectedField, obj *model.McpServer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_McpServer_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_McpServer_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("McpServer", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _McpServer_status(ctx context.Context, field graphql.CollectedField, obj *model.McpServer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_McpServer_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_McpServer_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("McpServer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _McpServer_protocolVersion(ctx context.Context, field graphql.CollectedField, obj *model.McpServer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_McpServer_protocolVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProtocolVersion, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_McpServer_protocolVersion(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("McpServer", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _McpServer_lastSyncedAt(ctx context.Context, field graphql.CollectedField, obj *model.McpServer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_McpServer_lastSyncedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastSyncedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_McpServer_lastSyncedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("McpServer", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _McpServer_toolCount(ctx context.Context, field graphql.CollectedField, obj *model.McpServer) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_McpServer_toolCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToolCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_McpServer_toolCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("McpServer", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
 func (ec *executionContext) _Mutation_createTask(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -7818,6 +8316,226 @@ func (ec *executionContext) fieldContext_Mutation_setOwnerRule(ctx context.Conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_setOwnerRule_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_registerMcpServer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_registerMcpServer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RegisterMcpServer(ctx, fc.Args["slug"].(string), fc.Args["name"].(string), fc.Args["endpointUrl"].(string), fc.Args["authConfig"].(map[string]any))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.McpServer) graphql.Marshaler {
+			return ec.marshalNMcpServer2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐMcpServer(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_registerMcpServer(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_McpServer(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_registerMcpServer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setMcpServerConfig(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setMcpServerConfig(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetMcpServerConfig(ctx, fc.Args["serverId"].(string), fc.Args["name"].(*string), fc.Args["endpointUrl"].(*string), fc.Args["authConfig"].(map[string]any))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.McpServer) graphql.Marshaler {
+			return ec.marshalNMcpServer2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐMcpServer(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setMcpServerConfig(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_McpServer(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setMcpServerConfig_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_enableMcpServer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_enableMcpServer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().EnableMcpServer(ctx, fc.Args["serverId"].(string), fc.Args["enabled"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.McpServer) graphql.Marshaler {
+			return ec.marshalNMcpServer2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐMcpServer(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_enableMcpServer(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_McpServer(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_enableMcpServer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_syncMcpServer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_syncMcpServer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SyncMcpServer(ctx, fc.Args["serverId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.McpServer) graphql.Marshaler {
+			return ec.marshalNMcpServer2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐMcpServer(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_syncMcpServer(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_McpServer(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_syncMcpServer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_removeMcpServer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_removeMcpServer(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RemoveMcpServer(ctx, fc.Args["serverId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_removeMcpServer(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_removeMcpServer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -9552,6 +10270,38 @@ func (ec *executionContext) fieldContext_Query_connectors(_ context.Context, fie
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Connector(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_mcpServers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_mcpServers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().McpServers(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.McpServer) graphql.Marshaler {
+			return ec.marshalNMcpServer2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐMcpServerᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_mcpServers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_McpServer(ctx, field)
 		},
 	}
 	return fc, nil
@@ -14762,6 +15512,79 @@ func (ec *executionContext) _Mandate(ctx context.Context, sel ast.SelectionSet, 
 	return out
 }
 
+var mcpServerImplementors = []string{"McpServer"}
+
+func (ec *executionContext) _McpServer(ctx context.Context, sel ast.SelectionSet, obj *model.McpServer) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mcpServerImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("McpServer")
+		case "id":
+			out.Values[i] = ec._McpServer_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "slug":
+			out.Values[i] = ec._McpServer_slug(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._McpServer_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endpointUrl":
+			out.Values[i] = ec._McpServer_endpointUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enabled":
+			out.Values[i] = ec._McpServer_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._McpServer_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "protocolVersion":
+			out.Values[i] = ec._McpServer_protocolVersion(ctx, field, obj)
+		case "lastSyncedAt":
+			out.Values[i] = ec._McpServer_lastSyncedAt(ctx, field, obj)
+		case "toolCount":
+			out.Values[i] = ec._McpServer_toolCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var mutationImplementors = []string{"Mutation"}
 
 func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -14889,6 +15712,41 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "setOwnerRule":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_setOwnerRule(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "registerMcpServer":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_registerMcpServer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setMcpServerConfig":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setMcpServerConfig(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enableMcpServer":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_enableMcpServer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "syncMcpServer":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_syncMcpServer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removeMcpServer":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_removeMcpServer(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -15544,6 +16402,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_connectors(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mcpServers":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mcpServers(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -17819,6 +18699,36 @@ func (ec *executionContext) marshalNJSON2map(ctx context.Context, sel ast.Select
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNMcpServer2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐMcpServer(ctx context.Context, sel ast.SelectionSet, v model.McpServer) graphql.Marshaler {
+	return ec._McpServer(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMcpServer2ᚕᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐMcpServerᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.McpServer) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNMcpServer2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐMcpServer(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNMcpServer2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐMcpServer(ctx context.Context, sel ast.SelectionSet, v *model.McpServer) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._McpServer(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNNotification2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐNotification(ctx context.Context, sel ast.SelectionSet, v model.Notification) graphql.Marshaler {

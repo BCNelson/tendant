@@ -10,10 +10,12 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getToolByGlobalURI = `-- name: GetToolByGlobalURI :one
-SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
+SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score,
+       mcp_server_id, input_schema, mcp_annotations, retired_at
 FROM tools
 WHERE global_uri = $1
 LIMIT 1
@@ -31,12 +33,17 @@ func (q *Queries) GetToolByGlobalURI(ctx context.Context, globalUri string) (Too
 		&i.OverseerInstructions,
 		&i.ActiveScriptVersion,
 		&i.TrustScore,
+		&i.McpServerID,
+		&i.InputSchema,
+		&i.McpAnnotations,
+		&i.RetiredAt,
 	)
 	return i, err
 }
 
 const getToolByID = `-- name: GetToolByID :one
-SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
+SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score,
+       mcp_server_id, input_schema, mcp_annotations, retired_at
 FROM tools
 WHERE id = $1
 LIMIT 1
@@ -54,12 +61,100 @@ func (q *Queries) GetToolByID(ctx context.Context, id uuid.UUID) (Tool, error) {
 		&i.OverseerInstructions,
 		&i.ActiveScriptVersion,
 		&i.TrustScore,
+		&i.McpServerID,
+		&i.InputSchema,
+		&i.McpAnnotations,
+		&i.RetiredAt,
 	)
 	return i, err
 }
 
+const listActiveMcpTools = `-- name: ListActiveMcpTools :many
+SELECT t.global_uri AS global_uri,
+       t.mcp_server_id AS mcp_server_id,
+       s.slug AS slug
+FROM tools t
+JOIN mcp_servers s ON s.id = t.mcp_server_id
+WHERE t.mcp_server_id IS NOT NULL
+  AND t.retired_at IS NULL
+  AND s.enabled = true
+ORDER BY s.slug, t.name
+`
+
+type ListActiveMcpToolsRow struct {
+	GlobalUri   string      `json:"global_uri"`
+	McpServerID pgtype.UUID `json:"mcp_server_id"`
+	Slug        string      `json:"slug"`
+}
+
+// Boot rehydration: every live MCP-backed tool with its server's slug + endpoint,
+// so main can rebuild the registry adapters without contacting any upstream.
+func (q *Queries) ListActiveMcpTools(ctx context.Context) ([]ListActiveMcpToolsRow, error) {
+	rows, err := q.db.Query(ctx, listActiveMcpTools)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListActiveMcpToolsRow
+	for rows.Next() {
+		var i ListActiveMcpToolsRow
+		if err := rows.Scan(&i.GlobalUri, &i.McpServerID, &i.Slug); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMcpToolsByServer = `-- name: ListMcpToolsByServer :many
+SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score,
+       mcp_server_id, input_schema, mcp_annotations, retired_at
+FROM tools
+WHERE mcp_server_id = $1 AND retired_at IS NULL
+ORDER BY name ASC
+`
+
+// Live (non-retired) tools for one server — the reconcile diff reads this to
+// find rows to retire when an upstream tool vanishes.
+func (q *Queries) ListMcpToolsByServer(ctx context.Context, mcpServerID pgtype.UUID) ([]Tool, error) {
+	rows, err := q.db.Query(ctx, listMcpToolsByServer, mcpServerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Tool
+	for rows.Next() {
+		var i Tool
+		if err := rows.Scan(
+			&i.ID,
+			&i.GlobalUri,
+			&i.Name,
+			&i.Rung,
+			&i.Permissions,
+			&i.OverseerInstructions,
+			&i.ActiveScriptVersion,
+			&i.TrustScore,
+			&i.McpServerID,
+			&i.InputSchema,
+			&i.McpAnnotations,
+			&i.RetiredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTools = `-- name: ListTools :many
-SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
+SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score,
+       mcp_server_id, input_schema, mcp_annotations, retired_at
 FROM tools
 ORDER BY name ASC
 `
@@ -82,6 +177,10 @@ func (q *Queries) ListTools(ctx context.Context) ([]Tool, error) {
 			&i.OverseerInstructions,
 			&i.ActiveScriptVersion,
 			&i.TrustScore,
+			&i.McpServerID,
+			&i.InputSchema,
+			&i.McpAnnotations,
+			&i.RetiredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -93,6 +192,84 @@ func (q *Queries) ListTools(ctx context.Context) ([]Tool, error) {
 	return items, nil
 }
 
+const retireMcpTool = `-- name: RetireMcpTool :exec
+UPDATE tools SET retired_at = now() WHERE id = $1 AND retired_at IS NULL
+`
+
+// Mark a tool retired (upstream definition vanished or its server was removed).
+// The row is kept for audit/calibration history; its adapter is deregistered.
+func (q *Queries) RetireMcpTool(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, retireMcpTool, id)
+	return err
+}
+
+const retireMcpToolsForServer = `-- name: RetireMcpToolsForServer :exec
+UPDATE tools SET retired_at = now() WHERE mcp_server_id = $1 AND retired_at IS NULL
+`
+
+// Retire every live tool for a server in one statement (the removeMcpServer flow).
+func (q *Queries) RetireMcpToolsForServer(ctx context.Context, mcpServerID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, retireMcpToolsForServer, mcpServerID)
+	return err
+}
+
+const upsertMcpTool = `-- name: UpsertMcpTool :one
+INSERT INTO tools (global_uri, name, rung, permissions, mcp_server_id, input_schema, mcp_annotations)
+VALUES ($1, $2, 'execute_gated', $3, $4, $5, $6)
+ON CONFLICT (global_uri) DO UPDATE
+  SET name            = EXCLUDED.name,
+      mcp_server_id   = EXCLUDED.mcp_server_id,
+      input_schema    = EXCLUDED.input_schema,
+      mcp_annotations = EXCLUDED.mcp_annotations,
+      retired_at      = NULL
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score,
+          mcp_server_id, input_schema, mcp_annotations, retired_at
+`
+
+type UpsertMcpToolParams struct {
+	GlobalUri      string          `json:"global_uri"`
+	Name           string          `json:"name"`
+	Permissions    json.RawMessage `json:"permissions"`
+	McpServerID    pgtype.UUID     `json:"mcp_server_id"`
+	InputSchema    []byte          `json:"input_schema"`
+	McpAnnotations []byte          `json:"mcp_annotations"`
+}
+
+// Reconcile one discovered MCP tool. On INSERT it lands fail-closed: the caller
+// passes the conservative default permissions (every call trips the gate floor →
+// owner review) so nothing auto-executes before the owner tunes it. On CONFLICT
+// (the tool already exists from a prior sync) it touches ONLY the upstream-owned
+// fields (name, input_schema, mcp_annotations) and clears retired_at (un-retire
+// if the tool reappeared) + re-attaches the server — it NEVER clobbers the
+// owner-/calibration-owned columns (permissions, overseer_instructions, rung,
+// trust_score, active_script_version), mirroring ReconcileTools' discipline.
+func (q *Queries) UpsertMcpTool(ctx context.Context, arg UpsertMcpToolParams) (Tool, error) {
+	row := q.db.QueryRow(ctx, upsertMcpTool,
+		arg.GlobalUri,
+		arg.Name,
+		arg.Permissions,
+		arg.McpServerID,
+		arg.InputSchema,
+		arg.McpAnnotations,
+	)
+	var i Tool
+	err := row.Scan(
+		&i.ID,
+		&i.GlobalUri,
+		&i.Name,
+		&i.Rung,
+		&i.Permissions,
+		&i.OverseerInstructions,
+		&i.ActiveScriptVersion,
+		&i.TrustScore,
+		&i.McpServerID,
+		&i.InputSchema,
+		&i.McpAnnotations,
+		&i.RetiredAt,
+	)
+	return i, err
+}
+
 const upsertTool = `-- name: UpsertTool :one
 INSERT INTO tools (global_uri, name, rung, permissions, overseer_instructions)
 VALUES ($1, $2, $3, $4, $5)
@@ -101,7 +278,8 @@ ON CONFLICT (global_uri) DO UPDATE
       rung                  = EXCLUDED.rung,
       permissions           = EXCLUDED.permissions,
       overseer_instructions = EXCLUDED.overseer_instructions
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score,
+          mcp_server_id, input_schema, mcp_annotations, retired_at
 `
 
 type UpsertToolParams struct {
@@ -132,6 +310,10 @@ func (q *Queries) UpsertTool(ctx context.Context, arg UpsertToolParams) (Tool, e
 		&i.OverseerInstructions,
 		&i.ActiveScriptVersion,
 		&i.TrustScore,
+		&i.McpServerID,
+		&i.InputSchema,
+		&i.McpAnnotations,
+		&i.RetiredAt,
 	)
 	return i, err
 }

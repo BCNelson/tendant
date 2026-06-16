@@ -107,6 +107,12 @@ func (r *Resolver) proposeToolCallImpl(ctx context.Context, taskID, toolGlobalUR
 		}
 		return nil, fmt.Errorf("get tool: %w", err)
 	}
+	// An MCP-backed tool whose upstream definition has vanished (or whose server
+	// was removed) is retired: its adapter is deregistered, so a dispatch would
+	// fail. Reject composition up front rather than gating a call we can't run.
+	if toolRow.RetiredAt.Valid {
+		return nil, gateError(ctx, "TOOL_RETIRED", "tool is retired (its MCP server is gone or no longer advertises it): "+toolGlobalURI)
+	}
 
 	rawPayload, err := json.Marshal(payload)
 	if err != nil {

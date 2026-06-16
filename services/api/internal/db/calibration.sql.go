@@ -113,7 +113,7 @@ func (q *Queries) DismissalsByConnector(ctx context.Context, arg DismissalsByCon
 
 const getToolForUpdate = `-- name: GetToolForUpdate :one
 
-SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
+SELECT id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score, mcp_server_id, input_schema, mcp_annotations, retired_at
 FROM tools
 WHERE id = $1
 FOR UPDATE
@@ -135,6 +135,10 @@ func (q *Queries) GetToolForUpdate(ctx context.Context, id uuid.UUID) (Tool, err
 		&i.OverseerInstructions,
 		&i.ActiveScriptVersion,
 		&i.TrustScore,
+		&i.McpServerID,
+		&i.InputSchema,
+		&i.McpAnnotations,
+		&i.RetiredAt,
 	)
 	return i, err
 }
@@ -485,7 +489,7 @@ UPDATE tools
    SET trust_score = $2,
        rung        = $3
  WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score, mcp_server_id, input_schema, mcp_annotations, retired_at
 `
 
 type SetTrustScoreParams struct {
@@ -507,6 +511,10 @@ func (q *Queries) SetTrustScore(ctx context.Context, arg SetTrustScoreParams) (T
 		&i.OverseerInstructions,
 		&i.ActiveScriptVersion,
 		&i.TrustScore,
+		&i.McpServerID,
+		&i.InputSchema,
+		&i.McpAnnotations,
+		&i.RetiredAt,
 	)
 	return i, err
 }

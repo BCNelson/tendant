@@ -59,6 +59,10 @@ type chainEnvConfig struct {
 	// agentStage, when non-nil, builds the durable AgentStageWorkflow's runner so
 	// the Phase-B inline-durable-wait path can be driven directly in a test.
 	agentStage func(pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry) *agent.Runner
+	// mcpBuild, when non-nil, builds the MCP owner-mutation wiring after the
+	// queries + tool registry are ready (so the mcp.Service registers adapters
+	// into the SAME registry the tool-call workflow dispatches through).
+	mcpBuild func(q *db.Queries, registry *tools.Registry) graph.McpDeps
 }
 
 // fixedTimeouts is a chain.Timeouts test double with explicit per-flow windows.
@@ -91,6 +95,13 @@ type chainEnvOpt func(*chainEnvConfig)
 // through (e.g. to inject a provider that fails, driving an outcome=bad path).
 func withToolRegistry(r *tools.Registry) chainEnvOpt {
 	return func(c *chainEnvConfig) { c.registry = r }
+}
+
+// withMcp wires the MCP owner-mutation resolvers. The builder receives the
+// booted queries + the resolved tool registry so the mcp.Service it constructs
+// registers adapters into the same registry the tool-call workflow dispatches.
+func withMcp(build func(q *db.Queries, registry *tools.Registry) graph.McpDeps) chainEnvOpt {
+	return func(c *chainEnvConfig) { c.mcpBuild = build }
 }
 
 // withAgentChain wires a real chain router + stage runner (instead of the
@@ -193,6 +204,11 @@ func bootChainEnv(t *testing.T, ctx context.Context, pool *pgxpool.Pool, executo
 	t.Cleanup(func() { _ = scriptRunner.Close(context.Background()) })
 	scriptSvc := gatescript.NewService(scriptRunner, q, gatescript.DefaultCeilings(), owner.GlobalUri)
 
+	var mcpDeps graph.McpDeps
+	if cfg.mcpBuild != nil {
+		mcpDeps = cfg.mcpBuild(q, registry)
+	}
+
 	handler := server.New(pool, dctx, server.Options{
 		GateScript: scriptSvc,
 		ConnectorResolver: graph.ConnectorDeps{
@@ -200,7 +216,8 @@ func bootChainEnv(t *testing.T, ctx context.Context, pool *pgxpool.Pool, executo
 			CreateSchedule: intake.CreateSchedule,
 			DeleteSchedule: intake.DeleteSchedule,
 		},
-		Calibrator: calibration.New(pool, calibration.DefaultConfig(), nil),
+		McpResolver: mcpDeps,
+		Calibrator:  calibration.New(pool, calibration.DefaultConfig(), nil),
 	})
 	return &chainEnv{pool: pool, dctx: dctx, handler: handler, queries: q, executorID: executorID}
 }

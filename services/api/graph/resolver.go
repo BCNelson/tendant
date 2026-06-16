@@ -40,6 +40,7 @@ type Resolver struct {
 	ToolRegistry    *tools.Registry
 	ScriptEvaluator gatescript.ScriptEvaluator
 	Connectors      ConnectorDeps       // Phase 7 — owner connector mutations
+	Mcp             McpDeps             // MCP client edge — owner mcp-server mutations
 	Calibrator      *calibration.Engine // Phase 8 — flagOutcome + cancel demotion; nil in pre-Phase-8 tests
 
 	// Post-completion feedback — the conversational converser the

@@ -99,7 +99,7 @@ const updateToolOverseerInstructions = `-- name: UpdateToolOverseerInstructions 
 UPDATE tools
 SET overseer_instructions = $2
 WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score, mcp_server_id, input_schema, mcp_annotations, retired_at
 `
 
 type UpdateToolOverseerInstructionsParams struct {
@@ -120,6 +120,10 @@ func (q *Queries) UpdateToolOverseerInstructions(ctx context.Context, arg Update
 		&i.OverseerInstructions,
 		&i.ActiveScriptVersion,
 		&i.TrustScore,
+		&i.McpServerID,
+		&i.InputSchema,
+		&i.McpAnnotations,
+		&i.RetiredAt,
 	)
 	return i, err
 }
@@ -129,7 +133,7 @@ UPDATE tools
 SET overseer_instructions = $2
 WHERE global_uri = $1
   AND overseer_instructions IS NULL
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score, mcp_server_id, input_schema, mcp_annotations, retired_at
 `
 
 type UpdateToolOverseerInstructionsIfNullParams struct {
@@ -151,6 +155,10 @@ func (q *Queries) UpdateToolOverseerInstructionsIfNull(ctx context.Context, arg 
 		&i.OverseerInstructions,
 		&i.ActiveScriptVersion,
 		&i.TrustScore,
+		&i.McpServerID,
+		&i.InputSchema,
+		&i.McpAnnotations,
+		&i.RetiredAt,
 	)
 	return i, err
 }
@@ -159,7 +167,7 @@ const updateToolPermissions = `-- name: UpdateToolPermissions :one
 UPDATE tools
 SET permissions = $2
 WHERE id = $1
-RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score
+RETURNING id, global_uri, name, rung, permissions, overseer_instructions, active_script_version, trust_score, mcp_server_id, input_schema, mcp_annotations, retired_at
 `
 
 type UpdateToolPermissionsParams struct {
@@ -180,6 +188,10 @@ func (q *Queries) UpdateToolPermissions(ctx context.Context, arg UpdateToolPermi
 		&i.OverseerInstructions,
 		&i.ActiveScriptVersion,
 		&i.TrustScore,
+		&i.McpServerID,
+		&i.InputSchema,
+		&i.McpAnnotations,
+		&i.RetiredAt,
 	)
 	return i, err
 }
