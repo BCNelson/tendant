@@ -63,7 +63,7 @@ func TestChainHandoffOpensOwnerAddressedAssignment(t *testing.T) {
 	defer durable.Shutdown(dctx, 2*time.Second)
 
 	const reason = "this task needs a phone call and I have no tool for that"
-	durable.RegisterChainWorkflow(dctx, pool, q, handoffRouter{}, handoffRunner{reason: reason}, owner.GlobalUri, nil, nil)
+	durable.RegisterChainWorkflow(dctx, pool, q, handoffRouter{}, handoffRunner{reason: reason}, owner.GlobalUri, nil, nil, nil, nil)
 	require.NoError(t, durable.Launch(dctx))
 
 	created, err := core.CreateTask(ctx, pool, dctx, "handoff-test", "")
@@ -117,7 +117,7 @@ func TestChainSetsToPrincipalAndEnqueuesPush(t *testing.T) {
 	defer durable.Shutdown(dctx, 2*time.Second)
 
 	enqueuer := &recordingPushEnqueuer{}
-	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, nil, owner.GlobalUri, enqueuer, nil)
+	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, nil, owner.GlobalUri, enqueuer, nil, nil, nil)
 	require.NoError(t, durable.Launch(dctx))
 
 	created, err := core.CreateTask(ctx, pool, dctx, "phase2-test", "")

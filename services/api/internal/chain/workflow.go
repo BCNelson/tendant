@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -114,6 +115,8 @@ type envDeps struct {
 	ownerGlobalURI string
 	push           PushEnqueuer
 	feedback       FeedbackEnqueuer
+	timeouts       Timeouts     // per-flow human-wait windows; nil ⇒ legacy 72h
+	agentStarter   AgentStarter // Phase B: durable agent path; nil ⇒ synchronous inline runner
 }
 
 var (
@@ -129,7 +132,7 @@ var (
 // ownerGlobalURI populates agent_assignments.to_principal so the push fan-out
 // worker knows whose tokens to push (Phase 2). push is optional; nil opts out
 // of push enqueue (Phase 0/1 tests, CI without APNs/FCM creds).
-func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router Router, runner StageRunner, ownerGlobalURI string, pushEnqueuer PushEnqueuer, feedbackEnqueuer FeedbackEnqueuer) {
+func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router Router, runner StageRunner, ownerGlobalURI string, pushEnqueuer PushEnqueuer, feedbackEnqueuer FeedbackEnqueuer, timeouts Timeouts, agentStarter AgentStarter) {
 	depsMu.Lock()
 	deps = &envDeps{
 		pool:           pool,
@@ -139,6 +142,8 @@ func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router R
 		ownerGlobalURI: ownerGlobalURI,
 		push:           pushEnqueuer,
 		feedback:       feedbackEnqueuer,
+		timeouts:       timeouts,
+		agentStarter:   agentStarter,
 	}
 	depsMu.Unlock()
 	dbos.RegisterWorkflow(dctx, ChainWorkflow, dbos.WithWorkflowName(WorkflowName))
@@ -241,20 +246,41 @@ func ChainWorkflow(ctx dbos.DBOSContext, taskIDStr string) (string, error) {
 		}
 
 		var result json.RawMessage
-		if decision.IsHuman {
+		switch {
+		case decision.IsHuman:
 			// Human path: open assignment + durable wait (Phase 1/2 mechanism).
-			if err := runOpenAssignmentStep(ctx, d, taskID, stage, decision.HandoffReason); err != nil {
-				return "", err
-			}
-			result, err = WaitForResult(ctx, TopicForStage(stage), HumanSlotTimeout)
+			result, err = occupyHumanAndWait(ctx, d, taskID, stage, decision.HandoffReason)
 			if err != nil {
 				return "", err
 			}
 			if isCancelSentinel(result) {
 				return "", nil
 			}
-		} else {
-			// Agent path: result is already in the memoized decision.
+
+		case d.agentStarter != nil && decision.ConfigID != nil:
+			// Phase B durable agent path: start the agent-stage workflow and await
+			// it. If the agent fail-closes / hands off, occupy a human slot carrying
+			// the agent's reason — exactly the human path, just reached after the
+			// durable run.
+			res, aerr := d.agentStarter.StartStageAndAwait(ctx, taskID, stage, *decision.ConfigID)
+			if aerr != nil {
+				return "", aerr
+			}
+			if isFailCloseResult(res) {
+				result, err = occupyHumanAndWait(ctx, d, taskID, stage, handoffReasonOf(res))
+				if err != nil {
+					return "", err
+				}
+				if isCancelSentinel(result) {
+					return "", nil
+				}
+			} else {
+				result = res
+			}
+
+		default:
+			// Synchronous inline path (no durable starter): the agent already ran
+			// inside the route step and its result is memoized on the decision.
 			result = decision.StageResult
 		}
 
@@ -316,6 +342,37 @@ func isCancelSentinel(raw json.RawMessage) bool {
 	return b
 }
 
+// occupyHumanAndWait opens a human assignment for the stage and durably waits
+// for its resolution, re-arming + escalating on each timeout (see A6) and
+// falling back to a no-timeout wait after MaxStageTimeouts so the slot is never
+// silently abandoned nor poisoned to ERROR. Returns the resolution payload (the
+// caller checks for a cancel sentinel). Shared by the human-routed path and the
+// durable-agent fail-close path.
+func occupyHumanAndWait(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, stage lifecycle.ChainStage, handoffReason string) (json.RawMessage, error) {
+	if err := runOpenAssignmentStep(ctx, d, taskID, stage, handoffReason); err != nil {
+		return nil, err
+	}
+	stageTimeout := StageTimeoutOr(d.timeouts)
+	for attempt := 0; ; attempt++ {
+		waitFor := stageTimeout
+		if attempt >= MaxStageTimeouts {
+			waitFor = 0 // no timeout — wait until a real resolution/cancel
+		}
+		result, err := WaitForResultOrExpire(ctx, TopicForStage(stage), waitFor)
+		if errors.Is(err, ErrHumanWaitExpired) {
+			escalated := attempt+1 >= MaxStageTimeouts
+			if serr := runStageTimeoutStep(ctx, d, taskID, stage, attempt+1, stageTimeout, escalated); serr != nil {
+				return nil, serr
+			}
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
+}
+
 // runRouteAndOccupyStep is the memoized DBOS step that routes a stage.
 // It calls the router to decide human vs agent, and if agent, runs the
 // agent inline and returns the StageResult in the decision. The result is
@@ -332,7 +389,14 @@ func runRouteAndOccupyStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, s
 			return SlotDecision{IsHuman: true}, nil
 		}
 
-		// Agent path: run the agent loop inline.
+		// Phase B durable path: when an AgentStarter is wired, DON'T run the agent
+		// inline here. Return the routing so the workflow body can start the
+		// durable AgentStageWorkflow (which owns the LLM loop + approval waits).
+		if d.agentStarter != nil {
+			return SlotDecision{IsHuman: false, ConfigID: decision.ConfigID, ConfigName: decision.ConfigName}, nil
+		}
+
+		// Synchronous inline path: run the agent loop inside this step.
 		if d.runner == nil {
 			// No runner configured → fall back to human.
 			return SlotDecision{IsHuman: true}, nil
@@ -514,6 +578,55 @@ func runOpenAssignmentStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, s
 		}
 	}
 	return nil
+}
+
+// MaxStageTimeouts is how many times a human stage slot may time out before the
+// chain stops re-arming a finite wait and falls back to a no-timeout wait. The
+// timed-out slot is never abandoned: each timeout records a
+// stage_timeout_rerouted audit (the operator's escalation signal), and the slot
+// stays open in the inbox throughout.
+const MaxStageTimeouts = 2
+
+// runStageTimeoutStep records a stage_timeout_rerouted audit for a human stage
+// slot that timed out. It does NOT resolve the assignment — the slot stays open
+// so the human can still act; the audit is the escalation signal. attempt is
+// 1-based; escalated marks the final timeout after which the chain waits with no
+// further deadline. Memoized so the audit isn't re-written on replay.
+func runStageTimeoutStep(ctx dbos.DBOSContext, d *envDeps, taskID uuid.UUID, stage lifecycle.ChainStage, attempt int, timeout time.Duration, escalated bool) error {
+	stepName := "chain.stage_timeout." + string(stage) + "." + strconv.Itoa(attempt)
+	_, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (struct{}, error) {
+		stepCtx = detachCancel(stepCtx)
+		err := pgx.BeginFunc(stepCtx, d.pool, func(tx pgx.Tx) error {
+			q := db.New(tx)
+			var assignmentID uuid.UUID
+			if open, ferr := q.FindOpenAssignmentForStage(stepCtx, db.FindOpenAssignmentForStageParams{
+				TaskID: taskID,
+				Stage:  stage,
+			}); ferr == nil {
+				assignmentID = open.ID
+			} else if !errors.Is(ferr, pgx.ErrNoRows) {
+				return ferr
+			}
+			parent, perr := latestTransitionIDInTx(stepCtx, tx, taskID)
+			if perr != nil {
+				return perr
+			}
+			_, werr := lifecycle.WriteAuditMessage(stepCtx, tx, taskID, lifecycle.SystemActorURI,
+				lifecycle.KindStageTimeoutRerouted,
+				lifecycle.StageTimeoutReroutedPayload{
+					AssignmentID: assignmentID,
+					Stage:        stage,
+					Attempt:      attempt,
+					Timeout:      timeout.String(),
+					Escalated:    escalated,
+				},
+				parent,
+			)
+			return werr
+		})
+		return struct{}{}, err
+	}, dbos.WithStepName(stepName))
+	return err
 }
 
 // runResolveAndAdvanceStep closes the open assignment, writes the

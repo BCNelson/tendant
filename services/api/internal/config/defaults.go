@@ -54,6 +54,12 @@ func DefaultConfig() Config {
 			SweepCron:         "0 * * * *",
 			IntakeTightenK:    0.02,
 		},
+		HITL: HITLConfig{
+			ApprovalTimeout: 72 * time.Hour,
+			StageTimeout:    72 * time.Hour,
+			FeedbackTimeout: 168 * time.Hour,
+			QuestionTimeout: 72 * time.Hour,
+		},
 		Inbox: InboxConfig{
 			ReconcileCron: "*/15 * * * *",
 		},

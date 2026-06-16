@@ -168,12 +168,73 @@ type RunConfig struct {
 	Findings  json.RawMessage // current tasks.findings (input context)
 }
 
-// Run executes the plan→act→observe loop for a single stage.
+// loopState is the serializable conversation state carried across a durable
+// approval wait. The AgentStageWorkflow runs the loop in memoized segments: a
+// segment ends either at completion (Done) or at a request_decision it cannot
+// resolve inline, returning this state so the next segment resumes the exact
+// conversation after the human's outcome is injected.
+type loopState struct {
+	Messages   []Message        `json:"messages"`
+	Transcript []transcriptTurn `json:"transcript"`
+	GateCalls  int              `json:"gate_calls"`
+	Nudges     int              `json:"nudges"`
+	TokensIn   int              `json:"tokens_in"`
+	TokensOut  int              `json:"tokens_out"`
+	Iter       int              `json:"iter"`
+}
+
+// pendingApproval is the tool call a segment stopped on (gate verdict
+// request_decision) so the durable workflow can register it, wait, and inject
+// the outcome before resuming.
+type pendingApproval struct {
+	ToolID  uuid.UUID       `json:"tool_id"`
+	Name    string          `json:"name"`
+	Payload json.RawMessage `json:"payload"`
+}
+
+// segmentInput drives one runSegment call. State nil ⇒ fresh start; otherwise
+// resume from State, first injecting Injected as a tool_result observation.
+type segmentInput struct {
+	State    *loopState `json:"state,omitempty"`
+	Injected string     `json:"injected,omitempty"`
+}
+
+// segmentResult is the outcome of one segment. Done ⇒ Result holds the terminal
+// StageResult. Otherwise Pending holds the gated call and State the conversation
+// to resume after the human outcome is injected.
+type segmentResult struct {
+	Done    bool             `json:"done"`
+	Result  StageResult      `json:"result,omitempty"`
+	Pending *pendingApproval `json:"pending,omitempty"`
+	State   *loopState       `json:"state,omitempty"`
+}
+
+// Run executes the plan→act→observe loop for a single stage synchronously. It
+// preserves the historical contract: a gate verdict of request_decision (which
+// it cannot durably wait on inline) becomes a fail-close to human. The durable
+// AgentStageWorkflow path instead drives runSegment directly and waits.
 func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
+	seg, err := r.runSegment(ctx, rc, segmentInput{})
+	if err != nil {
+		return StageResult{FailCloseToHuman: true, FailReason: "gateway_error"}, err
+	}
+	if seg.Pending != nil {
+		// No durable waiter available in the synchronous path — fail-close to
+		// human exactly as before.
+		return StageResult{FailCloseToHuman: true, FailReason: "request_decision"}, nil
+	}
+	return seg.Result, nil
+}
+
+// runSegment runs the agent loop until it either finishes (Done) or stops on a
+// request_decision it can't resolve inline. On a fresh start (in.State == nil)
+// it does full setup and the agent_run_started audit; on resume it restores the
+// conversation from in.State and injects in.Injected as a tool_result first.
+func (r *Runner) runSegment(ctx context.Context, rc RunConfig, in segmentInput) (segmentResult, error) {
 	// Resolve allowlist to concrete tools.
 	allowedTools, allowedIDs, err := r.resolveAllowlist(ctx, rc.Config.ToolAllowlist)
 	if err != nil {
-		return StageResult{FailCloseToHuman: true, FailReason: "gateway_error"}, fmt.Errorf("resolve allowlist: %w", err)
+		return segmentResult{Done: true, Result: StageResult{FailCloseToHuman: true, FailReason: "gateway_error"}}, fmt.Errorf("resolve allowlist: %w", err)
 	}
 
 	// Only execution agents see the built-in handoff tool, on top of their
@@ -224,28 +285,14 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 		model = *rc.Config.Model
 	}
 
-	// Audit start.
-	if r.Auditor != nil {
-		_ = r.Auditor.WriteAudit(ctx, rc.TaskID, "agent_run_started", map[string]any{
-			"config_id":   rc.Config.ID,
-			"config_name": rc.Config.Name,
-			"stage":       rc.Config.Stage,
-		})
-	}
-
-	// Initialize conversation with task context. `messages` is the model-facing
+	// Conversation state: fresh on the first segment, restored from in.State on a
+	// resume after a durable approval wait. `messages` is the model-facing
 	// history; `transcript` is the persisted record (also carries the system
 	// prompt, the final assistant answer, and per-turn tool calls) so the UI can
 	// show what the model actually said, not just token counts.
-	userPrompt := buildTaskPrompt(rc)
-	messages := []Message{
-		{Role: "user", Content: userPrompt},
-	}
-	transcript := make([]transcriptTurn, 0, 8)
-	if systemPrompt != "" {
-		transcript = append(transcript, transcriptTurn{Role: "system", Content: systemPrompt})
-	}
-	transcript = append(transcript, transcriptTurn{Role: "user", Content: userPrompt})
+	var messages []Message
+	var transcript []transcriptTurn
+	var gateCallCount, nudgeCount, totalTokensIn, totalTokensOut, startIter int
 
 	// recordToolResult appends a tool observation to both the model-facing
 	// messages and the persisted transcript.
@@ -254,13 +301,39 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 		transcript = append(transcript, transcriptTurn{Role: "tool_result", Content: content})
 	}
 
-	var gateCallCount int
-	var nudgeCount int
-	var totalTokensIn, totalTokensOut int
+	if in.State == nil {
+		// Fresh start. Audit the run open exactly once.
+		if r.Auditor != nil {
+			_ = r.Auditor.WriteAudit(ctx, rc.TaskID, "agent_run_started", map[string]any{
+				"config_id":   rc.Config.ID,
+				"config_name": rc.Config.Name,
+				"stage":       rc.Config.Stage,
+			})
+		}
+		userPrompt := buildTaskPrompt(rc)
+		messages = []Message{{Role: "user", Content: userPrompt}}
+		transcript = make([]transcriptTurn, 0, 8)
+		if systemPrompt != "" {
+			transcript = append(transcript, transcriptTurn{Role: "system", Content: systemPrompt})
+		}
+		transcript = append(transcript, transcriptTurn{Role: "user", Content: userPrompt})
+	} else {
+		// Resume after a durable approval wait: restore the conversation and
+		// inject the human outcome (the tool result, or a synthetic
+		// human_no_response observation) before continuing the loop.
+		messages = in.State.Messages
+		transcript = in.State.Transcript
+		gateCallCount = in.State.GateCalls
+		nudgeCount = in.State.Nudges
+		totalTokensIn = in.State.TokensIn
+		totalTokensOut = in.State.TokensOut
+		startIter = in.State.Iter
+		if in.Injected != "" {
+			recordToolResult(in.Injected)
+		}
+	}
 
-	for iter := range r.MaxIter {
-		_ = iter
-
+	for iter := startIter; iter < r.MaxIter; iter++ {
 		resp, chatErr := r.Client.Chat(ctx, ChatRequest{
 			Model:    model,
 			System:   systemPrompt,
@@ -269,7 +342,7 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 		})
 		if chatErr != nil {
 			slog.ErrorContext(ctx, "agent: model call failed", "err", chatErr, "iter", iter)
-			return StageResult{FailCloseToHuman: true, FailReason: "gateway_error"}, nil
+			return segmentResult{Done: true, Result: StageResult{FailCloseToHuman: true, FailReason: "gateway_error"}}, nil
 		}
 		totalTokensIn += resp.TokensIn
 		totalTokensOut += resp.TokensOut
@@ -322,7 +395,7 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 			// Genuine completion → extract StageResult.
 			result := parseStageResult(resp.Content)
 			r.auditFinish(ctx, rc, iter+1, totalTokensIn, totalTokensOut, transcript)
-			return result, nil
+			return segmentResult{Done: true, Result: result}, nil
 		}
 
 		// Process tool calls.
@@ -342,11 +415,11 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 					})
 				}
 				r.auditFinish(ctx, rc, iter+1, totalTokensIn, totalTokensOut, transcript)
-				return StageResult{
+				return segmentResult{Done: true, Result: StageResult{
 					FailCloseToHuman: true,
 					FailReason:       "agent_handoff",
 					HandoffReason:    reason,
-				}, nil
+				}}, nil
 			}
 
 			// Allowlist enforcement: refuse tools not in the allowlist.
@@ -372,7 +445,7 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 						"stage":      rc.Config.Stage,
 					})
 				}
-				return StageResult{FailCloseToHuman: true, FailReason: "budget_exhausted"}, nil
+				return segmentResult{Done: true, Result: StageResult{FailCloseToHuman: true, FailReason: "budget_exhausted"}}, nil
 			}
 
 			// Gate evaluation.
@@ -393,11 +466,26 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 				}
 
 			case "request_decision":
-				// Fail-close to human — a decision is needed.
-				r.auditFinish(ctx, rc, iter+1, totalTokensIn, totalTokensOut, transcript)
-				return StageResult{
-					FailCloseToHuman: true,
-					FailReason:       "request_decision",
+				// A human decision is needed. Stop the segment here and hand the
+				// gated call up to the durable workflow, which registers the
+				// approval, waits, and resumes runSegment with the outcome
+				// injected. The synchronous Run() wrapper turns this into a
+				// fail-close, preserving the historical inline behavior.
+				return segmentResult{
+					Pending: &pendingApproval{
+						ToolID:  toolID,
+						Name:    tc.Name,
+						Payload: json.RawMessage(tc.Payload),
+					},
+					State: &loopState{
+						Messages:   messages,
+						Transcript: transcript,
+						GateCalls:  gateCallCount,
+						Nudges:     nudgeCount,
+						TokensIn:   totalTokensIn,
+						TokensOut:  totalTokensOut,
+						Iter:       iter,
+					},
 				}, nil
 
 			case "deny":
@@ -414,7 +502,7 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 			"iterations": r.MaxIter,
 		})
 	}
-	return StageResult{FailCloseToHuman: true, FailReason: "max_iterations"}, nil
+	return segmentResult{Done: true, Result: StageResult{FailCloseToHuman: true, FailReason: "max_iterations"}}, nil
 }
 
 func (r *Runner) resolveAllowlist(ctx context.Context, allowlistRaw json.RawMessage) ([]ToolDef, map[string]uuid.UUID, error) {

@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -14,7 +15,8 @@ import (
 
 const getPendingDecisionByID = `-- name: GetPendingDecisionByID :one
 SELECT id, task_id, tool_id, kind, payload, disclosure_class, created_at,
-       resolved_at, resolution, frozen_payload, workflow_id, decision_topic
+       resolved_at, resolution, frozen_payload, workflow_id, decision_topic,
+       notify_workflow_id
 FROM pending_decisions
 WHERE id = $1
 LIMIT 1
@@ -36,13 +38,47 @@ func (q *Queries) GetPendingDecisionByID(ctx context.Context, id uuid.UUID) (Pen
 		&i.FrozenPayload,
 		&i.WorkflowID,
 		&i.DecisionTopic,
+		&i.NotifyWorkflowID,
 	)
 	return i, err
 }
 
+const insertApprovalDecision = `-- name: InsertApprovalDecision :exec
+INSERT INTO pending_decisions
+  (id, task_id, tool_id, kind, payload, frozen_payload, workflow_id, decision_topic, notify_workflow_id)
+VALUES ($1, $2, $3, 'approval_request', $4, $4, $5, $6, $7)
+`
+
+type InsertApprovalDecisionParams struct {
+	ID               uuid.UUID       `json:"id"`
+	TaskID           uuid.UUID       `json:"task_id"`
+	ToolID           pgtype.UUID     `json:"tool_id"`
+	Payload          json.RawMessage `json:"payload"`
+	WorkflowID       *string         `json:"workflow_id"`
+	DecisionTopic    *string         `json:"decision_topic"`
+	NotifyWorkflowID *string         `json:"notify_workflow_id"`
+}
+
+// Compose an agent-initiated approval_request with a deterministic id and the
+// back-channel target (notify_workflow_id) the tool-call workflow Sends its
+// outcome to. frozen_payload is the byte-for-byte call that will dispatch.
+func (q *Queries) InsertApprovalDecision(ctx context.Context, arg InsertApprovalDecisionParams) error {
+	_, err := q.db.Exec(ctx, insertApprovalDecision,
+		arg.ID,
+		arg.TaskID,
+		arg.ToolID,
+		arg.Payload,
+		arg.WorkflowID,
+		arg.DecisionTopic,
+		arg.NotifyWorkflowID,
+	)
+	return err
+}
+
 const listOpenPendingDecisions = `-- name: ListOpenPendingDecisions :many
 SELECT id, task_id, tool_id, kind, payload, disclosure_class, created_at,
-       resolved_at, resolution, frozen_payload, workflow_id, decision_topic
+       resolved_at, resolution, frozen_payload, workflow_id, decision_topic,
+       notify_workflow_id
 FROM pending_decisions
 WHERE resolved_at IS NULL
 ORDER BY created_at DESC, id DESC
@@ -72,6 +108,7 @@ func (q *Queries) ListOpenPendingDecisions(ctx context.Context) ([]PendingDecisi
 			&i.FrozenPayload,
 			&i.WorkflowID,
 			&i.DecisionTopic,
+			&i.NotifyWorkflowID,
 		); err != nil {
 			return nil, err
 		}
@@ -90,7 +127,8 @@ UPDATE pending_decisions
  WHERE id = $1
    AND resolved_at IS NULL
 RETURNING id, task_id, tool_id, kind, payload, disclosure_class, created_at,
-          resolved_at, resolution, frozen_payload, workflow_id, decision_topic
+          resolved_at, resolution, frozen_payload, workflow_id, decision_topic,
+          notify_workflow_id
 `
 
 type ResolvePendingDecisionParams struct {
@@ -119,6 +157,7 @@ func (q *Queries) ResolvePendingDecision(ctx context.Context, arg ResolvePending
 		&i.FrozenPayload,
 		&i.WorkflowID,
 		&i.DecisionTopic,
+		&i.NotifyWorkflowID,
 	)
 	return i, err
 }

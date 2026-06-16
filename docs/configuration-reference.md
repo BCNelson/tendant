@@ -98,6 +98,15 @@ systemd `CREDENTIALS_DIRECTORY`).
 | `gatescript.max_timeout_ms` | int | `1000` | yes | restart | Max gate-script execution timeout (ms) |
 | `gatescript.runner` | string | `wazero` | — | bootstrap | Gate-script runner: wazero, log |
 
+## hitl
+
+| Key | Type | Default | DB-configurable | Takes effect | Description |
+|---|---|---|---|---|---|
+| `hitl.approval_timeout` | duration | `72h` | yes | hot | Tool-call approval wait timeout (agent + toolflow); 0 = no timeout |
+| `hitl.feedback_timeout` | duration | `168h` | yes | hot | Post-task feedback-request wait timeout; 0 = no timeout |
+| `hitl.question_timeout` | duration | `72h` | yes | hot | Agent-question wait timeout (Phase 9); 0 = no timeout |
+| `hitl.stage_timeout` | duration | `72h` | yes | hot | Human chain-stage slot wait timeout; 0 = no timeout |
+
 ## inbox
 
 | Key | Type | Default | DB-configurable | Takes effect | Description |

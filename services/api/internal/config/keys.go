@@ -80,6 +80,14 @@ var Registry = []KeyDef{
 	{Key: "calibration.sweep_cron", Type: "string", Default: "0 * * * *", Description: "Promotion-sweep cron cadence (applies on restart)", Reload: ReloadRestart, DBConfigurable: true},
 	{Key: "calibration.intake_tighten_k", Type: "float64", Default: 0.02, Description: "Per-dismissal intake threshold-tightening coefficient", Reload: ReloadHot, DBConfigurable: true, HotReloadable: true},
 
+	// HITL durable-wait timeouts. Per-flow; "0" / empty ⇒ no timeout (wait
+	// forever). Hot-reloadable so an operator can extend/shorten a window or
+	// disable it without a restart.
+	{Key: "hitl.approval_timeout", Type: "duration", Default: "72h", Description: "Tool-call approval wait timeout (agent + toolflow); 0 = no timeout", Reload: ReloadHot, DBConfigurable: true, HotReloadable: true},
+	{Key: "hitl.stage_timeout", Type: "duration", Default: "72h", Description: "Human chain-stage slot wait timeout; 0 = no timeout", Reload: ReloadHot, DBConfigurable: true, HotReloadable: true},
+	{Key: "hitl.feedback_timeout", Type: "duration", Default: "168h", Description: "Post-task feedback-request wait timeout; 0 = no timeout", Reload: ReloadHot, DBConfigurable: true, HotReloadable: true},
+	{Key: "hitl.question_timeout", Type: "duration", Default: "72h", Description: "Agent-question wait timeout (Phase 9); 0 = no timeout", Reload: ReloadHot, DBConfigurable: true, HotReloadable: true},
+
 	// Inbox projection.
 	{Key: "inbox.reconcile_cron", Type: "string", Default: "*/15 * * * *", Description: "Inbox-projection reconcile-sweep cron cadence (applies on restart)", Reload: ReloadRestart, DBConfigurable: true},
 

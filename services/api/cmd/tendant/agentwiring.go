@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/dbos-inc/dbos-transact-golang/dbos"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -27,22 +28,22 @@ import (
 // Mirrors buildOverseerProvider's "name a connection, fall closed if absent"
 // shape. Inference routing is fixed at boot (no self-escalation): an agent
 // cannot mint a connection at runtime.
-func buildAgentWiring(cfg *config.Config, reg *llm.Registry, pool *pgxpool.Pool, q *db.Queries, ov *config.Overlay, matcher agent.CategoryMatcher, triageTopK int) (chain.Router, chain.StageRunner) {
+func buildAgentWiring(cfg *config.Config, reg *llm.Registry, pool *pgxpool.Pool, q *db.Queries, ov *config.Overlay, matcher agent.CategoryMatcher, triageTopK int) (chain.Router, chain.StageRunner, *agent.Runner) {
 	name := cfg.Agent.Connection
 	if name == "" {
-		return chain.HumanOnlyRouter{}, nil
+		return chain.HumanOnlyRouter{}, nil, nil
 	}
 
 	conn, ok := reg.Connection(name)
 	if !ok {
 		slog.Error("agent: connection not found; falling back to human-only routing", "connection", name)
-		return chain.HumanOnlyRouter{}, nil
+		return chain.HumanOnlyRouter{}, nil, nil
 	}
 
 	client, err := agent.NewAgentClientFromConnection(conn)
 	if err != nil {
 		slog.Error("agent: model client build failed; falling back to human-only routing", "connection", name, "err", err)
-		return chain.HumanOnlyRouter{}, nil
+		return chain.HumanOnlyRouter{}, nil, nil
 	}
 
 	// Picker model "" ⇒ the llm.Client uses the connection's default model, so
@@ -62,7 +63,33 @@ func buildAgentWiring(cfg *config.Config, reg *llm.Registry, pool *pgxpool.Pool,
 	}
 
 	slog.Info("agent.wiring", "connection", name, "model", conn.Model)
-	return chainRouterAdapter{inner: rtr}, chainStageRunner{runner: runner}
+	return chainRouterAdapter{inner: rtr}, chainStageRunner{runner: runner}, runner
+}
+
+// agentStageStarter implements chain.AgentStarter by starting (or idempotently
+// re-attaching to) the durable AgentStageWorkflow and awaiting its StageResult.
+// This is the Phase-B cutover: the chain no longer runs the agent inline in a
+// step; it starts the durable workflow so the agent can wait for human approval.
+type agentStageStarter struct{}
+
+func (agentStageStarter) StartStageAndAwait(ctx dbos.DBOSContext, taskID uuid.UUID, stage lifecycle.ChainStage, configID uuid.UUID) (json.RawMessage, error) {
+	agentStage, ok := chainStageToAgentStage(stage)
+	if !ok {
+		return nil, fmt.Errorf("stage %s is not agent-occupiable", stage)
+	}
+	h, err := dbos.RunWorkflow(ctx, agent.AgentStageWorkflow, agent.StageInput{
+		TaskID:   taskID,
+		Stage:    agentStage,
+		ConfigID: configID,
+	}, dbos.WithWorkflowID(agent.StageWorkflowID(taskID, agentStage)))
+	if err != nil {
+		return nil, fmt.Errorf("start agent-stage workflow: %w", err)
+	}
+	res, err := h.GetResult()
+	if err != nil {
+		return nil, fmt.Errorf("await agent-stage workflow: %w", err)
+	}
+	return json.RawMessage(res), nil
 }
 
 // failClosedGate is the agent runner's gate seam for the dev wiring. It returns

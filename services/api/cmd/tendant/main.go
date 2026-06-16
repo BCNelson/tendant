@@ -225,7 +225,7 @@ func runServe(logLevel *slog.LevelVar) error {
 	// here so the matcher can be injected into the agent runner; nil/"log"
 	// provider disables it (triage falls back to the full taxonomy).
 	embWiring := buildEmbedding(cfg, pool, q, overlay)
-	agentRouter, agentRunner := buildAgentWiring(cfg, llmRegistry, pool, q, overlay, embWiring.matcher, embWiring.topK)
+	agentRouter, agentRunner, rawAgentRunner := buildAgentWiring(cfg, llmRegistry, pool, q, overlay, embWiring.matcher, embWiring.topK)
 	// Post-completion feedback converser: reuse the agent connection's LLM; fall
 	// back to the deterministic stub when no agent connection is configured. The
 	// same converser drives the workflow's opener and the resolver's replies.
@@ -233,10 +233,20 @@ func runServe(logLevel *slog.LevelVar) error {
 	// context tools). Shared by the converser (opener + replies) and the workflow.
 	feedbackRetriever := feedback.NewDBRetriever(q)
 	feedbackConverser := buildFeedbackConverser(cfg, llmRegistry, q, feedbackRetriever)
-	durable.RegisterChainWorkflow(dctx, pool, q, agentRouter, agentRunner, ownerURI, pushAdapter, feedback.Enqueuer{})
+	// Phase B: when an agent runner is wired, route agent stages through the
+	// durable AgentStageWorkflow (inline approval waits) instead of the
+	// synchronous in-step runner. Human-only boots leave this nil.
+	var agentStarter chain.AgentStarter
+	if rawAgentRunner != nil {
+		agentStarter = agentStageStarter{}
+	}
+	durable.RegisterChainWorkflow(dctx, pool, q, agentRouter, agentRunner, ownerURI, pushAdapter, feedback.Enqueuer{}, live, agentStarter)
 	durable.RegisterPushQueue(dctx)
-	durable.RegisterToolCallWorkflow(dctx, pool, q, toolRegistry, calibrator)
-	durable.RegisterFeedbackWorkflow(dctx, pool, q, feedbackConverser, feedbackRetriever, calibrator)
+	durable.RegisterToolCallWorkflow(dctx, pool, q, toolRegistry, calibrator, live)
+	durable.RegisterFeedbackWorkflow(dctx, pool, q, feedbackConverser, feedbackRetriever, calibrator, live)
+	// Phase B: durable agent-stage workflow (inline approval wait). nil runner
+	// (human-only routing) registers but is never started.
+	durable.RegisterAgentStageWorkflow(dctx, pool, q, rawAgentRunner, live)
 
 	// 5b. Phase 7 intake edge: connector registry + disposition router +
 	// per-connector poll workflow. Registered before Launch so recovery and

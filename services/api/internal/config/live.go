@@ -77,6 +77,49 @@ func (l *Live) CalibrationIntakeTightenK() float64 {
 	return l.ov.Float64Or("calibration.intake_tighten_k", l.snap.Calibration.IntakeTightenK)
 }
 
+// Default HITL timeouts, returned when *Live is nil so a caller holding an
+// optional resolver still gets the safe (today's) behavior rather than a
+// zero-duration "no timeout". An explicit "0" overlay value is the only way to
+// disable a timeout.
+const (
+	defaultApprovalTimeout = 72 * time.Hour
+	defaultStageTimeout    = 72 * time.Hour
+	defaultFeedbackTimeout = 168 * time.Hour
+	defaultQuestionTimeout = 72 * time.Hour
+)
+
+// HITLApprovalTimeout is the live tool-call approval wait window (0 = none).
+func (l *Live) HITLApprovalTimeout() time.Duration {
+	if l == nil {
+		return defaultApprovalTimeout
+	}
+	return l.ov.DurationOr("hitl.approval_timeout", l.snap.HITL.ApprovalTimeout)
+}
+
+// HITLStageTimeout is the live human chain-stage slot wait window (0 = none).
+func (l *Live) HITLStageTimeout() time.Duration {
+	if l == nil {
+		return defaultStageTimeout
+	}
+	return l.ov.DurationOr("hitl.stage_timeout", l.snap.HITL.StageTimeout)
+}
+
+// HITLFeedbackTimeout is the live feedback-request wait window (0 = none).
+func (l *Live) HITLFeedbackTimeout() time.Duration {
+	if l == nil {
+		return defaultFeedbackTimeout
+	}
+	return l.ov.DurationOr("hitl.feedback_timeout", l.snap.HITL.FeedbackTimeout)
+}
+
+// HITLQuestionTimeout is the live agent-question wait window (0 = none).
+func (l *Live) HITLQuestionTimeout() time.Duration {
+	if l == nil {
+		return defaultQuestionTimeout
+	}
+	return l.ov.DurationOr("hitl.question_timeout", l.snap.HITL.QuestionTimeout)
+}
+
 // LogLevel is the live log level (debug|info|warn|error).
 func (l *Live) LogLevel() string {
 	if l == nil {

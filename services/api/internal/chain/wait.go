@@ -16,6 +16,60 @@ import (
 // extend).
 const HumanSlotTimeout = 72 * time.Hour
 
+// ErrHumanWaitExpired is the typed sentinel returned by WaitForResultOrExpire
+// when the durable human wait hits its timeout. It is deliberately distinct
+// from a runtime-shutdown cancellation (which parks, see WaitForResult) and
+// from a genuine Recv failure (which is returned verbatim) so that each wait
+// site can give a timeout an *explicit* outcome — resolve the decision, audit
+// it, and hand control back — instead of letting the workflow die as terminal
+// ERROR. Match it with errors.Is.
+var ErrHumanWaitExpired = errors.New("human wait expired")
+
+// noTimeoutSentinel is the duration WaitForResultOrExpire substitutes for a
+// non-positive ("no timeout") request. ~100 years — long enough never to fire
+// in practice, finite so dbos.Recv's durable-sleep deadline machinery stays on
+// its normal path.
+const noTimeoutSentinel = 100 * 365 * 24 * time.Hour
+
+// WaitForResultOrExpire is the timeout-aware variant of WaitForResult. It
+// blocks the calling workflow on `topic` until a matching Send arrives or
+// `timeout` fires, returning one of three distinct outcomes:
+//
+//   - a Send arrived          → (payload, nil)
+//   - the timeout fired       → (nil, ErrHumanWaitExpired)
+//   - any other Recv error    → (nil, err) verbatim
+//
+// A non-positive timeout means "no timeout" — that flow waits indefinitely
+// until resolved or cancelled. (dbos.Recv implements its timeout via a durable
+// sleep, so a literal 0 would expire immediately; we substitute a ~100-year
+// sentinel so the wait effectively never fires while staying a normal Recv.)
+//
+// Shutdown safety is identical to WaitForResult and MUST stay the first branch:
+// a graceful DBOS shutdown cancels the runtime context, surfacing as
+// context.Canceled. Returning that would make DBOS record the workflow as
+// terminal ERROR (unrecoverable); instead we park until the process exits so
+// Launch recovery re-runs the workflow and re-enters this wait. A shutdown
+// cancellation must NEVER be mistaken for a timeout — that is the single most
+// important ordering invariant in this function.
+func WaitForResultOrExpire(ctx dbos.DBOSContext, topic string, timeout time.Duration) (json.RawMessage, error) {
+	if timeout <= 0 {
+		timeout = noTimeoutSentinel
+	}
+	msg, err := dbos.Recv[json.RawMessage](ctx, topic, timeout)
+	if err == nil {
+		return msg, nil
+	}
+	if errors.Is(err, context.Canceled) {
+		// Runtime shutting down — park (see WaitForResult). Checked FIRST so a
+		// shutdown is never reported as a timeout.
+		<-make(chan struct{})
+	}
+	if errors.Is(err, &dbos.DBOSError{Code: dbos.TimeoutError}) {
+		return nil, ErrHumanWaitExpired
+	}
+	return nil, err
+}
+
 // WaitForResult blocks the calling workflow on `topic` until either a
 // matching Send arrives or the timeout fires. The signature is intentionally
 // generic — no `stage`, `assignment`, `principal`, or `task` parameter — so

@@ -42,6 +42,7 @@ type Config struct {
 	Overseer    OverseerConfig    `koanf:"overseer"`
 	Gatescript  GatescriptConfig  `koanf:"gatescript"`
 	Calibration CalibrationConfig `koanf:"calibration"`
+	HITL        HITLConfig        `koanf:"hitl"`
 	Inbox       InboxConfig       `koanf:"inbox"`
 	Intake      IntakeConfig      `koanf:"intake"`
 	Embedding   EmbeddingConfig   `koanf:"embedding"`
@@ -151,6 +152,18 @@ type CalibrationConfig struct {
 	DemotionDecrement float64       `koanf:"demotion_decrement"`
 	SweepCron         string        `koanf:"sweep_cron"`
 	IntakeTightenK    float64       `koanf:"intake_tighten_k"`
+}
+
+// HITLConfig holds the per-flow durable human-wait timeouts. Each is the window
+// a discrete human ask waits before it expires with an explicit outcome (resolve
+// + audit + hand control back) rather than dangling forever. A zero value means
+// "no timeout" — that flow waits indefinitely until resolved or cancelled. These
+// bound only discrete human asks; the long-running task itself has no deadline.
+type HITLConfig struct {
+	ApprovalTimeout time.Duration `koanf:"approval_timeout"`
+	StageTimeout    time.Duration `koanf:"stage_timeout"`
+	FeedbackTimeout time.Duration `koanf:"feedback_timeout"`
+	QuestionTimeout time.Duration `koanf:"question_timeout"`
 }
 
 // InboxConfig holds the first-class inbox knobs (migration 00018).

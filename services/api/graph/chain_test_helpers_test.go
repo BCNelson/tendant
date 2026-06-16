@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bcnelson/tendant/services/api/graph"
+	"github.com/bcnelson/tendant/services/api/internal/agent"
 	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/chain"
 	"github.com/bcnelson/tendant/services/api/internal/connector"
@@ -51,6 +52,36 @@ type chainEnvConfig struct {
 	// addressed on human assignments). Used by the agent→tool e2e to wire a real
 	// router + runner in place of HumanOnlyRouter.
 	agentChain func(pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry) (chain.Router, chain.StageRunner, string)
+	// timeouts, when non-nil, supplies the per-flow human-wait windows to the
+	// chain + tool-call workflows (e.g. a short approval timeout to drive the
+	// expired path). nil ⇒ the legacy 72h budget.
+	timeouts chain.Timeouts
+	// agentStage, when non-nil, builds the durable AgentStageWorkflow's runner so
+	// the Phase-B inline-durable-wait path can be driven directly in a test.
+	agentStage func(pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry) *agent.Runner
+}
+
+// fixedTimeouts is a chain.Timeouts test double with explicit per-flow windows.
+type fixedTimeouts struct {
+	approval, stage, feedback, question time.Duration
+}
+
+func (f fixedTimeouts) HITLApprovalTimeout() time.Duration { return f.approval }
+func (f fixedTimeouts) HITLStageTimeout() time.Duration    { return f.stage }
+func (f fixedTimeouts) HITLFeedbackTimeout() time.Duration { return f.feedback }
+func (f fixedTimeouts) HITLQuestionTimeout() time.Duration { return f.question }
+
+// withTimeouts injects per-flow human-wait windows (used by the expired-path
+// tests to fire a timeout in milliseconds instead of 72h).
+func withTimeouts(t chain.Timeouts) chainEnvOpt {
+	return func(c *chainEnvConfig) { c.timeouts = t }
+}
+
+// withAgentStageRunner registers the durable AgentStageWorkflow with the built
+// runner (Phase B). The builder receives the booted pool/queries and tool
+// registry so the test can wire a scripted model + gate + dispatcher.
+func withAgentStageRunner(build func(pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry) *agent.Runner) chainEnvOpt {
+	return func(c *chainEnvConfig) { c.agentStage = build }
 }
 
 // chainEnvOpt mutates a chainEnvConfig. Pass to newChainEnv.
@@ -123,12 +154,20 @@ func bootChainEnv(t *testing.T, ctx context.Context, pool *pgxpool.Pool, executo
 		chainRouter, chainRunner, ownerURI = cfg.agentChain(pool, q, registry)
 	}
 
+	// Phase B: when a durable agent runner is wired, route the chain's agent
+	// stages through the AgentStageWorkflow (inline approval waits) instead of
+	// the synchronous in-step runner.
+	var agentStarter chain.AgentStarter
+	if cfg.agentStage != nil {
+		agentStarter = testAgentStarter{}
+	}
+
 	dctx, err := durable.Init(ctx, pool, executorID)
 	require.NoError(t, err)
-	durable.RegisterChainWorkflow(dctx, pool, q, chainRouter, chainRunner, ownerURI, nil, nil)
+	durable.RegisterChainWorkflow(dctx, pool, q, chainRouter, chainRunner, ownerURI, nil, nil, cfg.timeouts, agentStarter)
 	// Phase 3 tool-call workflow + send-email tool row. Idempotent on every
 	// test boot; harmless for Phase 1 tests that don't exercise the path.
-	durable.RegisterToolCallWorkflow(dctx, pool, q, registry, calibration.New(pool, calibration.DefaultConfig(), nil))
+	durable.RegisterToolCallWorkflow(dctx, pool, q, registry, calibration.New(pool, calibration.DefaultConfig(), nil), cfg.timeouts)
 	require.NoError(t, tools.SeedSendEmail(ctx, q))
 	// Phase 7: register the intake poll workflow + connector registry so the
 	// connector owner-mutation resolvers (enableConnector → schedule) work.
@@ -136,6 +175,11 @@ func bootChainEnv(t *testing.T, ctx context.Context, pool *pgxpool.Pool, executo
 	connector.RegisterBaseSet(connRegistry, nil)
 	disposer := &intake.Disposer{Pool: pool, DBOS: dctx, Queries: q}
 	intake.RegisterPoll(dctx, pool, q, connRegistry, disposer, nil, nil)
+	// Phase B: durable agent-stage workflow (opt-in per test). Registered before
+	// Launch like every other workflow.
+	if cfg.agentStage != nil {
+		durable.RegisterAgentStageWorkflow(dctx, pool, q, cfg.agentStage(pool, q, registry), cfg.timeouts)
+	}
 	require.NoError(t, durable.Launch(dctx))
 
 	// Phase 5: wire a real WazeroRunner-backed gate-script evaluator. It is a

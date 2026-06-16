@@ -617,18 +617,19 @@ type OwnerRule struct {
 }
 
 type PendingDecision struct {
-	ID              uuid.UUID          `json:"id"`
-	TaskID          uuid.UUID          `json:"task_id"`
-	ToolID          pgtype.UUID        `json:"tool_id"`
-	Kind            DecisionKind       `json:"kind"`
-	Payload         json.RawMessage    `json:"payload"`
-	DisclosureClass *string            `json:"disclosure_class"`
-	CreatedAt       time.Time          `json:"created_at"`
-	ResolvedAt      pgtype.Timestamptz `json:"resolved_at"`
-	Resolution      []byte             `json:"resolution"`
-	FrozenPayload   []byte             `json:"frozen_payload"`
-	WorkflowID      *string            `json:"workflow_id"`
-	DecisionTopic   *string            `json:"decision_topic"`
+	ID               uuid.UUID          `json:"id"`
+	TaskID           uuid.UUID          `json:"task_id"`
+	ToolID           pgtype.UUID        `json:"tool_id"`
+	Kind             DecisionKind       `json:"kind"`
+	Payload          json.RawMessage    `json:"payload"`
+	DisclosureClass  *string            `json:"disclosure_class"`
+	CreatedAt        time.Time          `json:"created_at"`
+	ResolvedAt       pgtype.Timestamptz `json:"resolved_at"`
+	Resolution       []byte             `json:"resolution"`
+	FrozenPayload    []byte             `json:"frozen_payload"`
+	WorkflowID       *string            `json:"workflow_id"`
+	DecisionTopic    *string            `json:"decision_topic"`
+	NotifyWorkflowID *string            `json:"notify_workflow_id"`
 }
 
 type Principal struct {

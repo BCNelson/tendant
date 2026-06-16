@@ -80,6 +80,12 @@ const (
 	KindFeedbackSubmitted        = "feedback_submitted"         // task-scope: owner accepted/dismissed (carries rating)
 	KindAgentGuidanceApplied     = "agent_guidance_applied"     // task-scope: owner accepted a verbatim guidance note
 	KindFeedbackContextConsulted = "feedback_context_consulted" // task-scope: feedback agent read task context via a tool
+
+	// HITL timeout overhaul: explicit outcomes for an expired human wait. Both
+	// are task-scoped (every human wait belongs to a task), so the migration-
+	// 00006 CHECK allowlist is unchanged.
+	KindDecisionExpired      = "decision_expired"       // task-scope: a pending_decisions wait timed out (approval/feedback/question)
+	KindStageTimeoutRerouted = "stage_timeout_rerouted" // task-scope: a human stage slot timed out and was re-routed/escalated
 )
 
 // SystemActorURI is the principal globalUri used for system-authored audit
@@ -388,6 +394,28 @@ type AgentGuidanceAppliedPayload struct {
 type FeedbackContextConsultedPayload struct {
 	DecisionID uuid.UUID `json:"decision_id"`
 	Consulted  []string  `json:"consulted"`
+}
+
+// DecisionExpiredPayload — kind=decision_expired (task-scope). Written when a
+// pending_decisions human wait (approval / feedback / question) hits its
+// configured timeout and is resolved as expired rather than left dangling.
+// Flow is the wait kind that expired; Timeout is the window it waited.
+type DecisionExpiredPayload struct {
+	DecisionID uuid.UUID `json:"decision_id"`
+	Flow       string    `json:"flow"`    // "approval_request" | "feedback_request" | "agent_question"
+	Timeout    string    `json:"timeout"` // the elapsed window, e.g. "72h0m0s"
+}
+
+// StageTimeoutReroutedPayload — kind=stage_timeout_rerouted (task-scope).
+// Written when a human-occupied chain stage slot times out. Attempt is the
+// 1-based count of timeouts seen on this stage; Escalated is true once the
+// retry budget is exhausted and the slot falls back to a no-timeout wait.
+type StageTimeoutReroutedPayload struct {
+	AssignmentID uuid.UUID  `json:"assignment_id"`
+	Stage        ChainStage `json:"stage"`
+	Attempt      int        `json:"attempt"`
+	Timeout      string     `json:"timeout"`
+	Escalated    bool       `json:"escalated"`
 }
 
 // WriteAuditMessage inserts one audit_messages row inside the provided tx.

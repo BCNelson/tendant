@@ -11,6 +11,7 @@ import (
 	"github.com/dbos-inc/dbos-transact-golang/dbos"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/bcnelson/tendant/services/api/internal/agent"
 	"github.com/bcnelson/tendant/services/api/internal/calibration"
 	"github.com/bcnelson/tendant/services/api/internal/chain"
 	"github.com/bcnelson/tendant/services/api/internal/db"
@@ -139,8 +140,8 @@ func Shutdown(ctx dbos.DBOSContext, timeout time.Duration) {
 //
 // ownerGlobalURI populates agent_assignments.to_principal for Phase 2;
 // pushEnqueuer (nil-able) schedules push fan-out on assignment open.
-func RegisterChainWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router chain.Router, runner chain.StageRunner, ownerGlobalURI string, pushEnqueuer chain.PushEnqueuer, feedbackEnqueuer chain.FeedbackEnqueuer) {
-	chain.Register(dctx, pool, q, router, runner, ownerGlobalURI, pushEnqueuer, feedbackEnqueuer)
+func RegisterChainWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, router chain.Router, runner chain.StageRunner, ownerGlobalURI string, pushEnqueuer chain.PushEnqueuer, feedbackEnqueuer chain.FeedbackEnqueuer, timeouts chain.Timeouts, agentStarter chain.AgentStarter) {
+	chain.Register(dctx, pool, q, router, runner, ownerGlobalURI, pushEnqueuer, feedbackEnqueuer, timeouts, agentStarter)
 }
 
 // RegisterFeedbackWorkflow registers the post-completion feedback workflow
@@ -148,8 +149,8 @@ func RegisterChainWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Quer
 // calibration). MUST be called between Init and Launch, like the chain and
 // tool-call workflows. converser opens the conversation (stub when no agent
 // connection); calibrator routes the satisfaction signal.
-func RegisterFeedbackWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, converser feedback.Converser, retriever feedback.Retriever, calibrator *calibration.Engine) {
-	feedback.Register(dctx, pool, q, converser, retriever, calibrator)
+func RegisterFeedbackWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, converser feedback.Converser, retriever feedback.Retriever, calibrator *calibration.Engine, timeouts chain.Timeouts) {
+	feedback.Register(dctx, pool, q, converser, retriever, calibrator, timeouts)
 }
 
 // PushQueueName is the named DBOS workflow queue used for push fan-out.
@@ -167,11 +168,19 @@ func RegisterPushQueue(dctx dbos.DBOSContext) {
 	)
 }
 
+// RegisterAgentStageWorkflow registers the durable agent-stage workflow (the
+// Phase-B inline-durable-wait path). MUST be called between Init and Launch. A
+// nil runner is a no-op-friendly registration: the workflow registers but is
+// never started (the chain falls back to human-only routing).
+func RegisterAgentStageWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, runner *agent.Runner, timeouts chain.Timeouts) {
+	agent.RegisterStageWorkflow(dctx, pool, q, runner, timeouts)
+}
+
 // RegisterToolCallWorkflow registers Phase 3's sibling workflow that owns
 // the lifecycle of a single gated tool call (await approval → dispatch →
 // record outcome). MUST be called between Init and Launch, like the chain
 // workflow. The registry carries the tool implementations the workflow
 // dispatches against.
-func RegisterToolCallWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry, calibrator *calibration.Engine) {
-	toolflow.Register(dctx, pool, q, registry, calibrator)
+func RegisterToolCallWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry, calibrator *calibration.Engine, timeouts chain.Timeouts) {
+	toolflow.Register(dctx, pool, q, registry, calibrator, timeouts)
 }

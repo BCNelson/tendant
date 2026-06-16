@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/dbos-inc/dbos-transact-golang/dbos"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/bcnelson/tendant/services/api/internal/calibration"
@@ -59,6 +61,7 @@ type envDeps struct {
 	converser  Converser
 	retriever  Retriever
 	calibrator *calibration.Engine
+	timeouts   chain.Timeouts // feedback-wait window; nil ⇒ legacy 72h
 }
 
 var (
@@ -68,9 +71,9 @@ var (
 
 // Register stores deps and registers EvaluationWorkflow with DBOS. MUST be
 // called between dbos.NewDBOSContext and dbos.Launch.
-func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, converser Converser, retriever Retriever, calibrator *calibration.Engine) {
+func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, converser Converser, retriever Retriever, calibrator *calibration.Engine, timeouts chain.Timeouts) {
 	depsMu.Lock()
-	deps = &envDeps{pool: pool, queries: q, converser: converser, retriever: retriever, calibrator: calibrator}
+	deps = &envDeps{pool: pool, queries: q, converser: converser, retriever: retriever, calibrator: calibrator, timeouts: timeouts}
 	depsMu.Unlock()
 	dbos.RegisterWorkflow(dctx, EvaluationWorkflow, dbos.WithWorkflowName(WorkflowName))
 }
@@ -149,8 +152,20 @@ func EvaluationWorkflow(ctx dbos.DBOSContext, taskIDStr string) (string, error) 
 		return "", err
 	}
 
-	// Step 2: durable wait for the owner's terminal accept/dismiss.
-	raw, err := chain.WaitForResult(ctx, FeedbackTopic(decisionID), chain.HumanSlotTimeout)
+	// Step 2: durable wait for the owner's terminal accept/dismiss. On timeout
+	// the feedback request is silently dismissed (feedback is best-effort; an
+	// unanswered survey shouldn't dangle in the inbox or poison the workflow).
+	timeout := chain.FeedbackTimeoutOr(d.timeouts)
+	raw, err := chain.WaitForResultOrExpire(ctx, FeedbackTopic(decisionID), timeout)
+	if errors.Is(err, chain.ErrHumanWaitExpired) {
+		_, serr := dbos.RunAsStep(ctx, func(stepCtx context.Context) (struct{}, error) {
+			return struct{}{}, expireFeedback(stepCtx, d, taskID, decisionID, timeout)
+		}, dbos.WithStepName("feedback.expire"))
+		if serr != nil {
+			return "", serr
+		}
+		return "expired", nil
+	}
 	if err != nil {
 		return "", fmt.Errorf("await feedback resolution: %w", err)
 	}
@@ -167,6 +182,48 @@ func EvaluationWorkflow(ctx dbos.DBOSContext, taskIDStr string) (string, error) 
 		return "", err
 	}
 	return "ok", nil
+}
+
+// expireFeedback silently dismisses a timed-out feedback request: resolve the
+// pending_decisions row as expired (clearing it from the inbox) and record a
+// decision_expired audit. No guidance row, no calibration signal — an
+// unanswered survey carries no information.
+func expireFeedback(ctx context.Context, d *envDeps, taskID, decisionID uuid.UUID, timeout time.Duration) error {
+	resolution, err := json.Marshal(map[string]any{
+		"expired": true,
+		"reason":  "no_response",
+	})
+	if err != nil {
+		return fmt.Errorf("marshal expired resolution: %w", err)
+	}
+	if _, err := d.queries.ResolvePendingDecision(ctx, db.ResolvePendingDecisionParams{
+		ID:         decisionID,
+		ResolvedAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		Resolution: resolution,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			slog.WarnContext(ctx, "feedback.expire_skipped_already_resolved", "decision_id", decisionID)
+			return nil
+		}
+		return fmt.Errorf("resolve feedback expired: %w", err)
+	}
+
+	return pgx.BeginFunc(ctx, d.pool, func(tx pgx.Tx) error {
+		parent, perr := latestTransitionIDInTx(ctx, tx, taskID)
+		if perr != nil {
+			return perr
+		}
+		_, werr := lifecycle.WriteAuditMessage(ctx, tx, taskID, lifecycle.SystemActorURI,
+			lifecycle.KindDecisionExpired,
+			lifecycle.DecisionExpiredPayload{
+				DecisionID: decisionID,
+				Flow:       string(db.DecisionKindFeedbackRequest),
+				Timeout:    timeout.String(),
+			},
+			parent,
+		)
+		return werr
+	})
 }
 
 // runOpenStep loads the task, asks the converser for an opening message + draft,

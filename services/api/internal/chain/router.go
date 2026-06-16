@@ -8,6 +8,9 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/dbos-inc/dbos-transact-golang/dbos"
+	"github.com/google/uuid"
+
 	"github.com/bcnelson/tendant/services/api/internal/lifecycle"
 )
 
@@ -23,6 +26,16 @@ type Router interface {
 // Returns the raw StageResult JSON. The chain workflow memoizes this as a DBOS step.
 type StageRunner interface {
 	RunStage(ctx context.Context, taskID string, stage lifecycle.ChainStage, configID string) (json.RawMessage, error)
+}
+
+// AgentStarter starts the durable agent-stage workflow for an agent-occupied
+// stage and blocks until it returns the StageResult JSON. It is called from the
+// chain workflow body (it starts a child workflow), so it takes the dbos
+// context. Implemented in cmd/tendant (and the test harness) so the chain stays
+// decoupled from internal/agent (which imports chain). When nil, the chain runs
+// the agent synchronously inline via StageRunner instead (the pre-Phase-B path).
+type AgentStarter interface {
+	StartStageAndAwait(ctx dbos.DBOSContext, taskID uuid.UUID, stage lifecycle.ChainStage, configID uuid.UUID) (json.RawMessage, error)
 }
 
 // HumanOnlyRouter is preserved for backward compatibility in tests. It always

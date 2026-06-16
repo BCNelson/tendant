@@ -74,7 +74,7 @@ func TestChainRecovery_PushEnqueuerSurvivesRestartAtEachStage(t *testing.T) {
 			// --- Run 1: bring up DBOS with push + owner wired, drive to target. ---
 			dctx1, err := durable.Init(ctx, pool1, executorID)
 			require.NoError(t, err)
-			durable.RegisterChainWorkflow(dctx1, pool1, q1, chain.HumanOnlyRouter{}, nil, owner.GlobalUri, enqueuer, nil)
+			durable.RegisterChainWorkflow(dctx1, pool1, q1, chain.HumanOnlyRouter{}, nil, owner.GlobalUri, enqueuer, nil, nil, nil)
 			require.NoError(t, durable.Launch(dctx1))
 
 			handler1 := server.New(pool1, dctx1, server.Options{})
@@ -114,7 +114,7 @@ func TestChainRecovery_PushEnqueuerSurvivesRestartAtEachStage(t *testing.T) {
 
 			dctx2, err := durable.Init(ctx, pool2, executorID)
 			require.NoError(t, err)
-			durable.RegisterChainWorkflow(dctx2, pool2, q2, chain.HumanOnlyRouter{}, nil, owner.GlobalUri, enqueuer, nil)
+			durable.RegisterChainWorkflow(dctx2, pool2, q2, chain.HumanOnlyRouter{}, nil, owner.GlobalUri, enqueuer, nil, nil, nil)
 			require.NoError(t, durable.Launch(dctx2))
 			defer durable.Shutdown(dctx2, 5*time.Second)
 

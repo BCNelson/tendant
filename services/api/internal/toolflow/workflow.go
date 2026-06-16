@@ -69,6 +69,33 @@ func ApprovalTopic(decisionID uuid.UUID) string {
 	return ApprovalTopicPrefix + decisionID.String()
 }
 
+// ToolOutcomeTopicPrefix is the back-channel topic a tool-call workflow Sends
+// its final outcome on, so a durably-waiting AgentStageWorkflow can resume with
+// the result injected. Full topic is `tooloutcome:<decision_uuid>`.
+const ToolOutcomeTopicPrefix = "tooloutcome:"
+
+// ToolOutcomeTopic returns the deterministic back-channel topic for a decision.
+func ToolOutcomeTopic(decisionID uuid.UUID) string {
+	return ToolOutcomeTopicPrefix + decisionID.String()
+}
+
+// OutcomeEnvelope is what a tool-call workflow Sends back to a waiting agent
+// workflow on ToolOutcomeTopic. Kind is the disposition; Content is the
+// tool_result string the agent injects into its model loop so the LLM can react.
+type OutcomeEnvelope struct {
+	Kind    string `json:"kind"`    // "clean" | "bad" | "rejected" | "expired"
+	Content string `json:"content"` // tool_result to inject into the agent loop
+}
+
+// stepOutcome is what the dispatch / expire steps return to the workflow body so
+// it can fire the back-channel Send at workflow scope (dbos.Send is a workflow
+// primitive and must not be called from inside a step). NotifyWorkflowID empty ⇒
+// no waiter (a human-initiated approval); the workflow skips the Send.
+type stepOutcome struct {
+	NotifyWorkflowID string
+	Envelope         OutcomeEnvelope
+}
+
 // envDeps closes over the workflow's runtime dependencies. Set once by
 // Register at startup; read-only thereafter.
 type envDeps struct {
@@ -76,6 +103,7 @@ type envDeps struct {
 	queries    *db.Queries
 	registry   *tools.Registry
 	calibrator *calibration.Engine
+	timeouts   chain.Timeouts // approval-wait window; nil ⇒ legacy 72h
 }
 
 var (
@@ -85,9 +113,9 @@ var (
 
 // Register stores deps and registers ToolCallWorkflow with DBOS. MUST be
 // called between dbos.NewDBOSContext and dbos.Launch.
-func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry, calibrator *calibration.Engine) {
+func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry, calibrator *calibration.Engine, timeouts chain.Timeouts) {
 	depsMu.Lock()
-	deps = &envDeps{pool: pool, queries: q, registry: registry, calibrator: calibrator}
+	deps = &envDeps{pool: pool, queries: q, registry: registry, calibrator: calibrator, timeouts: timeouts}
 	depsMu.Unlock()
 	dbos.RegisterWorkflow(dctx, ToolCallWorkflow, dbos.WithWorkflowName(WorkflowName))
 }
@@ -148,8 +176,24 @@ func ToolCallWorkflow(ctx dbos.DBOSContext, decisionIDStr string) (string, error
 	}
 
 	// Step 1: durable wait on the approval topic. The ResolveDecision call
-	// from the resolver Sends the approvalEnvelope here.
-	raw, err := chain.WaitForResult(ctx, ApprovalTopic(decisionID), ApprovalTimeout)
+	// from the resolver Sends the approvalEnvelope here. On timeout the wait
+	// returns ErrHumanWaitExpired instead of poisoning the workflow to ERROR —
+	// the human didn't respond within hitl.approval_timeout, so we resolve the
+	// decision as expired (no dispatch) and let the audit DAG record it.
+	timeout := chain.ApprovalTimeoutOr(d.timeouts)
+	raw, err := chain.WaitForResultOrExpire(ctx, ApprovalTopic(decisionID), timeout)
+	if errors.Is(err, chain.ErrHumanWaitExpired) {
+		out, serr := dbos.RunAsStep(ctx, func(stepCtx context.Context) (stepOutcome, error) {
+			return expireDecision(stepCtx, d, decisionID, timeout)
+		}, dbos.WithStepName("toolflow.expire_decision"))
+		if serr != nil {
+			return "", serr
+		}
+		if nerr := notifyWaiter(ctx, decisionID, out); nerr != nil {
+			return "", nerr
+		}
+		return "expired", nil
+	}
 	if err != nil {
 		return "", fmt.Errorf("await approval: %w", err)
 	}
@@ -163,38 +207,138 @@ func ToolCallWorkflow(ctx dbos.DBOSContext, decisionIDStr string) (string, error
 	// covers the (load-decision, execute, write-outcome, audit) bundle.
 	// On approve we run the tool; on reject we skip the dispatch and audit
 	// the rejection only.
-	_, err = dbos.RunAsStep(ctx, func(stepCtx context.Context) (struct{}, error) {
-		return struct{}{}, dispatchAndRecord(stepCtx, d, decisionID, env)
+	out, err := dbos.RunAsStep(ctx, func(stepCtx context.Context) (stepOutcome, error) {
+		return dispatchAndRecord(stepCtx, d, decisionID, env)
 	}, dbos.WithStepName("toolflow.dispatch_and_record"))
 	if err != nil {
 		return "", err
 	}
+	// Back-channel: notify a durably-waiting AgentStageWorkflow at workflow
+	// scope (dbos.Send is a workflow primitive, not valid inside a step).
+	if nerr := notifyWaiter(ctx, decisionID, out); nerr != nil {
+		return "", nerr
+	}
 	return "ok", nil
+}
+
+// notifyWaiter delivers a tool-call outcome to a durably-waiting agent workflow
+// on the back-channel topic. No-op when no waiter registered (a human-initiated
+// approval). Runs at workflow scope; dbos.Send is durable + idempotent on replay.
+func notifyWaiter(ctx dbos.DBOSContext, decisionID uuid.UUID, out stepOutcome) error {
+	if out.NotifyWorkflowID == "" {
+		return nil
+	}
+	payload, err := json.Marshal(out.Envelope)
+	if err != nil {
+		return fmt.Errorf("marshal outcome envelope: %w", err)
+	}
+	// Send as json.RawMessage (not []byte) so the DBOS serializer round-trips it
+	// the same way the agent's dbos.Recv[json.RawMessage] expects — matching the
+	// approval-envelope wire shape in chain.Resolve.
+	if err := dbos.Send(ctx, out.NotifyWorkflowID, json.RawMessage(payload), ToolOutcomeTopic(decisionID)); err != nil {
+		return fmt.Errorf("notify waiter %s: %w", out.NotifyWorkflowID, err)
+	}
+	return nil
+}
+
+// expireDecision resolves a timed-out approval decision as expired and records
+// a decision_expired audit. No dispatch happens. Resolving the
+// pending_decisions row (first-write-wins) clears it from the inbox; the audit
+// gives the operator an explicit signal that the human didn't respond in time.
+//
+// Race: a human may resolve at the exact timeout boundary (mark the row
+// resolved just before our Recv deadline fires). First-write-wins means our
+// resolve then no-ops (ErrNoRows); we treat that as "already decided" and exit
+// without dispatching — fail-closed, the safe direction for an at-boundary
+// approval. The window is sub-second after a multi-hour wait.
+func expireDecision(ctx context.Context, d *envDeps, decisionID uuid.UUID, timeout time.Duration) (stepOutcome, error) {
+	resolution, err := json.Marshal(map[string]any{
+		"expired": true,
+		"reason":  "human_no_response",
+	})
+	if err != nil {
+		return stepOutcome{}, fmt.Errorf("marshal expired resolution: %w", err)
+	}
+	row, err := d.queries.ResolvePendingDecision(ctx, db.ResolvePendingDecisionParams{
+		ID:         decisionID,
+		ResolvedAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		Resolution: resolution,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Already resolved at the boundary by a human — honor that, do
+			// nothing here (no waiter notification: the human path already did).
+			slog.WarnContext(ctx, "toolflow.expire_skipped_already_resolved", "decision_id", decisionID)
+			return stepOutcome{}, nil
+		}
+		return stepOutcome{}, fmt.Errorf("resolve decision expired: %w", err)
+	}
+
+	notify := ""
+	if row.NotifyWorkflowID != nil {
+		notify = *row.NotifyWorkflowID
+	}
+	out := stepOutcome{
+		NotifyWorkflowID: notify,
+		Envelope: OutcomeEnvelope{
+			Kind:    "expired",
+			Content: fmt.Sprintf(`{"error":"human_no_response","detail":"the human did not respond within %s"}`, timeout),
+		},
+	}
+
+	return out, pgx.BeginFunc(ctx, d.pool, func(tx pgx.Tx) error {
+		parent, perr := latestTransitionIDInTx(ctx, tx, row.TaskID)
+		if perr != nil {
+			return perr
+		}
+		_, werr := lifecycle.WriteAuditMessage(ctx, tx, row.TaskID, lifecycle.SystemActorURI,
+			lifecycle.KindDecisionExpired,
+			lifecycle.DecisionExpiredPayload{
+				DecisionID: decisionID,
+				Flow:       string(db.DecisionKindApprovalRequest),
+				Timeout:    timeout.String(),
+			},
+			parent,
+		)
+		return werr
+	})
 }
 
 // dispatchAndRecord loads the frozen call, executes the tool (on approve),
 // writes a tool_outcomes row, and chains the audit messages. Runs inside a
 // single DBOS step so the (execute, record, audit) bundle is memoized as a
 // unit.
-func dispatchAndRecord(ctx context.Context, d *envDeps, decisionID uuid.UUID, env approvalEnvelope) error {
+func dispatchAndRecord(ctx context.Context, d *envDeps, decisionID uuid.UUID, env approvalEnvelope) (stepOutcome, error) {
 	row, err := d.queries.GetPendingDecisionByID(ctx, decisionID)
 	if err != nil {
-		return fmt.Errorf("load decision %s: %w", decisionID, err)
+		return stepOutcome{}, fmt.Errorf("load decision %s: %w", decisionID, err)
 	}
 	if !row.ToolID.Valid {
-		return fmt.Errorf("decision %s has no tool_id", decisionID)
+		return stepOutcome{}, fmt.Errorf("decision %s has no tool_id", decisionID)
 	}
 	toolID := row.ToolID.Bytes
 	taskID := row.TaskID
+	notify := ""
+	if row.NotifyWorkflowID != nil {
+		notify = *row.NotifyWorkflowID
+	}
 
 	tool, err := d.queries.GetToolByID(ctx, toolID)
 	if err != nil {
-		return fmt.Errorf("load tool %s: %w", uuid.UUID(toolID), err)
+		return stepOutcome{}, fmt.Errorf("load tool %s: %w", uuid.UUID(toolID), err)
 	}
 
 	if !env.Approved {
-		// Rejection: audit only, no dispatch, no outcome.
-		return pgx.BeginFunc(ctx, d.pool, func(tx pgx.Tx) error {
+		// Rejection: audit only, no dispatch, no outcome. The waiter (if any) is
+		// told the call was rejected so its loop can choose another path.
+		out := stepOutcome{
+			NotifyWorkflowID: notify,
+			Envelope: OutcomeEnvelope{
+				Kind:    "rejected",
+				Content: fmt.Sprintf(`{"error":"the human rejected this tool call","reason":%q}`, env.Reason),
+			},
+		}
+		return out, pgx.BeginFunc(ctx, d.pool, func(tx pgx.Tx) error {
 			parent, perr := latestTransitionIDInTx(ctx, tx, taskID)
 			if perr != nil {
 				return perr
@@ -216,7 +360,7 @@ func dispatchAndRecord(ctx context.Context, d *envDeps, decisionID uuid.UUID, en
 	// Approved → dispatch the frozen payload.
 	payload := row.FrozenPayload
 	if len(payload) == 0 {
-		return fmt.Errorf("decision %s missing frozen_payload", decisionID)
+		return stepOutcome{}, fmt.Errorf("decision %s missing frozen_payload", decisionID)
 	}
 
 	// Carry a stable idempotency key (the decision id — deterministic across
@@ -235,12 +379,18 @@ func dispatchAndRecord(ctx context.Context, d *envDeps, decisionID uuid.UUID, en
 	if t, ok := d.registry.ByGlobalURI(tool.GlobalUri); ok && !t.Idempotent(dispatchCtx, payload) {
 		dispatched, derr := d.queries.DecisionAlreadyDispatched(ctx, decisionID.String())
 		if derr != nil {
-			return fmt.Errorf("dispatch idempotency guard: %w", derr)
+			return stepOutcome{}, fmt.Errorf("dispatch idempotency guard: %w", derr)
 		}
 		if dispatched {
 			slog.WarnContext(ctx, "toolflow.dispatch_skipped_already_dispatched",
 				"decision_id", decisionID, "tool", tool.GlobalUri)
-			return nil
+			// Recovery re-run after the outcome already committed: still notify
+			// the waiter so it can't hang (the prior attempt's Send may not have
+			// landed). The precise clean/bad split is not re-derived here.
+			return stepOutcome{
+				NotifyWorkflowID: notify,
+				Envelope:         OutcomeEnvelope{Kind: "clean", Content: `{"status":"already_dispatched"}`},
+			}, nil
 		}
 	}
 
@@ -323,22 +473,38 @@ func dispatchAndRecord(ctx context.Context, d *envDeps, decisionID uuid.UUID, en
 
 		return nil
 	}); err != nil {
-		return err
+		return stepOutcome{}, err
 	}
 
-	// Propagate provider errors back up so DBOS marks the step failed and
-	// retries (per its default policy) — but only AFTER the bad outcome row +
-	// audit chain have COMMITTED. Returning execErr from inside BeginFunc above
-	// would roll the whole tx back (the outcome + demotion would never land, and
-	// DBOS would retry indefinitely on a permanent provider failure). On the
-	// retry the idempotency guard above sees the decision already dispatched and
-	// returns without re-executing, so the step then succeeds with exactly one
-	// bad outcome recorded. This is the calibration story: the ledger captures
-	// the failure for Phase 8.
 	if execErr != nil {
-		return fmt.Errorf("tool dispatch failed: %w", execErr)
+		badOut := stepOutcome{
+			NotifyWorkflowID: notify,
+			Envelope:         OutcomeEnvelope{Kind: "bad", Content: fmt.Sprintf(`{"error":%q}`, execErr.Error())},
+		}
+		if notify != "" {
+			// Agent waiter present: report the failure into the agent loop and
+			// complete cleanly (the bad outcome row + demotion already committed
+			// above). The agent's LLM decides how to react. We do NOT propagate
+			// execErr here — that retry path is for the human-initiated flow.
+			return badOut, nil
+		}
+		// Human flow: propagate provider errors so DBOS marks the step failed and
+		// retries (default policy) — only AFTER the bad outcome row + audit chain
+		// have COMMITTED (returning execErr from inside BeginFunc would roll them
+		// back). On the retry the idempotency guard sees the decision already
+		// dispatched and returns without re-executing, so exactly one bad outcome
+		// is recorded. This is the Phase-8 calibration ledger.
+		return stepOutcome{}, fmt.Errorf("tool dispatch failed: %w", execErr)
 	}
-	return nil
+
+	cleanContent := `{"status":"dispatched"}`
+	if len(result.Detail) > 0 {
+		cleanContent = string(result.Detail)
+	}
+	return stepOutcome{
+		NotifyWorkflowID: notify,
+		Envelope:         OutcomeEnvelope{Kind: "clean", Content: cleanContent},
+	}, nil
 }
 
 // latestTransitionIDInTx mirrors chain.latestTransitionIDInTx; duplicated
