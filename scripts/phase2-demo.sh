@@ -2,7 +2,7 @@
 # Phase 2 quickstart verification — drives the pairing → push → subscription →
 # revocation → offline-dismiss walkthrough end-to-end (per specs/003-operator-edge-wake/quickstart.md).
 #
-# Prerequisites: `make up` has been run (Postgres + the API on :8080); the
+# Prerequisites: `devenv up` is running (Postgres + the API on :8080); the
 # server boots with TENDANT_SETUP_SECRET in the environment.
 set -euo pipefail
 

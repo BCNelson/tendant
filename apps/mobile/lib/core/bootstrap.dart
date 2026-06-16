@@ -9,6 +9,7 @@ import '../graphql/operations/__generated__/pair_device.req.gql.dart';
 import '../graphql/operations/__generated__/inbox.req.gql.dart';
 import '../graphql/operations/__generated__/inbox.data.gql.dart';
 import '../graphql/operations/__generated__/inbox_subscription.req.gql.dart';
+import '../graphql/operations/__generated__/inbox_state.req.gql.dart';
 import '../graphql/operations/__generated__/agent_assignment.req.gql.dart';
 import '../graphql/operations/__generated__/complete_task.req.gql.dart';
 import '../graphql/operations/__generated__/create_task.req.gql.dart';
@@ -78,18 +79,15 @@ List<Override> ferryOverrides() => [
         final client = ref.watch(ferryClientProvider);
         return _FerryProposedTaskMutator(client);
       }),
+      inboxStateMutatorProvider.overrideWith((ref) {
+        final client = ref.watch(ferryClientProvider);
+        return _FerryInboxStateMutator(client);
+      }),
 
       // ---- Inbox live arrival subscription (drives feed refresh) ------
       inboxArrivedProvider.overrideWith((ref) {
         final client = ref.watch(ferryClientProvider);
-        var tick = 0;
-        return client
-            .request(GInboxEntryArrivedReq())
-            .handleError((_) {}) // swallow transient transport drops
-            .where((r) => r.data != null)
-            // Distinct tick per event: Riverpod drops repeat-equal AsyncData,
-            // so a constant value would refresh the feed only once.
-            .map<int>((_) => ++tick);
+        return _resilientTicks(() => client.request(GInboxEntryArrivedReq()));
       }),
 
       // ---- Assignment detail + complete -------------------------------
@@ -144,56 +142,49 @@ List<Override> ferryOverrides() => [
       // ---- Task change subscription -----------------------------------
       taskChangedProvider.overrideWith((ref, taskId) {
         final client = ref.watch(ferryClientProvider);
-        var tick = 0;
-        return client
-            .request(GTaskChangedReq((b) => b..vars.taskId = taskId))
-            .handleError((_) {}) // swallow transient transport drops
-            .where((r) => r.data != null)
-            // Distinct tick per event: Riverpod drops repeat-equal AsyncData,
-            // so two byte-identical payloads would drop the second refresh.
-            .map<int>((_) => ++tick);
+        return _resilientTicks(
+            () => client.request(GTaskChangedReq((b) => b..vars.taskId = taskId)));
       }),
 
       // ---- Tasks list (one-shot query, keyed by server state) ----------
       // Keyed by the server `TaskState` name (null = unfiltered), so the
       // "Active" and "All" UI filters — both unfiltered — share this one fetch.
-      rawTasksProvider.overrideWith((ref, serverState) async {
+      rawTasksProvider.overrideWith((ref, serverState) {
         final client = ref.watch(ferryClientProvider);
-        final data = await runOnceRequired(
-          client,
-          GTasksReq((b) {
-            b.vars.first = 50;
-            if (serverState != null) {
-              b.vars.state = GTaskState.valueOf(serverState);
-            }
-          }),
-        );
-        return _mapTasks(data);
+        // Watch the request against the normalized cache: emits cached rows
+        // instantly, then the network result, then re-emits on any cache merge
+        // touching a referenced Task (e.g. a `taskChanged` subscription push).
+        return client
+            .request(GTasksReq((b) {
+              b.vars.first = 50;
+              if (serverState != null) {
+                b.vars.state = GTaskState.valueOf(serverState);
+              }
+            }))
+            .where((r) => r.data != null)
+            .map((r) => _mapTasks(r.data!));
       }),
 
       // ---- All-tasks live subscription (drives list refresh) ----------
       allTasksChangedProvider.overrideWith((ref) {
         final client = ref.watch(ferryClientProvider);
-        var tick = 0;
-        return client
-            .request(GTaskChangedReq((b) => b..vars.taskId = null))
-            .handleError((_) {}) // swallow transient transport drops
-            .where((r) => r.data != null)
-            // Distinct tick per event: Riverpod drops repeat-equal AsyncData,
-            // so a constant value would refresh the list only once.
-            .map<int>((_) => ++tick);
+        return _resilientTicks(
+            () => client.request(GTaskChangedReq((b) => b..vars.taskId = null)));
       }),
 
       // ---- Task detail (header + stage slots + findings + activity) ----
-      taskDetailProvider.overrideWith((ref, id) async {
+      taskDetailProvider.overrideWith((ref, id) {
         final client = ref.watch(ferryClientProvider);
-        final data = await runOnce(
-          client,
-          GTaskDetailReq((b) => b..vars.id = id),
-        );
-        final t = data?.task;
-        if (t == null) return null;
-        return _mapTaskDetail(t);
+        // Cache-watched: header + stage-slot fields re-emit on a `taskChanged`
+        // merge; the signal-driven invalidate in the detail view refreshes the
+        // activity timeline (a list, not a single entity).
+        return client
+            .request(GTaskDetailReq((b) => b..vars.id = id))
+            .where((r) => r.data != null)
+            .map((r) {
+              final t = r.data!.task;
+              return t == null ? null : _mapTaskDetail(t);
+            });
       }),
 
       // ---- Edit task metadata (priority + due date) -------------------
@@ -297,6 +288,31 @@ List<Override> ferryOverrides() => [
       }),
     ];
 
+/// _resilientTicks turns a Ferry subscription request into a self-healing
+/// stream of distinct ticks. It resubscribes (after a short delay) if the
+/// underlying stream errors or completes, so a fatal websocket error can't
+/// leave the live channel permanently dead — the previous `.handleError((_){})`
+/// swallowed the error and the subscription stayed dead until a manual page
+/// refresh. The transport's own (now effectively-infinite) reconnect handles
+/// the common case; this is the backstop for fatal closes. Each data event
+/// yields a distinct counter so Riverpod's repeat-equal `AsyncData` suppression
+/// can't drop a refresh.
+Stream<int> _resilientTicks<TData, TVars>(
+  Stream<OperationResponse<TData, TVars>> Function() open,
+) async* {
+  var tick = 0;
+  while (true) {
+    try {
+      await for (final r in open()) {
+        if (r.data != null) yield ++tick;
+      }
+    } catch (_) {
+      // fall through and resubscribe
+    }
+    await Future<void>.delayed(const Duration(seconds: 3));
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Mapping helpers
 // ---------------------------------------------------------------------------
@@ -313,7 +329,8 @@ InboxFeedResult _mapInboxFeed(GInboxFeedData data) {
           entryId: e.id,
           kind: e.kind,
           urgency: e.urgency,
-          typename: 'ActionableTask',
+          messageType: e.messageType,
+          unread: e.readAt == null,
           itemId: a.id,
           title: a.task.title,
           subtitle: 'Proposed',
@@ -332,7 +349,8 @@ InboxFeedResult _mapInboxFeed(GInboxFeedData data) {
           entryId: e.id,
           kind: e.kind,
           urgency: e.urgency,
-          typename: 'AgentAssignment',
+          messageType: e.messageType,
+          unread: e.readAt == null,
           itemId: asn.id,
           title: asn.task.title,
           subtitle: asn.ask,
@@ -345,7 +363,8 @@ InboxFeedResult _mapInboxFeed(GInboxFeedData data) {
           entryId: e.id,
           kind: e.kind,
           urgency: e.urgency,
-          typename: 'ApprovalRequest',
+          messageType: e.messageType,
+          unread: e.readAt == null,
           itemId: r.id,
           title: 'Approval requested',
           subtitle: 'Tap to review',
@@ -358,7 +377,8 @@ InboxFeedResult _mapInboxFeed(GInboxFeedData data) {
           entryId: e.id,
           kind: e.kind,
           urgency: e.urgency,
-          typename: 'AgentQuestion',
+          messageType: e.messageType,
+          unread: e.readAt == null,
           itemId: q.id,
           title: 'Question',
           subtitle: q.question,
@@ -371,7 +391,8 @@ InboxFeedResult _mapInboxFeed(GInboxFeedData data) {
           entryId: e.id,
           kind: e.kind,
           urgency: e.urgency,
-          typename: 'PromotionProposal',
+          messageType: e.messageType,
+          unread: e.readAt == null,
           itemId: p.id,
           title: 'Promotion proposal',
           subtitle: '${p.fromLevel.name} → ${p.toLevel.name}',
@@ -384,7 +405,8 @@ InboxFeedResult _mapInboxFeed(GInboxFeedData data) {
           entryId: e.id,
           kind: e.kind,
           urgency: e.urgency,
-          typename: 'FeedbackRequest',
+          messageType: e.messageType,
+          unread: e.readAt == null,
           itemId: f.id,
           title: 'Feedback: ${f.task.title}',
           subtitle: 'How did this task go? Tap to chat.',
@@ -425,6 +447,41 @@ class _FerryProposedTaskMutator implements ProposedTaskMutator {
           b.vars.taskId = taskId;
           if (reason != null) b.vars.reason = reason;
         }),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+}
+
+/// _FerryInboxStateMutator runs the per-message read/dismiss mutations against
+/// the first-class inbox_messages row. markRead is fire-and-forget (best-effort
+/// — a failed read stamp is harmless); dismiss reports success so the UI can
+/// roll back an optimistic removal.
+class _FerryInboxStateMutator implements InboxStateMutator {
+  _FerryInboxStateMutator(this._client);
+
+  final Client _client;
+
+  @override
+  Future<void> markRead(String messageId) async {
+    try {
+      await runOnceRequired(
+        _client,
+        GMarkInboxReadReq((b) => b..vars.id = messageId),
+      );
+    } catch (_) {
+      // Best-effort: an unsent read stamp simply leaves the dot showing.
+    }
+  }
+
+  @override
+  Future<bool> dismiss(String messageId) async {
+    try {
+      await runOnceRequired(
+        _client,
+        GDismissInboxMessageReq((b) => b..vars.id = messageId),
       );
       return true;
     } catch (_) {
@@ -606,6 +663,7 @@ FeedbackConversationView? _mapFeedbackConvo(
 ) {
   if (d == null || d.G__typename != 'FeedbackRequest') return null;
   final f = d as GFeedbackRequestData_pendingDecision__asFeedbackRequest;
+  final c = f.context;
   return FeedbackConversationView(
     id: f.id,
     taskTitle: f.task.title,
@@ -618,6 +676,17 @@ FeedbackConversationView? _mapFeedbackConvo(
           content: m.content,
         ),
     ],
+    context: c == null
+        ? null
+        : FeedbackContextView(
+            toolsRun: c.toolsRun,
+            toolsFlagged: c.toolsFlagged,
+            agentStages: c.agentStages.toList(growable: false),
+            activeGuidanceCount: c.activeGuidanceCount,
+            consulted: c.consulted.toList(growable: false),
+            summary: c.summary,
+            handoffReason: c.handoffReason,
+          ),
   );
 }
 

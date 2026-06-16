@@ -119,6 +119,9 @@ func (r *Resolver) sendFeedbackMessageImpl(ctx context.Context, decisionIDStr st
 	}
 	var payload feedback.DecisionPayload
 	_ = json.Unmarshal(row.Payload, &payload)
+	// Scope the converser's read-only context tools to this task (the decision
+	// row is the source of truth; payloads written pre-this-change lack TaskID).
+	payload.TaskSummary.TaskID = row.TaskID
 
 	// Append the user turn first so it is part of the history handed to Reply.
 	if _, err := r.Queries.InsertFeedbackMessage(ctx, db.InsertFeedbackMessageParams{
@@ -136,7 +139,7 @@ func (r *Resolver) sendFeedbackMessageImpl(ctx context.Context, decisionIDStr st
 		history = append(history, feedback.Turn{Role: m.Role, Content: m.Content})
 	}
 
-	reply, draft, cerr := r.converser().Reply(ctx, payload.TaskSummary, history)
+	reply, draft, consulted, cerr := r.converser().Reply(ctx, payload.TaskSummary, history)
 	if cerr != nil {
 		return nil, fmt.Errorf("feedback reply: %w", cerr)
 	}
@@ -150,8 +153,9 @@ func (r *Resolver) sendFeedbackMessageImpl(ctx context.Context, decisionIDStr st
 		return nil, fmt.Errorf("insert agent message: %w", err)
 	}
 
-	// Persist the refreshed draft on the decision payload.
+	// Persist the refreshed draft + the accumulated set of context tools consulted.
 	payload.DraftGuidance = draft
+	payload.ContextConsulted = mergeStrings(payload.ContextConsulted, consulted)
 	if newPayload, merr := json.Marshal(payload); merr == nil {
 		if err := r.Queries.SetFeedbackDecisionPayload(ctx, db.SetFeedbackDecisionPayloadParams{
 			ID: id, Payload: newPayload,
@@ -160,9 +164,89 @@ func (r *Resolver) sendFeedbackMessageImpl(ctx context.Context, decisionIDStr st
 		}
 	}
 
+	// Record what the agent reviewed this turn into the audit DAG (best-effort).
+	if len(consulted) > 0 {
+		r.auditFeedbackContextConsulted(ctx, row.TaskID, id, consulted)
+	}
+
 	out := &model.FeedbackRequest{ID: id.String(), CreatedAt: row.CreatedAt}
 	if draft != "" {
 		out.DraftGuidance = &draft
+	}
+	return out, nil
+}
+
+// mergeStrings appends new entries to base, preserving order and dropping
+// duplicates. Used to accumulate the set of context tools consulted across turns.
+func mergeStrings(base, extra []string) []string {
+	seen := make(map[string]bool, len(base)+len(extra))
+	out := make([]string, 0, len(base)+len(extra))
+	for _, s := range append(append([]string{}, base...), extra...) {
+		if seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	return out
+}
+
+// auditFeedbackContextConsulted writes a task-scoped feedback_context_consulted
+// audit row recording which read-only context tools the agent called this turn.
+// Best-effort: a write failure is logged via the returned error path but does not
+// fail the owner's message.
+func (r *Resolver) auditFeedbackContextConsulted(ctx context.Context, taskID, decisionID uuid.UUID, consulted []string) {
+	_ = pgx.BeginFunc(ctx, r.Pool, func(tx pgx.Tx) error {
+		parent, perr := latestTransitionIDInTx(ctx, tx, taskID)
+		if perr != nil {
+			return perr
+		}
+		_, werr := lifecycle.WriteAuditMessage(ctx, tx, taskID, lifecycle.SystemActorURI,
+			lifecycle.KindFeedbackContextConsulted,
+			lifecycle.FeedbackContextConsultedPayload{DecisionID: decisionID, Consulted: consulted},
+			parent,
+		)
+		return werr
+	})
+}
+
+// feedbackContext builds the read-only FeedbackContext for a FeedbackRequest from
+// the task's audit DAG + outcomes + active guidance digest, tagged with the
+// context tools the agent consulted (carried on the decision payload). Returns nil
+// when the decision is missing or the digest cannot be built.
+func (r *Resolver) feedbackContext(ctx context.Context, decisionIDStr string) (*model.FeedbackContext, error) {
+	id, err := uuid.Parse(decisionIDStr)
+	if err != nil {
+		return nil, nil
+	}
+	row, err := r.Queries.GetPendingDecisionByID(ctx, id)
+	if err != nil {
+		return nil, nil
+	}
+	dig, err := feedback.NewDBRetriever(r.Queries).Digest(ctx, row.TaskID)
+	if err != nil {
+		return nil, nil
+	}
+	var payload feedback.DecisionPayload
+	_ = json.Unmarshal(row.Payload, &payload)
+
+	out := &model.FeedbackContext{
+		ToolsRun:            dig.ToolsRun,
+		ToolsFlagged:        dig.ToolsFlagged,
+		AgentStages:         dig.AgentStages,
+		ActiveGuidanceCount: len(dig.ActiveGuidance),
+		Consulted:           payload.ContextConsulted,
+		Summary:             dig.Summary,
+	}
+	if out.AgentStages == nil {
+		out.AgentStages = []string{}
+	}
+	if out.Consulted == nil {
+		out.Consulted = []string{}
+	}
+	if dig.HandoffReason != "" {
+		hr := dig.HandoffReason
+		out.HandoffReason = &hr
 	}
 	return out, nil
 }

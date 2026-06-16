@@ -42,6 +42,7 @@ type Config struct {
 	Overseer    OverseerConfig    `koanf:"overseer"`
 	Gatescript  GatescriptConfig  `koanf:"gatescript"`
 	Calibration CalibrationConfig `koanf:"calibration"`
+	Inbox       InboxConfig       `koanf:"inbox"`
 	Intake      IntakeConfig      `koanf:"intake"`
 	Embedding   EmbeddingConfig   `koanf:"embedding"`
 	Auth        AuthConfig        `koanf:"auth"`
@@ -150,6 +151,13 @@ type CalibrationConfig struct {
 	DemotionDecrement float64       `koanf:"demotion_decrement"`
 	SweepCron         string        `koanf:"sweep_cron"`
 	IntakeTightenK    float64       `koanf:"intake_tighten_k"`
+}
+
+// InboxConfig holds the first-class inbox knobs (migration 00018).
+type InboxConfig struct {
+	// ReconcileCron is the DBOS schedule cadence for the inbox-projection
+	// reconcile sweep (defense-in-depth for the projection triggers).
+	ReconcileCron string `koanf:"reconcile_cron"`
 }
 
 // IntakeConfig holds the Phase-7 intake-edge connector credentials.
@@ -333,6 +341,7 @@ var legacyAliases = []aliasEntry{
 	{Env: "TENDANT_CALIBRATION_DEMOTION_DECREMENT", Key: "calibration.demotion_decrement"},
 	{Env: "TENDANT_CALIBRATION_SWEEP_CRON", Key: "calibration.sweep_cron"},
 	{Env: "TENDANT_CALIBRATION_INTAKE_TIGHTEN_K", Key: "calibration.intake_tighten_k"},
+	{Env: "TENDANT_INBOX_RECONCILE_CRON", Key: "inbox.reconcile_cron"},
 	{Env: "TENDANT_GMAIL_CLIENT_ID", Key: "intake.gmail_client_id"},
 	{Env: "TENDANT_GMAIL_CLIENT_SECRET", Key: "intake.gmail_client_secret", Sensitive: true},
 	{Env: "TENDANT_GMAIL_REDIRECT_URL", Key: "intake.gmail_redirect_url"},

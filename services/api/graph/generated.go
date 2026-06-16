@@ -143,6 +143,16 @@ type ComplexityRoot struct {
 		ID            func(childComplexity int) int
 	}
 
+	FeedbackContext struct {
+		ActiveGuidanceCount func(childComplexity int) int
+		AgentStages         func(childComplexity int) int
+		Consulted           func(childComplexity int) int
+		HandoffReason       func(childComplexity int) int
+		Summary             func(childComplexity int) int
+		ToolsFlagged        func(childComplexity int) int
+		ToolsRun            func(childComplexity int) int
+	}
+
 	FeedbackMessage struct {
 		Content   func(childComplexity int) int
 		CreatedAt func(childComplexity int) int
@@ -151,6 +161,7 @@ type ComplexityRoot struct {
 	}
 
 	FeedbackRequest struct {
+		Context       func(childComplexity int) int
 		CreatedAt     func(childComplexity int) int
 		DraftGuidance func(childComplexity int) int
 		ID            func(childComplexity int) int
@@ -184,16 +195,26 @@ type ComplexityRoot struct {
 	}
 
 	InboxEntry struct {
-		CreatedAt func(childComplexity int) int
-		ID        func(childComplexity int) int
-		Item      func(childComplexity int) int
-		Kind      func(childComplexity int) int
-		Urgency   func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		DismissedAt func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Item        func(childComplexity int) int
+		Kind        func(childComplexity int) int
+		MessageType func(childComplexity int) int
+		ReadAt      func(childComplexity int) int
+		Urgency     func(childComplexity int) int
 	}
 
 	InboxFeedPage struct {
 		Entries    func(childComplexity int) int
 		NextCursor func(childComplexity int) int
+	}
+
+	InboxMessageState struct {
+		DismissedAt func(childComplexity int) int
+		ID          func(childComplexity int) int
+		ReadAt      func(childComplexity int) int
+		SeenAt      func(childComplexity int) int
 	}
 
 	Mandate struct {
@@ -218,9 +239,11 @@ type ComplexityRoot struct {
 		DeleteTaskCategory          func(childComplexity int, key string) int
 		DisableGateScript           func(childComplexity int, toolID string) int
 		DismissFeedback             func(childComplexity int, decisionID string, rating *int) int
+		DismissInboxMessage         func(childComplexity int, id string) int
 		DismissProposedTask         func(childComplexity int, taskID string, reason *string) int
 		EnableConnector             func(childComplexity int, connectorID string, enabled bool) int
 		FlagOutcome                 func(childComplexity int, taskID string, toolID string, reason *string) int
+		MarkInboxRead               func(childComplexity int, id string) int
 		PairDevice                  func(childComplexity int, password string, displayName string) int
 		ProposeToolCall             func(childComplexity int, taskID string, toolGlobalURI string, payload map[string]any) int
 		RegisterDeviceToken         func(childComplexity int, token string, platform model.DevicePlatform) int
@@ -412,6 +435,8 @@ type FeedbackRequestResolver interface {
 	Task(ctx context.Context, obj *model.FeedbackRequest) (*model.Task, error)
 
 	Messages(ctx context.Context, obj *model.FeedbackRequest) ([]*model.FeedbackMessage, error)
+
+	Context(ctx context.Context, obj *model.FeedbackRequest) (*model.FeedbackContext, error)
 }
 type MutationResolver interface {
 	CreateTask(ctx context.Context, title string, description *string, priority *model.TaskPriority, dueAt *time.Time) (*model.Task, error)
@@ -434,6 +459,8 @@ type MutationResolver interface {
 	RevokeSession(ctx context.Context, sessionID string) (*model.Session, error)
 	RegisterDeviceToken(ctx context.Context, token string, platform model.DevicePlatform) (bool, error)
 	UnregisterDeviceToken(ctx context.Context, token string) (bool, error)
+	MarkInboxRead(ctx context.Context, id string) (*model.InboxMessageState, error)
+	DismissInboxMessage(ctx context.Context, id string) (*model.InboxMessageState, error)
 	ApproveArtifact(ctx context.Context, decisionID string) (model.PendingDecision, error)
 	RejectApproval(ctx context.Context, decisionID string, reason *string) (model.PendingDecision, error)
 	AnswerQuestion(ctx context.Context, decisionID string, answer string) (model.PendingDecision, error)
@@ -894,6 +921,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Connector.ID(childComplexity), true
 
+	case "FeedbackContext.activeGuidanceCount":
+		if e.ComplexityRoot.FeedbackContext.ActiveGuidanceCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FeedbackContext.ActiveGuidanceCount(childComplexity), true
+	case "FeedbackContext.agentStages":
+		if e.ComplexityRoot.FeedbackContext.AgentStages == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FeedbackContext.AgentStages(childComplexity), true
+	case "FeedbackContext.consulted":
+		if e.ComplexityRoot.FeedbackContext.Consulted == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FeedbackContext.Consulted(childComplexity), true
+	case "FeedbackContext.handoffReason":
+		if e.ComplexityRoot.FeedbackContext.HandoffReason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FeedbackContext.HandoffReason(childComplexity), true
+	case "FeedbackContext.summary":
+		if e.ComplexityRoot.FeedbackContext.Summary == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FeedbackContext.Summary(childComplexity), true
+	case "FeedbackContext.toolsFlagged":
+		if e.ComplexityRoot.FeedbackContext.ToolsFlagged == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FeedbackContext.ToolsFlagged(childComplexity), true
+	case "FeedbackContext.toolsRun":
+		if e.ComplexityRoot.FeedbackContext.ToolsRun == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FeedbackContext.ToolsRun(childComplexity), true
+
 	case "FeedbackMessage.content":
 		if e.ComplexityRoot.FeedbackMessage.Content == nil {
 			break
@@ -919,6 +989,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.FeedbackMessage.Role(childComplexity), true
 
+	case "FeedbackRequest.context":
+		if e.ComplexityRoot.FeedbackRequest.Context == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FeedbackRequest.Context(childComplexity), true
 	case "FeedbackRequest.createdAt":
 		if e.ComplexityRoot.FeedbackRequest.CreatedAt == nil {
 			break
@@ -1072,6 +1148,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.InboxEntry.CreatedAt(childComplexity), true
+	case "InboxEntry.dismissedAt":
+		if e.ComplexityRoot.InboxEntry.DismissedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InboxEntry.DismissedAt(childComplexity), true
 	case "InboxEntry.id":
 		if e.ComplexityRoot.InboxEntry.ID == nil {
 			break
@@ -1090,6 +1172,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.InboxEntry.Kind(childComplexity), true
+	case "InboxEntry.messageType":
+		if e.ComplexityRoot.InboxEntry.MessageType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InboxEntry.MessageType(childComplexity), true
+	case "InboxEntry.readAt":
+		if e.ComplexityRoot.InboxEntry.ReadAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InboxEntry.ReadAt(childComplexity), true
 	case "InboxEntry.urgency":
 		if e.ComplexityRoot.InboxEntry.Urgency == nil {
 			break
@@ -1109,6 +1203,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.InboxFeedPage.NextCursor(childComplexity), true
+
+	case "InboxMessageState.dismissedAt":
+		if e.ComplexityRoot.InboxMessageState.DismissedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InboxMessageState.DismissedAt(childComplexity), true
+	case "InboxMessageState.id":
+		if e.ComplexityRoot.InboxMessageState.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InboxMessageState.ID(childComplexity), true
+	case "InboxMessageState.readAt":
+		if e.ComplexityRoot.InboxMessageState.ReadAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InboxMessageState.ReadAt(childComplexity), true
+	case "InboxMessageState.seenAt":
+		if e.ComplexityRoot.InboxMessageState.SeenAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InboxMessageState.SeenAt(childComplexity), true
 
 	case "Mandate.constraints":
 		if e.ComplexityRoot.Mandate.Constraints == nil {
@@ -1294,6 +1413,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DismissFeedback(childComplexity, args["decisionId"].(string), args["rating"].(*int)), true
+	case "Mutation.dismissInboxMessage":
+		if e.ComplexityRoot.Mutation.DismissInboxMessage == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_dismissInboxMessage_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DismissInboxMessage(childComplexity, args["id"].(string)), true
 	case "Mutation.dismissProposedTask":
 		if e.ComplexityRoot.Mutation.DismissProposedTask == nil {
 			break
@@ -1327,6 +1457,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.FlagOutcome(childComplexity, args["taskId"].(string), args["toolId"].(string), args["reason"].(*string)), true
+	case "Mutation.markInboxRead":
+		if e.ComplexityRoot.Mutation.MarkInboxRead == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_markInboxRead_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.MarkInboxRead(childComplexity, args["id"].(string)), true
 	case "Mutation.pairDevice":
 		if e.ComplexityRoot.Mutation.PairDevice == nil {
 			break
@@ -2406,6 +2547,26 @@ func (ec *executionContext) childFields_Connector(ctx context.Context, field gra
 	return nil, fmt.Errorf("no field named %q was found under type Connector", field.Name)
 }
 
+func (ec *executionContext) childFields_FeedbackContext(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "toolsRun":
+		return ec.fieldContext_FeedbackContext_toolsRun(ctx, field)
+	case "toolsFlagged":
+		return ec.fieldContext_FeedbackContext_toolsFlagged(ctx, field)
+	case "agentStages":
+		return ec.fieldContext_FeedbackContext_agentStages(ctx, field)
+	case "handoffReason":
+		return ec.fieldContext_FeedbackContext_handoffReason(ctx, field)
+	case "activeGuidanceCount":
+		return ec.fieldContext_FeedbackContext_activeGuidanceCount(ctx, field)
+	case "consulted":
+		return ec.fieldContext_FeedbackContext_consulted(ctx, field)
+	case "summary":
+		return ec.fieldContext_FeedbackContext_summary(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FeedbackContext", field.Name)
+}
+
 func (ec *executionContext) childFields_FeedbackMessage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -2432,6 +2593,8 @@ func (ec *executionContext) childFields_FeedbackRequest(ctx context.Context, fie
 		return ec.fieldContext_FeedbackRequest_messages(ctx, field)
 	case "draftGuidance":
 		return ec.fieldContext_FeedbackRequest_draftGuidance(ctx, field)
+	case "context":
+		return ec.fieldContext_FeedbackRequest_context(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type FeedbackRequest", field.Name)
 }
@@ -2492,10 +2655,16 @@ func (ec *executionContext) childFields_InboxEntry(ctx context.Context, field gr
 		return ec.fieldContext_InboxEntry_id(ctx, field)
 	case "kind":
 		return ec.fieldContext_InboxEntry_kind(ctx, field)
+	case "messageType":
+		return ec.fieldContext_InboxEntry_messageType(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_InboxEntry_createdAt(ctx, field)
 	case "urgency":
 		return ec.fieldContext_InboxEntry_urgency(ctx, field)
+	case "readAt":
+		return ec.fieldContext_InboxEntry_readAt(ctx, field)
+	case "dismissedAt":
+		return ec.fieldContext_InboxEntry_dismissedAt(ctx, field)
 	case "item":
 		return ec.fieldContext_InboxEntry_item(ctx, field)
 	}
@@ -2510,6 +2679,20 @@ func (ec *executionContext) childFields_InboxFeedPage(ctx context.Context, field
 		return ec.fieldContext_InboxFeedPage_nextCursor(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type InboxFeedPage", field.Name)
+}
+
+func (ec *executionContext) childFields_InboxMessageState(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_InboxMessageState_id(ctx, field)
+	case "seenAt":
+		return ec.fieldContext_InboxMessageState_seenAt(ctx, field)
+	case "readAt":
+		return ec.fieldContext_InboxMessageState_readAt(ctx, field)
+	case "dismissedAt":
+		return ec.fieldContext_InboxMessageState_dismissedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type InboxMessageState", field.Name)
 }
 
 func (ec *executionContext) childFields_Notification(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -3180,6 +3363,20 @@ func (ec *executionContext) field_Mutation_dismissFeedback_args(ctx context.Cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_dismissInboxMessage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_dismissProposedTask_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -3251,6 +3448,20 @@ func (ec *executionContext) field_Mutation_flagOutcome_args(ctx context.Context,
 		return nil, err
 	}
 	args["reason"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_markInboxRead_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -5364,6 +5575,167 @@ func (ec *executionContext) fieldContext_Connector_config(_ context.Context, fie
 	return graphql.NewScalarFieldContext("Connector", field, false, false, errors.New("field of type JSON does not have child fields"))
 }
 
+func (ec *executionContext) _FeedbackContext_toolsRun(ctx context.Context, field graphql.CollectedField, obj *model.FeedbackContext) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FeedbackContext_toolsRun(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToolsRun, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FeedbackContext_toolsRun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FeedbackContext", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _FeedbackContext_toolsFlagged(ctx context.Context, field graphql.CollectedField, obj *model.FeedbackContext) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FeedbackContext_toolsFlagged(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ToolsFlagged, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FeedbackContext_toolsFlagged(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FeedbackContext", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _FeedbackContext_agentStages(ctx context.Context, field graphql.CollectedField, obj *model.FeedbackContext) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FeedbackContext_agentStages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AgentStages, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FeedbackContext_agentStages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FeedbackContext", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FeedbackContext_handoffReason(ctx context.Context, field graphql.CollectedField, obj *model.FeedbackContext) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FeedbackContext_handoffReason(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HandoffReason, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_FeedbackContext_handoffReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FeedbackContext", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FeedbackContext_activeGuidanceCount(ctx context.Context, field graphql.CollectedField, obj *model.FeedbackContext) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FeedbackContext_activeGuidanceCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ActiveGuidanceCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FeedbackContext_activeGuidanceCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FeedbackContext", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _FeedbackContext_consulted(ctx context.Context, field graphql.CollectedField, obj *model.FeedbackContext) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FeedbackContext_consulted(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Consulted, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FeedbackContext_consulted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FeedbackContext", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FeedbackContext_summary(ctx context.Context, field graphql.CollectedField, obj *model.FeedbackContext) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FeedbackContext_summary(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Summary, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FeedbackContext_summary(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FeedbackContext", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _FeedbackMessage_id(ctx context.Context, field graphql.CollectedField, obj *model.FeedbackMessage) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5587,6 +5959,38 @@ func (ec *executionContext) _FeedbackRequest_draftGuidance(ctx context.Context, 
 }
 func (ec *executionContext) fieldContext_FeedbackRequest_draftGuidance(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("FeedbackRequest", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _FeedbackRequest_context(ctx context.Context, field graphql.CollectedField, obj *model.FeedbackRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FeedbackRequest_context(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.FeedbackRequest().Context(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.FeedbackContext) graphql.Marshaler {
+			return ec.marshalOFeedbackContext2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐFeedbackContext(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_FeedbackRequest_context(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FeedbackRequest",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FeedbackContext(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _GateScript_id(ctx context.Context, field graphql.CollectedField, obj *model.GateScript) (ret graphql.Marshaler) {
@@ -6081,6 +6485,29 @@ func (ec *executionContext) fieldContext_InboxEntry_kind(_ context.Context, fiel
 	return graphql.NewScalarFieldContext("InboxEntry", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
+func (ec *executionContext) _InboxEntry_messageType(ctx context.Context, field graphql.CollectedField, obj *model.InboxEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InboxEntry_messageType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MessageType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InboxEntry_messageType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InboxEntry", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
 func (ec *executionContext) _InboxEntry_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.InboxEntry) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -6125,6 +6552,52 @@ func (ec *executionContext) _InboxEntry_urgency(ctx context.Context, field graph
 }
 func (ec *executionContext) fieldContext_InboxEntry_urgency(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("InboxEntry", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _InboxEntry_readAt(ctx context.Context, field graphql.CollectedField, obj *model.InboxEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InboxEntry_readAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ReadAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InboxEntry_readAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InboxEntry", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _InboxEntry_dismissedAt(ctx context.Context, field graphql.CollectedField, obj *model.InboxEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InboxEntry_dismissedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DismissedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InboxEntry_dismissedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InboxEntry", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _InboxEntry_item(ctx context.Context, field graphql.CollectedField, obj *model.InboxEntry) (ret graphql.Marshaler) {
@@ -6203,6 +6676,98 @@ func (ec *executionContext) _InboxFeedPage_nextCursor(ctx context.Context, field
 }
 func (ec *executionContext) fieldContext_InboxFeedPage_nextCursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("InboxFeedPage", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _InboxMessageState_id(ctx context.Context, field graphql.CollectedField, obj *model.InboxMessageState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InboxMessageState_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InboxMessageState_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InboxMessageState", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _InboxMessageState_seenAt(ctx context.Context, field graphql.CollectedField, obj *model.InboxMessageState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InboxMessageState_seenAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SeenAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InboxMessageState_seenAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InboxMessageState", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _InboxMessageState_readAt(ctx context.Context, field graphql.CollectedField, obj *model.InboxMessageState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InboxMessageState_readAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ReadAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InboxMessageState_readAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InboxMessageState", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _InboxMessageState_dismissedAt(ctx context.Context, field graphql.CollectedField, obj *model.InboxMessageState) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InboxMessageState_dismissedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DismissedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InboxMessageState_dismissedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InboxMessageState", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _Mandate_goal(ctx context.Context, field graphql.CollectedField, obj *model.Mandate) (ret graphql.Marshaler) {
@@ -7148,6 +7713,94 @@ func (ec *executionContext) fieldContext_Mutation_unregisterDeviceToken(ctx cont
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_unregisterDeviceToken_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_markInboxRead(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_markInboxRead(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().MarkInboxRead(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.InboxMessageState) graphql.Marshaler {
+			return ec.marshalNInboxMessageState2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐInboxMessageState(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_markInboxRead(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InboxMessageState(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_markInboxRead_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_dismissInboxMessage(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_dismissInboxMessage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DismissInboxMessage(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.InboxMessageState) graphql.Marshaler {
+			return ec.marshalNInboxMessageState2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐInboxMessageState(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_dismissInboxMessage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InboxMessageState(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_dismissInboxMessage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -12660,6 +13313,72 @@ func (ec *executionContext) _Connector(ctx context.Context, sel ast.SelectionSet
 	return out
 }
 
+var feedbackContextImplementors = []string{"FeedbackContext"}
+
+func (ec *executionContext) _FeedbackContext(ctx context.Context, sel ast.SelectionSet, obj *model.FeedbackContext) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, feedbackContextImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FeedbackContext")
+		case "toolsRun":
+			out.Values[i] = ec._FeedbackContext_toolsRun(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "toolsFlagged":
+			out.Values[i] = ec._FeedbackContext_toolsFlagged(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "agentStages":
+			out.Values[i] = ec._FeedbackContext_agentStages(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "handoffReason":
+			out.Values[i] = ec._FeedbackContext_handoffReason(ctx, field, obj)
+		case "activeGuidanceCount":
+			out.Values[i] = ec._FeedbackContext_activeGuidanceCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "consulted":
+			out.Values[i] = ec._FeedbackContext_consulted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "summary":
+			out.Values[i] = ec._FeedbackContext_summary(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var feedbackMessageImplementors = []string{"FeedbackMessage"}
 
 func (ec *executionContext) _FeedbackMessage(ctx context.Context, sel ast.SelectionSet, obj *model.FeedbackMessage) graphql.Marshaler {
@@ -12809,6 +13528,39 @@ func (ec *executionContext) _FeedbackRequest(ctx context.Context, sel ast.Select
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "draftGuidance":
 			out.Values[i] = ec._FeedbackRequest_draftGuidance(ctx, field, obj)
+		case "context":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._FeedbackRequest_context(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -13010,6 +13762,11 @@ func (ec *executionContext) _InboxEntry(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "messageType":
+			out.Values[i] = ec._InboxEntry_messageType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createdAt":
 			out.Values[i] = ec._InboxEntry_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -13020,6 +13777,10 @@ func (ec *executionContext) _InboxEntry(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "readAt":
+			out.Values[i] = ec._InboxEntry_readAt(ctx, field, obj)
+		case "dismissedAt":
+			out.Values[i] = ec._InboxEntry_dismissedAt(ctx, field, obj)
 		case "item":
 			out.Values[i] = ec._InboxEntry_item(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -13066,6 +13827,51 @@ func (ec *executionContext) _InboxFeedPage(ctx context.Context, sel ast.Selectio
 			}
 		case "nextCursor":
 			out.Values[i] = ec._InboxFeedPage_nextCursor(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferred), math.MaxInt32)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var inboxMessageStateImplementors = []string{"InboxMessageState"}
+
+func (ec *executionContext) _InboxMessageState(ctx context.Context, sel ast.SelectionSet, obj *model.InboxMessageState) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, inboxMessageStateImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InboxMessageState")
+		case "id":
+			out.Values[i] = ec._InboxMessageState_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "seenAt":
+			out.Values[i] = ec._InboxMessageState_seenAt(ctx, field, obj)
+		case "readAt":
+			out.Values[i] = ec._InboxMessageState_readAt(ctx, field, obj)
+		case "dismissedAt":
+			out.Values[i] = ec._InboxMessageState_dismissedAt(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -13293,6 +14099,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "unregisterDeviceToken":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_unregisterDeviceToken(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "markInboxRead":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_markInboxRead(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dismissInboxMessage":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_dismissInboxMessage(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -15767,6 +16587,20 @@ func (ec *executionContext) marshalNInboxItem2ᚕgithubᚗcomᚋbcnelsonᚋtenda
 	return ret
 }
 
+func (ec *executionContext) marshalNInboxMessageState2githubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐInboxMessageState(ctx context.Context, sel ast.SelectionSet, v model.InboxMessageState) graphql.Marshaler {
+	return ec._InboxMessageState(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNInboxMessageState2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐInboxMessageState(ctx context.Context, sel ast.SelectionSet, v *model.InboxMessageState) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._InboxMessageState(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v any) (int, error) {
 	res, err := graphql.UnmarshalInt(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -16340,6 +17174,13 @@ func (ec *executionContext) marshalOBytes2githubᚗcomᚋbcnelsonᚋtendantᚋse
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) marshalOFeedbackContext2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐFeedbackContext(ctx context.Context, sel ast.SelectionSet, v *model.FeedbackContext) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._FeedbackContext(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOGateScript2ᚖgithubᚗcomᚋbcnelsonᚋtendantᚋservicesᚋapiᚋgraphᚋmodelᚐGateScript(ctx context.Context, sel ast.SelectionSet, v *model.GateScript) graphql.Marshaler {

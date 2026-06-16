@@ -2,49 +2,60 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'tasks_models.dart';
 
-/// rawTasksProvider fetches the task list for a server-side `TaskState` filter
+/// rawTasksProvider streams the task list for a server-side `TaskState` filter
 /// (null = no filter / every state). Keyed by the *server query*, not the UI
 /// filter, so "Active" and "All" (which both issue the unfiltered query) share
-/// one fetch and one cache and can never diverge. Stubbed here; the bootstrap
-/// layer overrides it against the Ferry `Tasks` query.
+/// one fetch and one cache and can never diverge. It is a Stream because the
+/// bootstrap override watches the Ferry `Tasks` request against the normalized
+/// cache (CacheAndNetwork): it emits cached rows instantly, then the network
+/// result, then re-emits automatically whenever a referenced Task changes in
+/// the cache (e.g. a `taskChanged` subscription merge) — so agent stage moves
+/// and state transitions surface live with no manual refetch. List *membership*
+/// (a brand-new task) still arrives via the signal-driven invalidate in the
+/// Tasks view. Stubbed here; bootstrap overrides it.
 final rawTasksProvider =
-    FutureProvider.family<List<TaskRef>, String?>((ref, serverState) async {
-  return const [];
+    StreamProvider.family<List<TaskRef>, String?>((ref, serverState) {
+  return Stream.value(const <TaskRef>[]);
 });
 
 /// tasksListProvider resolves the current tasks for a [TasksFilter]. It is a
 /// pure derivation over [rawTasksProvider] keyed by the filter's server state,
-/// so `active` and `all` read the same underlying fetch; `active` then hides
+/// so `active` and `all` read the same underlying stream; `active` then hides
 /// terminal tasks client-side (the server `state` arg is single-valued, so
-/// "in-flight" can't be expressed as one server filter). Not overridden in
+/// "in-flight" can't be expressed as one server filter). Passes through the
+/// underlying AsyncValue (loading/error preserved). Not overridden in
 /// bootstrap — only the underlying `rawTasksProvider` is.
 final tasksListProvider =
-    FutureProvider.family<List<TaskRef>, TasksFilter>((ref, filter) async {
-  final raw = await ref.watch(rawTasksProvider(filter.serverStateName).future);
-  if (filter == TasksFilter.active) {
-    return [for (final t in raw) if (!t.isTerminal) t];
-  }
-  return raw;
+    Provider.family<AsyncValue<List<TaskRef>>, TasksFilter>((ref, filter) {
+  final raw = ref.watch(rawTasksProvider(filter.serverStateName));
+  return raw.whenData((list) {
+    if (filter == TasksFilter.active) {
+      return [for (final t in list) if (!t.isTerminal) t];
+    }
+    return list;
+  });
 });
 
 /// allTasksChangedProvider emits a monotonically increasing tick whenever any
-/// task changes (the `taskChanged` subscription with no taskId). The Tasks view
-/// listens to it to refresh the list live as agents start/finish stages and
-/// tasks advance. The value is a distinct counter — not `void` — because
-/// Riverpod suppresses `ref.listen` callbacks for repeat-equal `AsyncData`, so
-/// a constant value would only ever trigger the first refresh and then go
-/// stale. Stubbed here; the bootstrap layer overrides it against the Ferry
-/// subscription.
+/// task changes (the `taskChanged` subscription with no taskId). Two jobs: it
+/// keeps the data-carrying subscription alive so each change merges into the
+/// normalized cache (driving [rawTasksProvider]'s automatic re-emit), and the
+/// Tasks view listens to it to invalidate for list *membership* (new tasks).
+/// The value is a distinct counter so Riverpod doesn't suppress repeat-equal
+/// `AsyncData`. Stubbed here; the bootstrap layer overrides it.
 final allTasksChangedProvider = StreamProvider<int>((ref) async* {
   // No emissions until overridden in the bootstrap layer.
 });
 
-/// taskDetailProvider resolves the full detail (header + stage slots + findings
-/// + activity timeline) for one task. Stubbed; the bootstrap layer overrides it
-/// against the Ferry `TaskDetail` query.
+/// taskDetailProvider streams the full detail (header + stage slots + findings
+/// + activity timeline) for one task from the normalized cache. Header/stage
+/// fields re-emit automatically on a `taskChanged` merge; the activity timeline
+/// (a list) refreshes via the signal-driven invalidate in the detail view.
+/// Stubbed; the bootstrap layer overrides it against the Ferry `TaskDetail`
+/// request.
 final taskDetailProvider =
-    FutureProvider.family<TaskDetail?, String>((ref, id) async {
-  return null;
+    StreamProvider.family<TaskDetail?, String>((ref, id) {
+  return Stream.value(null);
 });
 
 /// UpdateTaskMetadataFn edits a task's owner-set metadata after creation.

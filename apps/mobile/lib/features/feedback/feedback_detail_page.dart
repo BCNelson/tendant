@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../inbox/inbox_provider.dart' show inboxFeedProvider;
 import '../routing/routing_provider.dart' show agentConfigsProvider;
+import 'feedback_context_card.dart';
 import 'feedback_models.dart';
 import 'feedback_provider.dart';
 
@@ -28,6 +29,7 @@ class _FeedbackDetailPageState extends ConsumerState<FeedbackDetailPage> {
   bool _busy = false;
   String _taskTitle = '';
   List<FeedbackMessageView> _messages = const [];
+  FeedbackContextView? _context;
   GuidanceScopeView _scope = GuidanceScopeView.global;
   String? _agentConfigId;
   int? _rating;
@@ -43,6 +45,7 @@ class _FeedbackDetailPageState extends ConsumerState<FeedbackDetailPage> {
     _seeded = true;
     _taskTitle = c.taskTitle;
     _messages = c.messages;
+    _context = c.context;
     _draftCtrl.text = c.draftGuidance ?? '';
   }
 
@@ -137,6 +140,13 @@ class _FeedbackDetailPageState extends ConsumerState<FeedbackDetailPage> {
           return Column(
             children: [
               Expanded(child: _chatList()),
+              if (_context != null && !_context!.isEmpty) ...[
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: FeedbackContextCard(context: _context!),
+                ),
+              ],
               const Divider(height: 1),
               _composer(),
               const Divider(height: 1),

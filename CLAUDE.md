@@ -26,7 +26,7 @@ One-line description goes here.
 ```
 .
 ├── go.work                              # use ./services/api ; use ./db
-├── compose.yaml                         # postgres (pgvector/pgvector:pg16) for `just up`
+├── compose.yaml                         # postgres (pgvector/pgvector:pg16) for container deploys
 ├── db/                                  # module github.com/bcnelson/tendant/db
 │   ├── embed.go                         # //go:embed migrations/*.sql
 │   └── migrations/                      # goose-numbered SQL migrations (00001_*)
@@ -56,12 +56,14 @@ direnv allow             # devenv shell: Go 1.25, Postgres 16+pgvector, sqlc, go
                          # Node+npm (gate-sdk-as), Rust+wasm32 (gate-sdk-rust), govulncheck, wabt
 
 # Bring up Postgres + the core (migrates, seeds owner, serves /graphql + /healthz).
-make up                  # equivalent: just up
+# devenv up owns the long-running processes — Postgres + the core under air
+# live-reload. Run it in its own terminal; Ctrl-C stops them.
+devenv up
 curl -fsS localhost:8080/healthz
 
-make down                # tears down compose volume so next up re-migrates clean (SC-001)
-
-just seed-task TITLE=hello       # insert a Task via internal/core.CreateTask
+# The just/make recipes are one-shot tasks only — none of them start a server.
+just reset-db                    # stop + wipe Postgres; rerun `devenv up` to re-migrate
+just seed-task TITLE=hello       # insert a Task via internal/core.CreateTask (needs devenv up)
 ```
 
 ## Configuration

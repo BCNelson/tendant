@@ -9,6 +9,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
 	"github.com/bcnelson/tendant/services/api/graph/model"
@@ -79,6 +80,16 @@ func (r *Resolver) loadDecisionTask(ctx context.Context, decisionID string) (*mo
 		return nil, fmt.Errorf("get task: %w", err)
 	}
 	return mapTask(&t)
+}
+
+// tsPtr converts a pgtype.Timestamptz into a *time.Time (nil when SQL NULL),
+// for mapping nullable RETURNING columns to nullable GraphQL Time fields.
+func tsPtr(ts pgtype.Timestamptz) *time.Time {
+	if !ts.Valid {
+		return nil
+	}
+	t := ts.Time
+	return &t
 }
 
 // mapInboxItem turns an inbox.AssembledItem into the matching gqlgen
@@ -211,6 +222,8 @@ func (r *Resolver) streamInboxEvents(ctx context.Context, sub *realtime.Subscrib
 		select {
 		case <-ctx.Done():
 			return
+		case <-sub.Done:
+			return
 		case env, ok := <-sub.Out:
 			if !ok {
 				return
@@ -221,6 +234,8 @@ func (r *Resolver) streamInboxEvents(ctx context.Context, sub *realtime.Subscrib
 			}
 			select {
 			case out <- item:
+			case <-sub.Done:
+				return
 			case <-ctx.Done():
 				return
 			}
@@ -239,6 +254,8 @@ func (r *Resolver) streamInboxEntries(ctx context.Context, sub *realtime.Subscri
 		select {
 		case <-ctx.Done():
 			return
+		case <-sub.Done:
+			return
 		case env, ok := <-sub.Out:
 			if !ok {
 				return
@@ -249,6 +266,8 @@ func (r *Resolver) streamInboxEntries(ctx context.Context, sub *realtime.Subscri
 			}
 			select {
 			case out <- entry:
+			case <-sub.Done:
+				return
 			case <-ctx.Done():
 				return
 			}
@@ -265,6 +284,8 @@ func (r *Resolver) streamTaskEvents(ctx context.Context, sub *realtime.Subscribe
 		select {
 		case <-ctx.Done():
 			return
+		case <-sub.Done:
+			return
 		case env, ok := <-sub.Out:
 			if !ok {
 				return
@@ -275,6 +296,8 @@ func (r *Resolver) streamTaskEvents(ctx context.Context, sub *realtime.Subscribe
 			}
 			select {
 			case out <- task:
+			case <-sub.Done:
+				return
 			case <-ctx.Done():
 				return
 			}
@@ -290,6 +313,8 @@ func (r *Resolver) streamNotificationEvents(ctx context.Context, sub *realtime.S
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-sub.Done:
 			return
 		case _, ok := <-sub.Out:
 			if !ok {

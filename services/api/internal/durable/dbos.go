@@ -4,6 +4,8 @@ package durable
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/dbos-inc/dbos-transact-golang/dbos"
@@ -27,13 +29,95 @@ const AppName = "tendant"
 // across restarts so PENDING workflows for this executor are recovered on
 // Launch. The main binary uses "tendant"; the recovery demo overrides to
 // "demo" so its workflows don't collide with main.
+//
+// EnablePatching pins the DBOS application version to a stable constant
+// ("PATCHING_ENABLED") instead of the auto-computed binary hash. This matters
+// because Launch's recovery only re-runs PENDING workflows whose
+// application_version matches the current one: with the binary hash, every
+// rebuild orphaned in-flight human-wait workflows (they stayed PENDING with
+// no goroutine in Recv, so completing the assignment delivered a notification
+// nothing consumed). With patching on, the version is stable across rebuilds
+// so those workflows recover. The trade-off is that DBOS no longer guards
+// step-replay against changed code automatically — use dbos.Patch /
+// dbos.DeprecatePatch when a registered workflow's step sequence changes
+// incompatibly. (DBOS__APPVERSION still overrides if ever set.)
 func Init(ctx context.Context, pool *pgxpool.Pool, executorID string) (dbos.DBOSContext, error) {
 	return dbos.NewDBOSContext(ctx, dbos.Config{
 		AppName:        AppName,
 		SystemDBPool:   pool,
 		DatabaseSchema: "dbos",
 		ExecutorID:     executorID,
+		EnablePatching: true,
 	})
+}
+
+// RecoverOrphans re-enqueues PENDING workflows for this executor that were
+// created under a DIFFERENT application version than the one now running.
+// Launch's built-in recovery filters PENDING workflows by the CURRENT
+// application_version, so a workflow created by an older binary (before the
+// version was pinned via EnablePatching, or by a different release) is
+// orphaned: it stays PENDING with no live goroutine in Recv, so a delivered
+// notification (e.g. completeTask's stage:execution Send) is never consumed
+// and the workflow never advances.
+//
+// ResumeWorkflow re-enqueues each orphan onto the running executor; on
+// re-execution the workflow replays its memoized steps and the replayed Recv
+// consumes the already-present notification, advancing to completion — without
+// re-prompting any human.
+//
+// MUST run AFTER Launch (the workflow functions must be registered and the
+// internal queue dispatcher running). Gated to the given workflow names so
+// only known tendant workflows are touched. Idempotent: rows already on the
+// current version are skipped (a live goroutine owns those), and terminal
+// workflows are excluded by ResumeWorkflow.
+//
+// Each orphan is first ADOPTED into the current application version, then
+// resumed. The adoption is required: ResumeWorkflow re-enqueues onto the
+// internal queue but leaves application_version untouched, and the queue
+// dispatcher only dequeues rows whose application_version matches the current
+// one (or is NULL). Without the rewrite a resumed orphan would sit ENQUEUED
+// forever. Adopting is correct here because the version is now pinned stable
+// (EnablePatching) — these workflows belong to the running code.
+func RecoverOrphans(ctx dbos.DBOSContext, pool *pgxpool.Pool, names ...string) error {
+	current := ctx.GetApplicationVersion()
+	pending, err := dbos.ListWorkflows(ctx,
+		dbos.WithStatus([]dbos.WorkflowStatusType{dbos.WorkflowStatusPending}),
+		dbos.WithExecutorIDs([]string{ctx.GetExecutorID()}),
+		dbos.WithName(names...),
+	)
+	if err != nil {
+		return fmt.Errorf("durable: list pending for orphan recovery: %w", err)
+	}
+	var resumed, skipped int
+	for _, wf := range pending {
+		if wf.ApplicationVersion == current {
+			continue // current-version PENDING rows are already owned/recovered
+		}
+		if _, uerr := pool.Exec(context.Background(),
+			`UPDATE dbos.workflow_status SET application_version = $1 WHERE workflow_uuid = $2`,
+			current, wf.ID); uerr != nil {
+			slog.Error("durable: orphan version adopt failed",
+				"workflow_id", wf.ID, "name", wf.Name, "err", uerr)
+			skipped++
+			continue
+		}
+		if _, rerr := dbos.ResumeWorkflow[any](ctx, wf.ID); rerr != nil {
+			slog.Error("durable: orphan resume failed",
+				"workflow_id", wf.ID, "name", wf.Name,
+				"orphan_version", wf.ApplicationVersion, "current_version", current,
+				"err", rerr)
+			skipped++
+			continue
+		}
+		slog.Info("durable: resumed orphaned workflow",
+			"workflow_id", wf.ID, "name", wf.Name,
+			"orphan_version", wf.ApplicationVersion, "current_version", current)
+		resumed++
+	}
+	if resumed > 0 || skipped > 0 {
+		slog.Info("durable: orphan recovery complete", "resumed", resumed, "skipped", skipped)
+	}
+	return nil
 }
 
 // Launch starts the DBOS runtime (creates the `dbos` schema if needed,
@@ -64,8 +148,8 @@ func RegisterChainWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Quer
 // calibration). MUST be called between Init and Launch, like the chain and
 // tool-call workflows. converser opens the conversation (stub when no agent
 // connection); calibrator routes the satisfaction signal.
-func RegisterFeedbackWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, converser feedback.Converser, calibrator *calibration.Engine) {
-	feedback.Register(dctx, pool, q, converser, calibrator)
+func RegisterFeedbackWorkflow(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, converser feedback.Converser, retriever feedback.Retriever, calibrator *calibration.Engine) {
+	feedback.Register(dctx, pool, q, converser, retriever, calibrator)
 }
 
 // PushQueueName is the named DBOS workflow queue used for push fan-out.

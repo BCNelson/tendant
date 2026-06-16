@@ -76,9 +76,10 @@ const (
 
 	// Post-completion feedback (conversational). All task-scoped (a completed
 	// task always has a real task_id) — no CHECK-allowlist change.
-	KindFeedbackOpened       = "feedback_opened"        // task-scope: agent opened the conversation
-	KindFeedbackSubmitted    = "feedback_submitted"     // task-scope: owner accepted/dismissed (carries rating)
-	KindAgentGuidanceApplied = "agent_guidance_applied" // task-scope: owner accepted a verbatim guidance note
+	KindFeedbackOpened           = "feedback_opened"            // task-scope: agent opened the conversation
+	KindFeedbackSubmitted        = "feedback_submitted"         // task-scope: owner accepted/dismissed (carries rating)
+	KindAgentGuidanceApplied     = "agent_guidance_applied"     // task-scope: owner accepted a verbatim guidance note
+	KindFeedbackContextConsulted = "feedback_context_consulted" // task-scope: feedback agent read task context via a tool
 )
 
 // SystemActorURI is the principal globalUri used for system-authored audit
@@ -378,6 +379,15 @@ type AgentGuidanceAppliedPayload struct {
 	GuidanceID    uuid.UUID  `json:"guidance_id"`
 	Scope         string     `json:"scope"` // "global" | "agent"
 	AgentConfigID *uuid.UUID `json:"agent_config_id,omitempty"`
+}
+
+// FeedbackContextConsultedPayload — kind=feedback_context_consulted (task-scope).
+// Written when the feedback agent pulls task context via a read-only context
+// tool, so the audit DAG records what the agent reviewed before drafting its
+// guidance. Consulted is the set of context-tool names the agent called.
+type FeedbackContextConsultedPayload struct {
+	DecisionID uuid.UUID `json:"decision_id"`
+	Consulted  []string  `json:"consulted"`
 }
 
 // WriteAuditMessage inserts one audit_messages row inside the provided tx.

@@ -65,6 +65,24 @@ func approveArtifactGQL(t *testing.T, env *chainEnv, decisionID uuid.UUID) {
 	require.Equal(t, decisionID.String(), data.ApproveArtifact.ID)
 }
 
+// rejectApprovalGQL fires the rejectApproval mutation, waking the workflow
+// with a no-dispatch resolution. Returns nothing — the test asserts the
+// rejection's side effects (decision_resolved audit, no outcome).
+func rejectApprovalGQL(t *testing.T, env *chainEnv, decisionID uuid.UUID, reason string) {
+	t.Helper()
+	resp := graphqlRequest(t, env.handler,
+		`mutation($id: ID!, $r: String) { rejectApproval(decisionId: $id, reason: $r) { id } }`,
+		map[string]any{"id": decisionID.String(), "r": reason},
+	)
+	var data struct {
+		RejectApproval struct {
+			ID string `json:"id"`
+		} `json:"rejectApproval"`
+	}
+	require.NoError(t, json.Unmarshal(resp.Data, &data))
+	require.Equal(t, decisionID.String(), data.RejectApproval.ID)
+}
+
 // pollUntilToolOutcome blocks until a tool_outcomes row lands for taskID.
 func pollUntilToolOutcome(t *testing.T, env *chainEnv, taskID uuid.UUID) {
 	t.Helper()

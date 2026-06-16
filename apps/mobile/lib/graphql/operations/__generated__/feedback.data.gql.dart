@@ -135,6 +135,7 @@ abstract class GFeedbackRequestData_pendingDecision__asFeedbackRequest
   GFeedbackRequestData_pendingDecision__asFeedbackRequest_task get task;
   BuiltList<GFeedbackRequestData_pendingDecision__asFeedbackRequest_messages>
       get messages;
+  GFeedbackRequestData_pendingDecision__asFeedbackRequest_context? get context;
   static Serializer<GFeedbackRequestData_pendingDecision__asFeedbackRequest>
       get serializer =>
           _$gFeedbackRequestDataPendingDecisionAsFeedbackRequestSerializer;
@@ -231,6 +232,52 @@ abstract class GFeedbackRequestData_pendingDecision__asFeedbackRequest_messages
   static GFeedbackRequestData_pendingDecision__asFeedbackRequest_messages?
       fromJson(Map<String, dynamic> json) => _i1.serializers.deserializeWith(
             GFeedbackRequestData_pendingDecision__asFeedbackRequest_messages
+                .serializer,
+            json,
+          );
+}
+
+abstract class GFeedbackRequestData_pendingDecision__asFeedbackRequest_context
+    implements
+        Built<GFeedbackRequestData_pendingDecision__asFeedbackRequest_context,
+            GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder> {
+  GFeedbackRequestData_pendingDecision__asFeedbackRequest_context._();
+
+  factory GFeedbackRequestData_pendingDecision__asFeedbackRequest_context(
+          [void Function(
+                  GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder
+                      b)
+              updates]) =
+      _$GFeedbackRequestData_pendingDecision__asFeedbackRequest_context;
+
+  static void _initializeBuilder(
+          GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder
+              b) =>
+      b..G__typename = 'FeedbackContext';
+
+  @BuiltValueField(wireName: '__typename')
+  String get G__typename;
+  int get toolsRun;
+  int get toolsFlagged;
+  BuiltList<String> get agentStages;
+  String? get handoffReason;
+  int get activeGuidanceCount;
+  BuiltList<String> get consulted;
+  String get summary;
+  static Serializer<
+          GFeedbackRequestData_pendingDecision__asFeedbackRequest_context>
+      get serializer =>
+          _$gFeedbackRequestDataPendingDecisionAsFeedbackRequestContextSerializer;
+
+  Map<String, dynamic> toJson() => (_i1.serializers.serializeWith(
+        GFeedbackRequestData_pendingDecision__asFeedbackRequest_context
+            .serializer,
+        this,
+      ) as Map<String, dynamic>);
+
+  static GFeedbackRequestData_pendingDecision__asFeedbackRequest_context?
+      fromJson(Map<String, dynamic> json) => _i1.serializers.deserializeWith(
+            GFeedbackRequestData_pendingDecision__asFeedbackRequest_context
                 .serializer,
             json,
           );

@@ -135,6 +135,12 @@ func (r *feedbackRequestResolver) Messages(ctx context.Context, obj *model.Feedb
 	return r.loadFeedbackMessages(ctx, obj.ID)
 }
 
+// Context is the resolver for the context field. Builds the read-only task
+// digest (the same context the feedback agent saw) lazily from the decision id.
+func (r *feedbackRequestResolver) Context(ctx context.Context, obj *model.FeedbackRequest) (*model.FeedbackContext, error) {
+	return r.feedbackContext(ctx, obj.ID)
+}
+
 // CreateTask is the resolver for the createTask field.
 func (r *mutationResolver) CreateTask(ctx context.Context, title string, description *string, priority *model.TaskPriority, dueAt *time.Time) (*model.Task, error) {
 	if r.DBOS == nil {
@@ -503,6 +509,56 @@ func (r *mutationResolver) UnregisterDeviceToken(ctx context.Context, token stri
 	return true, nil
 }
 
+// MarkInboxRead is the resolver for the markInboxRead field.
+func (r *mutationResolver) MarkInboxRead(ctx context.Context, id string) (*model.InboxMessageState, error) {
+	p, ok := auth.FromContext(ctx)
+	if !ok {
+		return nil, unauthorizedError(ctx)
+	}
+	mid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid inbox message id: %w", err)
+	}
+	row, err := r.Queries.MarkInboxRead(ctx, db.MarkInboxReadParams{ID: mid, Viewer: p.GlobalURI})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, gqlerror.Errorf("inbox message not found")
+		}
+		return nil, fmt.Errorf("mark inbox read: %w", err)
+	}
+	return &model.InboxMessageState{
+		ID:          row.ID.String(),
+		SeenAt:      tsPtr(row.SeenAt),
+		ReadAt:      tsPtr(row.ReadAt),
+		DismissedAt: tsPtr(row.DismissedAt),
+	}, nil
+}
+
+// DismissInboxMessage is the resolver for the dismissInboxMessage field.
+func (r *mutationResolver) DismissInboxMessage(ctx context.Context, id string) (*model.InboxMessageState, error) {
+	p, ok := auth.FromContext(ctx)
+	if !ok {
+		return nil, unauthorizedError(ctx)
+	}
+	mid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid inbox message id: %w", err)
+	}
+	row, err := r.Queries.DismissInboxMessage(ctx, db.DismissInboxMessageParams{ID: mid, Viewer: p.GlobalURI})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, gqlerror.Errorf("inbox message not found")
+		}
+		return nil, fmt.Errorf("dismiss inbox message: %w", err)
+	}
+	return &model.InboxMessageState{
+		ID:          row.ID.String(),
+		SeenAt:      tsPtr(row.SeenAt),
+		ReadAt:      tsPtr(row.ReadAt),
+		DismissedAt: tsPtr(row.DismissedAt),
+	}, nil
+}
+
 // ApproveArtifact is the resolver for the approveArtifact field. Phase 3:
 // marks the decision resolved and wakes the ToolCallWorkflow. Idempotent:
 // repeated calls on a resolved decision are a no-op that returns the
@@ -744,11 +800,14 @@ func (r *queryResolver) InboxFeed(ctx context.Context, first *int, after *string
 			continue
 		}
 		entries = append(entries, &model.InboxEntry{
-			ID:        it.ID.String(),
-			Kind:      it.Kind,
-			CreatedAt: it.CreatedAt,
-			Urgency:   it.Score,
-			Item:      gql,
+			ID:          it.ID.String(),
+			Kind:        it.Kind,
+			MessageType: it.MessageType,
+			CreatedAt:   it.CreatedAt,
+			Urgency:     it.Score,
+			ReadAt:      it.ReadAt,
+			DismissedAt: it.DismissedAt,
+			Item:        gql,
 		})
 	}
 	page := &model.InboxFeedPage{Entries: entries}

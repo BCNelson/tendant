@@ -88,3 +88,41 @@ func (q *Queries) InsertToolOutcome(ctx context.Context, arg InsertToolOutcomePa
 	)
 	return i, err
 }
+
+const listToolOutcomesForTask = `-- name: ListToolOutcomesForTask :many
+SELECT id, tool_id, task_id, outcome, at, matured_at, routine_fingerprint
+FROM tool_outcomes
+WHERE task_id = $1
+ORDER BY at ASC, id ASC
+`
+
+// All tool outcomes recorded under a task, oldest-first. Read by the
+// post-completion feedback agent (internal/feedback) to summarize what tools
+// ran and whether any were flagged bad.
+func (q *Queries) ListToolOutcomesForTask(ctx context.Context, taskID uuid.UUID) ([]ToolOutcome, error) {
+	rows, err := q.db.Query(ctx, listToolOutcomesForTask, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ToolOutcome
+	for rows.Next() {
+		var i ToolOutcome
+		if err := rows.Scan(
+			&i.ID,
+			&i.ToolID,
+			&i.TaskID,
+			&i.Outcome,
+			&i.At,
+			&i.MaturedAt,
+			&i.RoutineFingerprint,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -172,7 +172,7 @@ func TestDispatcherAuthRevocationMidStream(t *testing.T) {
 	}
 }
 
-func TestDispatcherSlowSubscriberDropPolicy(t *testing.T) {
+func TestDispatcherSlowSubscriberTerminate(t *testing.T) {
 	t.Parallel()
 	d, q, _, owner := startDispatcher(t, func(_ context.Context, _ *auth.Principal, _ string, _ any) bool { return true })
 
@@ -180,8 +180,10 @@ func TestDispatcherSlowSubscriberDropPolicy(t *testing.T) {
 	dereg := d.Register(sub)
 	defer dereg()
 
-	// Fill the channel without draining; the dispatcher should drop excess
-	// events and increment DroppedCount.
+	// Fill the channel without draining. On overflow the dispatcher no longer
+	// silently drops-and-keeps-stale — it increments DroppedCount AND terminates
+	// the subscriber (closes Done) so the websocket drops and the client
+	// reconnects + refetches.
 	before := runtime.NumGoroutine()
 	for i := 0; i < int(realtime.DefaultSubscriberCapacity)+5; i++ {
 		_, _ = insertTaskAndAssignment(t, q, owner.GlobalUri)
@@ -190,6 +192,16 @@ func TestDispatcherSlowSubscriberDropPolicy(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return sub.DroppedCount.Load() >= 1
 	}, 5*time.Second, 100*time.Millisecond, "expected at least one drop")
+
+	// The subscriber must be terminated (Done closed) on overflow.
+	require.Eventually(t, func() bool {
+		select {
+		case <-sub.Done:
+			return true
+		default:
+			return false
+		}
+	}, 5*time.Second, 100*time.Millisecond, "expected subscriber termination (Done closed) on overflow")
 
 	// Drain so cleanup goroutines can exit; then assert no goroutine leak
 	// in the steady state (modulo a generous tolerance — pgxpool background
@@ -201,6 +213,60 @@ func TestDispatcherSlowSubscriberDropPolicy(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	after := runtime.NumGoroutine()
 	require.LessOrEqualf(t, after-before, 50, "suspicious goroutine growth: before=%d after=%d", before, after)
+}
+
+// TestResolutionEmitsEvent proves the core B1 fix: resolving an assignment is
+// an UPDATE, and before migration 00017 the assignment trigger fired on INSERT
+// only — so the inbox was never told the item was closed. With the invariant
+// AFTER INSERT OR UPDATE OR DELETE trigger, the resolution now emits a
+// 'decision'/'assignment' event so the client can drop the item.
+func TestResolutionEmitsEvent(t *testing.T) {
+	t.Parallel()
+	d, q, _, owner := startDispatcher(t, func(_ context.Context, _ *auth.Principal, _ string, _ any) bool { return true })
+
+	sub := realtime.NewInboxSubscriber(&auth.Principal{ID: owner.ID, GlobalURI: owner.GlobalUri})
+	dereg := d.Register(sub)
+	defer dereg()
+
+	_, asnID := insertTaskAndAssignment(t, q, owner.GlobalUri)
+
+	// Drain the creation-time events (task INSERT, assignment INSERT, recipient
+	// UPDATE) until the channel is momentarily quiet, so the next event we see
+	// is unambiguously the resolution.
+	drainQuiet(t, sub)
+
+	// Resolve the assignment — an UPDATE that, pre-00017, fired no event.
+	_, err := q.ResolveAssignment(context.Background(), db.ResolveAssignmentParams{
+		ID:         asnID,
+		ResolvedAt: time.Now(),
+	})
+	require.NoError(t, err)
+
+	deadline := time.After(3 * time.Second)
+	for {
+		select {
+		case env := <-sub.Out:
+			if env.Topic == "assignment" && env.ID == asnID.String() {
+				return // success: resolution emitted an assignment event
+			}
+		case <-deadline:
+			t.Fatal("resolving an assignment did not emit an 'assignment' event (B1 regression)")
+		}
+	}
+}
+
+// drainQuiet reads from the subscriber until no event arrives for a short
+// settle window, leaving the channel empty for the assertion that follows.
+func drainQuiet(t *testing.T, sub *realtime.Subscriber) {
+	t.Helper()
+	for {
+		select {
+		case <-sub.Out:
+			// keep draining
+		case <-time.After(750 * time.Millisecond):
+			return
+		}
+	}
 }
 
 // silence unused import warnings — pgtype is sometimes useful in this file

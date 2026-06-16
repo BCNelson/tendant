@@ -535,6 +535,21 @@ type GateScript struct {
 	AttachedAt          time.Time       `json:"attached_at"`
 }
 
+type InboxMessage struct {
+	ID           uuid.UUID          `json:"id"`
+	SourceTable  *string            `json:"source_table"`
+	MessageType  string             `json:"message_type"`
+	Recipient    *string            `json:"recipient"`
+	TaskID       uuid.UUID          `json:"task_id"`
+	CreatedAt    time.Time          `json:"created_at"`
+	ResolvedAt   pgtype.Timestamptz `json:"resolved_at"`
+	SeenAt       pgtype.Timestamptz `json:"seen_at"`
+	ReadAt       pgtype.Timestamptz `json:"read_at"`
+	DismissedAt  pgtype.Timestamptz `json:"dismissed_at"`
+	SnoozedUntil pgtype.Timestamptz `json:"snoozed_until"`
+	Payload      []byte             `json:"payload"`
+}
+
 type IntakeSignal struct {
 	ID             uuid.UUID          `json:"id"`
 	SignalVersion  string             `json:"signal_version"`

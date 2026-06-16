@@ -43,11 +43,13 @@ func WorkflowID(decisionID uuid.UUID) string    { return WorkflowIDPrefix + deci
 func FeedbackTopic(decisionID uuid.UUID) string { return FeedbackTopicPrefix + decisionID.String() }
 
 // DecisionPayload is the JSON shape stored in a feedback_request
-// pending_decisions.payload: the agent's current draft guidance + the task
-// summary the resolver needs to continue the conversation.
+// pending_decisions.payload: the agent's current draft guidance, the task
+// summary the resolver needs to continue the conversation, and the set of
+// read-only context tools the agent has consulted so far (surfaced in the UI).
 type DecisionPayload struct {
-	DraftGuidance string      `json:"draft_guidance"`
-	TaskSummary   TaskSummary `json:"task_summary"`
+	DraftGuidance    string      `json:"draft_guidance"`
+	TaskSummary      TaskSummary `json:"task_summary"`
+	ContextConsulted []string    `json:"context_consulted,omitempty"`
 }
 
 // envDeps closes over the workflow's runtime dependencies. Set once by Register.
@@ -55,6 +57,7 @@ type envDeps struct {
 	pool       *pgxpool.Pool
 	queries    *db.Queries
 	converser  Converser
+	retriever  Retriever
 	calibrator *calibration.Engine
 }
 
@@ -65,9 +68,9 @@ var (
 
 // Register stores deps and registers EvaluationWorkflow with DBOS. MUST be
 // called between dbos.NewDBOSContext and dbos.Launch.
-func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, converser Converser, calibrator *calibration.Engine) {
+func Register(dctx dbos.DBOSContext, pool *pgxpool.Pool, q *db.Queries, converser Converser, retriever Retriever, calibrator *calibration.Engine) {
 	depsMu.Lock()
-	deps = &envDeps{pool: pool, queries: q, converser: converser, calibrator: calibrator}
+	deps = &envDeps{pool: pool, queries: q, converser: converser, retriever: retriever, calibrator: calibrator}
 	depsMu.Unlock()
 	dbos.RegisterWorkflow(dctx, EvaluationWorkflow, dbos.WithWorkflowName(WorkflowName))
 }
@@ -182,14 +185,15 @@ func runOpenStep(ctx dbos.DBOSContext, d *envDeps, taskID, decisionID uuid.UUID)
 			return struct{}{}, fmt.Errorf("load task for feedback: %w", terr)
 		}
 		summary := summaryFromTask(task)
+		summary.TaskID = taskID
 
-		opening, draft, gerr := d.converser.Open(stepCtx, summary)
+		opening, draft, consulted, gerr := d.converser.Open(stepCtx, summary)
 		if gerr != nil {
 			slog.Warn("feedback: opener failed; using a generic prompt", "task", taskID, "err", gerr)
-			opening, draft = "How did this task go? Anything you'd want handled differently next time?", ""
+			opening, draft, consulted = "How did this task go? Anything you'd want handled differently next time?", "", nil
 		}
 
-		payload, merr := json.Marshal(DecisionPayload{DraftGuidance: draft, TaskSummary: summary})
+		payload, merr := json.Marshal(DecisionPayload{DraftGuidance: draft, TaskSummary: summary, ContextConsulted: consulted})
 		if merr != nil {
 			return struct{}{}, fmt.Errorf("marshal decision payload: %w", merr)
 		}
@@ -217,12 +221,26 @@ func runOpenStep(ctx dbos.DBOSContext, d *envDeps, taskID, decisionID uuid.UUID)
 			if perr != nil {
 				return perr
 			}
-			_, werr := lifecycle.WriteAuditMessage(stepCtx, tx, taskID, lifecycle.SystemActorURI,
+			openedID, werr := lifecycle.WriteAuditMessage(stepCtx, tx, taskID, lifecycle.SystemActorURI,
 				lifecycle.KindFeedbackOpened,
 				lifecycle.FeedbackOpenedPayload{DecisionID: decisionID, Converser: d.converser.Label()},
 				parent,
 			)
-			return werr
+			if werr != nil {
+				return werr
+			}
+			// Record what task context the agent reviewed while composing the
+			// opener, so the audit DAG shows the basis for its guidance.
+			if len(consulted) > 0 {
+				if _, aerr := lifecycle.WriteAuditMessage(stepCtx, tx, taskID, lifecycle.SystemActorURI,
+					lifecycle.KindFeedbackContextConsulted,
+					lifecycle.FeedbackContextConsultedPayload{DecisionID: decisionID, Consulted: consulted},
+					openedID,
+				); aerr != nil {
+					return aerr
+				}
+			}
+			return nil
 		})
 		return struct{}{}, err
 	}, dbos.WithStepName("feedback.open"))

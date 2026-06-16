@@ -105,6 +105,8 @@ models:
         resolver: true
       messages:
         resolver: true
+      context:
+        resolver: true
 
   # Phase 5 — gate-script lazy joins. Tool gains two script-history fields.
   # GateScript.tool is populated eagerly by the mapper (the parent Tool is

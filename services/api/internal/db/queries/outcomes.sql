@@ -13,6 +13,15 @@ SELECT COUNT(*) AS n
 FROM tool_outcomes
 WHERE task_id = $1;
 
+-- name: ListToolOutcomesForTask :many
+-- All tool outcomes recorded under a task, oldest-first. Read by the
+-- post-completion feedback agent (internal/feedback) to summarize what tools
+-- ran and whether any were flagged bad.
+SELECT id, tool_id, task_id, outcome, at, matured_at, routine_fingerprint
+FROM tool_outcomes
+WHERE task_id = $1
+ORDER BY at ASC, id ASC;
+
 -- name: DecisionAlreadyDispatched :one
 -- Idempotency guard for non-idempotent tool dispatch. Reports whether an
 -- approved decision_resolved audit already exists for this decision — it is

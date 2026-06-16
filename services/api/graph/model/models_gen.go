@@ -153,6 +153,16 @@ type Connector struct {
 	Config        map[string]any `json:"config"`
 }
 
+type FeedbackContext struct {
+	ToolsRun            int      `json:"toolsRun"`
+	ToolsFlagged        int      `json:"toolsFlagged"`
+	AgentStages         []string `json:"agentStages"`
+	HandoffReason       *string  `json:"handoffReason,omitempty"`
+	ActiveGuidanceCount int      `json:"activeGuidanceCount"`
+	Consulted           []string `json:"consulted"`
+	Summary             string   `json:"summary"`
+}
+
 type FeedbackMessage struct {
 	ID        string    `json:"id"`
 	Role      string    `json:"role"`
@@ -166,6 +176,7 @@ type FeedbackRequest struct {
 	CreatedAt     time.Time          `json:"createdAt"`
 	Messages      []*FeedbackMessage `json:"messages"`
 	DraftGuidance *string            `json:"draftGuidance,omitempty"`
+	Context       *FeedbackContext   `json:"context,omitempty"`
 }
 
 func (FeedbackRequest) IsPendingDecision()           {}
@@ -201,16 +212,26 @@ type GateScriptEvaluation struct {
 }
 
 type InboxEntry struct {
-	ID        string    `json:"id"`
-	Kind      string    `json:"kind"`
-	CreatedAt time.Time `json:"createdAt"`
-	Urgency   float64   `json:"urgency"`
-	Item      InboxItem `json:"item"`
+	ID          string     `json:"id"`
+	Kind        string     `json:"kind"`
+	MessageType string     `json:"messageType"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	Urgency     float64    `json:"urgency"`
+	ReadAt      *time.Time `json:"readAt,omitempty"`
+	DismissedAt *time.Time `json:"dismissedAt,omitempty"`
+	Item        InboxItem  `json:"item"`
 }
 
 type InboxFeedPage struct {
 	Entries    []*InboxEntry `json:"entries"`
 	NextCursor *string       `json:"nextCursor,omitempty"`
+}
+
+type InboxMessageState struct {
+	ID          string     `json:"id"`
+	SeenAt      *time.Time `json:"seenAt,omitempty"`
+	ReadAt      *time.Time `json:"readAt,omitempty"`
+	DismissedAt *time.Time `json:"dismissedAt,omitempty"`
 }
 
 type Mandate struct {

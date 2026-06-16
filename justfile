@@ -26,50 +26,18 @@ build: generate build-web
 build-go: generate
     go build -C services/api -ldflags '{{LDFLAGS}}' -o ../../tendant ./cmd/tendant
 
-# Run the binary
-run: build
-    ./tendant
-
-# (private) Ensure the devenv Postgres is accepting connections, starting it
-# detached via process-compose if needed. Run `devenv up` yourself in another
-# terminal for the full foreground process view.
+# (private) Assert the devenv Postgres is reachable. Does NOT start anything —
+# run `devenv up` yourself in another terminal (it owns Postgres + the core).
 _pg:
     #!/usr/bin/env bash
     set -euo pipefail
-    if pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null; then
-        echo "postgres already running"
-        exit 0
-    fi
-    echo "starting devenv postgres (detached)…"
-    devenv up -D postgres >/dev/null 2>&1 || true
-    for _ in $(seq 1 60); do
-        if pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null; then
-            echo "postgres ready"; exit 0
-        fi
-        sleep 0.5
-    done
-    echo "ERROR: postgres did not become ready — run 'devenv up' in another terminal." >&2
+    if pg_isready -h 127.0.0.1 -p 5432 -q 2>/dev/null; then exit 0; fi
+    echo "ERROR: Postgres not reachable on 127.0.0.1:5432 — run 'devenv up' in another terminal." >&2
     exit 1
-
-# Bring up Postgres (devenv) + the core (boots, migrates, seeds, serves
-# /graphql). Overseer uses the deterministic LogProvider — see `just dev` for
-# the full local stack wired to Ollama.
-up: _pg
-    go run -C services/api ./cmd/tendant
-
-# Run the full local stack: devenv Postgres + the core wired to a local Ollama
-# via tendant.dev.toml. Pull the models first with `just ollama-models`. If
-# Ollama is down the overseer falls back to the LogProvider (the app still runs).
-dev: _pg
-    @if ! curl -fsS http://localhost:11434/api/tags >/dev/null 2>&1; then \
-        echo "WARNING: Ollama not reachable at http://localhost:11434"; \
-        echo "  Start it ('ollama serve') and pull models ('just ollama-models')."; \
-        echo "  Until then the overseer falls back to the deterministic LogProvider."; \
-    fi
-    go run -C services/api ./cmd/tendant serve --config {{justfile_directory()}}/tendant.dev.toml
 
 # Pull the fast, tool-calling Ollama models referenced by tendant.dev.toml
 # (the two chat models for the overseer/agent + the embedding model for triage).
+# `devenv up` wires the core's overseer to a local Ollama; pull these first.
 ollama-models:
     ollama pull llama3.2:3b
     ollama pull qwen2.5:3b
@@ -134,17 +102,19 @@ app-codegen:
     cd apps/mobile && flutter pub get
     cd apps/mobile && dart run build_runner build --delete-conflicting-outputs
 
-# Stop the core. Tearing down the devenv Postgres is `devenv processes stop
-# postgres` (or Ctrl-C the `devenv up` terminal); wipe its data for a clean
-# re-migrate with `rm -rf .devenv/state/postgres`.
+# Stop any stray core processes left behind (the live-reloading core normally
+# stops when you Ctrl-C the `devenv up` terminal). Tearing down the devenv
+# Postgres is `devenv processes stop postgres`; wipe its data for a clean
+# re-migrate with `rm -rf .devenv/state/postgres` (or `just reset-db`).
 down:
     -pkill -f "go-build.*tendant" 2>/dev/null || true
     -pkill -f "exe/tendant" 2>/dev/null || true
     -docker compose down -v 2>/dev/null || true
 
 # Reset the local database: stop the core, stop + wipe the devenv Postgres state
-# dir, then start a fresh Postgres. The next `just up` re-runs goose migrations
-# and re-seeds the owner from scratch. DESTRUCTIVE — drops all local data.
+# dir. Restart is yours — run `devenv up` afterward; it re-runs goose migrations
+# and re-seeds the owner from scratch. DESTRUCTIVE — drops all local data. Run
+# this with the `devenv up` terminal stopped (it holds the data dir otherwise).
 reset-db: down
     #!/usr/bin/env bash
     set -euo pipefail
@@ -157,12 +127,11 @@ reset-db: down
     done
     echo "wiping postgres state dir (.devenv/state/postgres)…"
     rm -rf .devenv/state/postgres
-    echo "starting fresh postgres…"
-    just _pg
-    echo "database reset — run 'just up' to migrate + seed."
+    echo "database reset — run 'devenv up' to start Postgres, migrate + seed."
 
-# Seed a Task via the in-process CreateTask path (TITLE=... override).
-seed-task TITLE="hello":
+# Seed a Task via the in-process CreateTask path (TITLE=... override). Needs the
+# devenv Postgres up (run `devenv up`); _pg asserts it before we connect.
+seed-task TITLE="hello": _pg
     go run -C services/api ./cmd/tendant seed --title="{{TITLE}}"
 
 # Run all Go tests with coverage across the workspace (per-module — go test

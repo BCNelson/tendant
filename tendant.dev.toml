@@ -4,14 +4,14 @@
 # It is committed on purpose: it holds NO real secrets, only a fixed dev
 # password and a localhost Ollama endpoint. Do NOT use it in production.
 #
-# Run it with:   just dev          (loads this file via `serve --config`)
+# Run it with:   devenv up          (air loads this file via `serve --config`)
 # Everything here can still be overridden by an env var (env > file).
 #
 # See tendant.example.toml for the full annotated reference (cloud providers,
 # secrets interpolation, catalogs, etc.).
 
 [log]
-level = "debug"          # chatty by default for local development
+level = "trace"          # trace = chattiest; emits raw LLM request/response bodies (dev only)
 
 [database]
 # The devenv Postgres (services.postgres) listens here with trust auth, so no
@@ -20,8 +20,8 @@ level = "debug"          # chatty by default for local development
 url = "postgres://127.0.0.1:5432/tendant?sslmode=disable"
 
 [auth]
-# Static device-pairing password. Reused from compose.yaml so the local pairing
-# experience is reproducible. Present this to the `pairDevice` mutation.
+# Static device-pairing password for the local stack (`devenv up`), so the
+# pairing experience is reproducible. Present this to the `pairDevice` mutation.
 password = "dev"
 
 [seed]
@@ -73,14 +73,17 @@ connection = "local-ollama"
 #
 # Pull the models first:  just ollama-models
 # The overseer FORCES structured tool-call output, so pick a model with reliable
-# function-calling. llama3.2:3b and qwen2.5:3b are fast and tool-capable; avoid
-# sub-1B models (e.g. qwen2.5:0.5b) for the overseer — their tool calls are flaky.
+# function-calling. Use qwen2.5:3b: llama3.2:3b's tool-call arguments are mangled
+# by Ollama's go-template parser when they contain apostrophes (a "don't" reason
+# comes back truncated at the "'", emitted as ô mojibake, or with no tool
+# call at all — non-deterministically). qwen2.5:3b round-trips them reliably.
+# Avoid sub-1B models (e.g. qwen2.5:0.5b) — their tool calls are flaky.
 
 [[llm_connections]]
 name = "local-ollama"
 provider = "openai"
 base_url = "http://localhost:11434"
-model = "llama3.2:3b"
+model = "qwen2.5:3b"
 
 # Alternate local models — flip overseer.connection above to one of these.
 # [[llm_connections]]

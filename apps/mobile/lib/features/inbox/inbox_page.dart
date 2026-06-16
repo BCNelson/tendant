@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'inbox_provider.dart';
+import '../tasks/tasks_provider.dart' show allTasksChangedProvider;
 
 /// InboxPage renders the ranked action feed — a single, urgency-sorted stream
 /// of everything that needs the owner: PROPOSED tasks (accept/dismiss inline),
@@ -43,6 +44,16 @@ class _InboxPageState extends ConsumerState<InboxPage> {
     // Any new inbox entry → refresh the ranked feed so it appears live (this
     // re-pins the ranking clock and re-sorts).
     ref.listen(inboxArrivedProvider, (_, __) {
+      ref.read(inboxFeedProvider.notifier).refresh();
+    });
+    // Belt-and-suspenders: also refresh on ANY task/assignment/decision change.
+    // The targeted `inboxEntryArrived` re-derives each item server-side and
+    // emits nothing when it can't construct one (e.g. a decision kind it
+    // doesn't map) — which silently drops the live update until a manual
+    // refresh. The all-changes signal (taskChanged with no id matches the
+    // task/assignment/decision topics) isn't gated that way, so it reliably
+    // ticks and the authoritative feed refetch then shows the new item.
+    ref.listen(allTasksChangedProvider, (_, __) {
       ref.read(inboxFeedProvider.notifier).refresh();
     });
 
@@ -117,8 +128,9 @@ class _EmptyFeed extends StatelessWidget {
   }
 }
 
-/// InboxEntryCard renders one ranked entry. ActionableTask cards carry inline
-/// Accept / Dismiss; the rest tap through to their existing detail surfaces.
+/// InboxEntryCard dispatches one ranked entry on its `messageType`. ActionableTask
+/// entries carry inline Accept / Dismiss; the rest render a generic card that
+/// taps through to its detail surface (and marks itself read on the way).
 class InboxEntryCard extends ConsumerWidget {
   const InboxEntryCard({super.key, required this.entry});
 
@@ -129,43 +141,116 @@ class InboxEntryCard extends ConsumerWidget {
     if (entry.isActionableTask) {
       return _ActionableTaskCard(entry: entry);
     }
+    return _GenericInboxCard(entry: entry);
+  }
+}
 
-    final (icon, onTap) = _leadingAndTap(context);
-    return Card(
+/// _GenericInboxCard renders a non-actionable inbox message: an unread dot until
+/// read, tap-through to the type's detail surface (firing markInboxRead), and
+/// swipe-to-dismiss backed by dismissInboxMessage.
+class _GenericInboxCard extends ConsumerStatefulWidget {
+  const _GenericInboxCard({required this.entry});
+  final InboxEntryRef entry;
+
+  @override
+  ConsumerState<_GenericInboxCard> createState() => _GenericInboxCardState();
+}
+
+class _GenericInboxCardState extends ConsumerState<_GenericInboxCard> {
+  late bool _read = !widget.entry.unread;
+
+  // messageType → (leading icon, detail route). A null route means read-only
+  // (agent_question / promotion_proposal, until their action surfaces land).
+  (IconData, VoidCallback?) _leadingAndTap() {
+    final e = widget.entry;
+    if (e.isApprovalRequest) {
+      return (Icons.outbox, () => context.push('/approval/${e.itemId}'));
+    }
+    if (e.isFeedbackRequest) {
+      return (
+        Icons.rate_review_outlined,
+        () => context.push('/feedback/${e.itemId}')
+      );
+    }
+    if (e.isAssignment) {
+      return (Icons.assignment, () => context.push('/inbox/${e.itemId}'));
+    }
+    return (Icons.lock_outline, null);
+  }
+
+  String _fallbackTitle() {
+    final e = widget.entry;
+    if (e.isApprovalRequest) return 'Approval';
+    if (e.isFeedbackRequest) return 'Feedback';
+    return 'Item';
+  }
+
+  void _markReadOnce() {
+    if (_read) return;
+    setState(() => _read = true);
+    ref.read(inboxStateMutatorProvider).markRead(widget.entry.entryId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final e = widget.entry;
+    final (icon, baseTap) = _leadingAndTap();
+    final onTap = baseTap == null
+        ? null
+        : () {
+            _markReadOnce();
+            baseTap();
+          };
+
+    final card = Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: ListTile(
-        leading: _UrgencyLeading(urgency: entry.urgency, icon: icon),
-        title: Text(entry.title.isEmpty ? _fallbackTitle() : entry.title),
-        subtitle: Text(entry.subtitle),
+        leading: _UrgencyLeading(urgency: e.urgency, icon: icon),
+        title: Row(
+          children: [
+            if (!_read)
+              Container(
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            Expanded(
+              child: Text(
+                e.title.isEmpty ? _fallbackTitle() : e.title,
+                style:
+                    _read ? null : const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        subtitle: Text(e.subtitle),
         trailing: onTap == null ? null : const Icon(Icons.chevron_right),
         enabled: onTap != null,
         onTap: onTap,
       ),
     );
-  }
 
-  String _fallbackTitle() {
-    if (entry.isApprovalRequest) return 'Approval';
-    if (entry.isFeedbackRequest) return 'Feedback';
-    return 'Item';
-  }
-
-  (IconData, VoidCallback?) _leadingAndTap(BuildContext context) {
-    if (entry.isApprovalRequest) {
-      return (Icons.outbox, () => context.push('/approval/${entry.itemId}'));
-    }
-    if (entry.isFeedbackRequest) {
-      return (
-        Icons.rate_review_outlined,
-        () => context.push('/feedback/${entry.itemId}')
-      );
-    }
-    if (entry.isAssignment) {
-      return (Icons.assignment, () => context.push('/inbox/${entry.itemId}'));
-    }
-    // AgentQuestion / PromotionProposal — read-only until their action surfaces
-    // land.
-    return (Icons.lock_outline, null);
+    return Dismissible(
+      key: ValueKey('inbox-${e.entryId}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 24),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        child: const Icon(Icons.archive_outlined),
+      ),
+      onDismissed: (_) {
+        // Update the data source synchronously (avoids the Dismissible assert),
+        // then persist the dismiss server-side.
+        ref.read(inboxFeedProvider.notifier).removeEntry(e.entryId);
+        ref.read(inboxStateMutatorProvider).dismiss(e.entryId);
+      },
+      child: card,
+    );
   }
 }
 

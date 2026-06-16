@@ -117,6 +117,12 @@
 # sweep_cron = "0 * * * *"
 # intake_tighten_k = 0.02
 
+[inbox]
+# Cadence of the inbox-projection reconcile sweep — defense-in-depth that repairs
+# (and alarms on) any inbox_messages row a write bypassed the projection trigger
+# for. Applies on restart. Also TENDANT_INBOX_RECONCILE_CRON.
+# reconcile_cron = "*/15 * * * *"
+
 [intake]
 # gmail_client_id = ""
 # gmail_client_secret = ""   # 🔒 prefer TENDANT_GMAIL_CLIENT_SECRET

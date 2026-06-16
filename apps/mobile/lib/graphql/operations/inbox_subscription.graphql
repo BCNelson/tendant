@@ -1,10 +1,59 @@
+# Data-carrying inbox arrival. Selects the SAME fields the InboxFeed query uses
+# so a pushed entry merges into the normalized cache by id (entity-by-entity)
+# and any view referencing those entities updates automatically. The Inbox
+# controller also reacts to each emission to reconcile the server-ranked order.
 subscription InboxEntryArrived {
   inboxEntryArrived {
     id
     kind
+    messageType
     urgency
+    createdAt
+    readAt
+    dismissedAt
     item {
       __typename
+      ... on ActionableTask {
+        id
+        task {
+          id
+          title
+          state
+          priority
+          dueAt
+          currentStage
+        }
+      }
+      ... on AgentAssignment {
+        id
+        stage
+        ask
+        task {
+          id
+          title
+          state
+          currentStage
+        }
+      }
+      ... on ApprovalRequest {
+        id
+      }
+      ... on AgentQuestion {
+        id
+        question
+      }
+      ... on PromotionProposal {
+        id
+        fromLevel
+        toLevel
+      }
+      ... on FeedbackRequest {
+        id
+        task {
+          id
+          title
+        }
+      }
     }
   }
 }

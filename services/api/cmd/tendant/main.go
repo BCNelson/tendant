@@ -27,12 +27,14 @@ import (
 	"github.com/bcnelson/tendant/services/api/internal/embedding"
 	"github.com/bcnelson/tendant/services/api/internal/feedback"
 	"github.com/bcnelson/tendant/services/api/internal/gatescript"
+	"github.com/bcnelson/tendant/services/api/internal/inbox"
 	"github.com/bcnelson/tendant/services/api/internal/intake"
 	"github.com/bcnelson/tendant/services/api/internal/llm"
 	"github.com/bcnelson/tendant/services/api/internal/overseer"
 	"github.com/bcnelson/tendant/services/api/internal/push"
 	"github.com/bcnelson/tendant/services/api/internal/realtime"
 	"github.com/bcnelson/tendant/services/api/internal/server"
+	"github.com/bcnelson/tendant/services/api/internal/slogx"
 	"github.com/bcnelson/tendant/services/api/internal/tools"
 	"github.com/bcnelson/tendant/services/api/internal/webui"
 )
@@ -46,7 +48,7 @@ var (
 func main() {
 	// A dynamic level so log.level can be changed at runtime (config overlay).
 	var logLevel slog.LevelVar // zero value = Info
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: &logLevel}))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: &logLevel, ReplaceAttr: slogx.ReplaceAttr}))
 	slog.SetDefault(logger)
 
 	if len(os.Args) > 1 {
@@ -73,6 +75,8 @@ func main() {
 // applyLogLevel sets the dynamic slog level from a config string.
 func applyLogLevel(lv *slog.LevelVar, level string) {
 	switch level {
+	case "trace":
+		lv.Set(slogx.LevelTrace)
 	case "debug":
 		lv.Set(slog.LevelDebug)
 	case "warn":
@@ -224,11 +228,14 @@ func runServe(logLevel *slog.LevelVar) error {
 	// Post-completion feedback converser: reuse the agent connection's LLM; fall
 	// back to the deterministic stub when no agent connection is configured. The
 	// same converser drives the workflow's opener and the resolver's replies.
-	feedbackConverser := buildFeedbackConverser(cfg, llmRegistry)
+	// The feedback agent's read-only window onto each completed task (digest +
+	// context tools). Shared by the converser (opener + replies) and the workflow.
+	feedbackRetriever := feedback.NewDBRetriever(q)
+	feedbackConverser := buildFeedbackConverser(cfg, llmRegistry, feedbackRetriever)
 	durable.RegisterChainWorkflow(dctx, pool, q, agentRouter, agentRunner, ownerURI, pushAdapter, feedback.Enqueuer{})
 	durable.RegisterPushQueue(dctx)
 	durable.RegisterToolCallWorkflow(dctx, pool, q, toolRegistry, calibrator)
-	durable.RegisterFeedbackWorkflow(dctx, pool, q, feedbackConverser, calibrator)
+	durable.RegisterFeedbackWorkflow(dctx, pool, q, feedbackConverser, feedbackRetriever, calibrator)
 
 	// 5b. Phase 7 intake edge: connector registry + disposition router +
 	// per-connector poll workflow. Registered before Launch so recovery and
@@ -243,6 +250,10 @@ func runServe(logLevel *slog.LevelVar) error {
 	// before Launch so recovery + the schedule reconciler find the function.
 	calibration.RegisterSweep(dctx, pool, q, calibrator, calibMetrics, pushAdapter, ownerURI)
 
+	// 5b'''. Inbox projection reconcile sweep (defense-in-depth for the
+	// inbox_messages triggers). Registered before Launch like the others.
+	inbox.RegisterReconcile(dctx, q)
+
 	// 5b''. Embedding reindex workflow. Registered before Launch so an in-flight
 	// reindex from a previous boot recovers. Only when embedding is enabled.
 	if embWiring.embedder != nil {
@@ -254,6 +265,15 @@ func runServe(logLevel *slog.LevelVar) error {
 	}
 	slog.Info("dbos launched (recovery, if any, completed)")
 
+	// 5b. Recover human-wait workflows orphaned on an older application version.
+	// Launch's built-in recovery is version-filtered, so a chain/feedback
+	// workflow created by an earlier build can sit PENDING forever with no
+	// goroutine in Recv — completing its assignment then delivers a notification
+	// nothing consumes. This re-enqueues those so they replay and consume it.
+	if err := durable.RecoverOrphans(dctx, pool, chain.WorkflowName, feedback.WorkflowName); err != nil {
+		slog.Error("durable: orphan recovery failed", "err", err)
+	}
+
 	// 5c. Rehydrate a schedule for every enabled connector (after Launch so the
 	// reconciler is running). Crash-safe by construction — schedules are
 	// DB-backed and recovered, this just ensures each enabled connector has one.
@@ -264,6 +284,13 @@ func runServe(logLevel *slog.LevelVar) error {
 	// 5d. Phase 8 calibration sweep schedule (DB-backed, crash-recovered). Idempotent.
 	if err := calibration.CreateSchedule(dctx, calibCfg.SweepCron); err != nil {
 		slog.Error("calibration: sweep schedule creation failed", "err", err)
+	}
+
+	// 5d'. Inbox projection reconcile schedule (DB-backed, crash-recovered). Idempotent.
+	// The DB overlay wins (db_configurable, applies on restart), else env/file/default.
+	reconcileCron := overlay.StringOr("inbox.reconcile_cron", cfg.Inbox.ReconcileCron)
+	if err := inbox.CreateReconcileSchedule(dctx, reconcileCron); err != nil {
+		slog.Error("inbox: reconcile schedule creation failed", "err", err)
 	}
 
 	// 5e. Embedding: ensure the active version matches the configured model and,
@@ -467,7 +494,7 @@ func calibrationConfigFrom(cfg *config.Config, ov *config.Overlay) calibration.C
 // reuses the agent connection's LLM (the same connection the agent layer routes
 // inference through) when configured; otherwise the deterministic StubConverser
 // (the secure/cheap default, CI parity).
-func buildFeedbackConverser(cfg *config.Config, reg *llm.Registry) feedback.Converser {
+func buildFeedbackConverser(cfg *config.Config, reg *llm.Registry, retriever feedback.Retriever) feedback.Converser {
 	name := cfg.Agent.Connection
 	if name == "" {
 		slog.Info("feedback.converser", "source", "stub")
@@ -479,7 +506,7 @@ func buildFeedbackConverser(cfg *config.Config, reg *llm.Registry) feedback.Conv
 		return feedback.StubConverser{}
 	}
 	slog.Info("feedback.converser", "source", "llm", "connection", name, "model", client.Model())
-	return feedback.NewLLMConverser(client)
+	return feedback.NewLLMConverser(client, retriever)
 }
 
 func buildOverseerProvider(cfg *config.Config, reg *llm.Registry) (overseer.Provider, string) {

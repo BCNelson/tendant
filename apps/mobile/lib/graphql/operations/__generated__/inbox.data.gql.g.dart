@@ -183,6 +183,9 @@ class _$GInboxFeedData_inboxFeed_entriesSerializer
       serializers.serialize(object.id, specifiedType: const FullType(String)),
       'kind',
       serializers.serialize(object.kind, specifiedType: const FullType(String)),
+      'messageType',
+      serializers.serialize(object.messageType,
+          specifiedType: const FullType(String)),
       'urgency',
       serializers.serialize(object.urgency,
           specifiedType: const FullType(double)),
@@ -193,7 +196,21 @@ class _$GInboxFeedData_inboxFeed_entriesSerializer
       serializers.serialize(object.item,
           specifiedType: const FullType(GInboxFeedData_inboxFeed_entries_item)),
     ];
-
+    Object? value;
+    value = object.readAt;
+    if (value != null) {
+      result
+        ..add('readAt')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(_i2.GTime)));
+    }
+    value = object.dismissedAt;
+    if (value != null) {
+      result
+        ..add('dismissedAt')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(_i2.GTime)));
+    }
     return result;
   }
 
@@ -221,12 +238,24 @@ class _$GInboxFeedData_inboxFeed_entriesSerializer
           result.kind = serializers.deserialize(value,
               specifiedType: const FullType(String))! as String;
           break;
+        case 'messageType':
+          result.messageType = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
         case 'urgency':
           result.urgency = serializers.deserialize(value,
               specifiedType: const FullType(double))! as double;
           break;
         case 'createdAt':
           result.createdAt.replace(serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTime))! as _i2.GTime);
+          break;
+        case 'readAt':
+          result.readAt.replace(serializers.deserialize(value,
+              specifiedType: const FullType(_i2.GTime))! as _i2.GTime);
+          break;
+        case 'dismissedAt':
+          result.dismissedAt.replace(serializers.deserialize(value,
               specifiedType: const FullType(_i2.GTime))! as _i2.GTime);
           break;
         case 'item':
@@ -1175,9 +1204,15 @@ class _$GInboxFeedData_inboxFeed_entries
   @override
   final String kind;
   @override
+  final String messageType;
+  @override
   final double urgency;
   @override
   final _i2.GTime createdAt;
+  @override
+  final _i2.GTime? readAt;
+  @override
+  final _i2.GTime? dismissedAt;
   @override
   final GInboxFeedData_inboxFeed_entries_item item;
 
@@ -1189,8 +1224,11 @@ class _$GInboxFeedData_inboxFeed_entries
       {required this.G__typename,
       required this.id,
       required this.kind,
+      required this.messageType,
       required this.urgency,
       required this.createdAt,
+      this.readAt,
+      this.dismissedAt,
       required this.item})
       : super._();
   @override
@@ -1209,8 +1247,11 @@ class _$GInboxFeedData_inboxFeed_entries
         G__typename == other.G__typename &&
         id == other.id &&
         kind == other.kind &&
+        messageType == other.messageType &&
         urgency == other.urgency &&
         createdAt == other.createdAt &&
+        readAt == other.readAt &&
+        dismissedAt == other.dismissedAt &&
         item == other.item;
   }
 
@@ -1220,8 +1261,11 @@ class _$GInboxFeedData_inboxFeed_entries
     _$hash = $jc(_$hash, G__typename.hashCode);
     _$hash = $jc(_$hash, id.hashCode);
     _$hash = $jc(_$hash, kind.hashCode);
+    _$hash = $jc(_$hash, messageType.hashCode);
     _$hash = $jc(_$hash, urgency.hashCode);
     _$hash = $jc(_$hash, createdAt.hashCode);
+    _$hash = $jc(_$hash, readAt.hashCode);
+    _$hash = $jc(_$hash, dismissedAt.hashCode);
     _$hash = $jc(_$hash, item.hashCode);
     _$hash = $jf(_$hash);
     return _$hash;
@@ -1233,8 +1277,11 @@ class _$GInboxFeedData_inboxFeed_entries
           ..add('G__typename', G__typename)
           ..add('id', id)
           ..add('kind', kind)
+          ..add('messageType', messageType)
           ..add('urgency', urgency)
           ..add('createdAt', createdAt)
+          ..add('readAt', readAt)
+          ..add('dismissedAt', dismissedAt)
           ..add('item', item))
         .toString();
   }
@@ -1258,6 +1305,10 @@ class GInboxFeedData_inboxFeed_entriesBuilder
   String? get kind => _$this._kind;
   set kind(String? kind) => _$this._kind = kind;
 
+  String? _messageType;
+  String? get messageType => _$this._messageType;
+  set messageType(String? messageType) => _$this._messageType = messageType;
+
   double? _urgency;
   double? get urgency => _$this._urgency;
   set urgency(double? urgency) => _$this._urgency = urgency;
@@ -1265,6 +1316,16 @@ class GInboxFeedData_inboxFeed_entriesBuilder
   _i2.GTimeBuilder? _createdAt;
   _i2.GTimeBuilder get createdAt => _$this._createdAt ??= _i2.GTimeBuilder();
   set createdAt(_i2.GTimeBuilder? createdAt) => _$this._createdAt = createdAt;
+
+  _i2.GTimeBuilder? _readAt;
+  _i2.GTimeBuilder get readAt => _$this._readAt ??= _i2.GTimeBuilder();
+  set readAt(_i2.GTimeBuilder? readAt) => _$this._readAt = readAt;
+
+  _i2.GTimeBuilder? _dismissedAt;
+  _i2.GTimeBuilder get dismissedAt =>
+      _$this._dismissedAt ??= _i2.GTimeBuilder();
+  set dismissedAt(_i2.GTimeBuilder? dismissedAt) =>
+      _$this._dismissedAt = dismissedAt;
 
   GInboxFeedData_inboxFeed_entries_item? _item;
   GInboxFeedData_inboxFeed_entries_item? get item => _$this._item;
@@ -1280,8 +1341,11 @@ class GInboxFeedData_inboxFeed_entriesBuilder
       _G__typename = $v.G__typename;
       _id = $v.id;
       _kind = $v.kind;
+      _messageType = $v.messageType;
       _urgency = $v.urgency;
       _createdAt = $v.createdAt.toBuilder();
+      _readAt = $v.readAt?.toBuilder();
+      _dismissedAt = $v.dismissedAt?.toBuilder();
       _item = $v.item;
       _$v = null;
     }
@@ -1312,9 +1376,13 @@ class GInboxFeedData_inboxFeed_entriesBuilder
                 id, r'GInboxFeedData_inboxFeed_entries', 'id'),
             kind: BuiltValueNullFieldError.checkNotNull(
                 kind, r'GInboxFeedData_inboxFeed_entries', 'kind'),
+            messageType: BuiltValueNullFieldError.checkNotNull(messageType,
+                r'GInboxFeedData_inboxFeed_entries', 'messageType'),
             urgency: BuiltValueNullFieldError.checkNotNull(
                 urgency, r'GInboxFeedData_inboxFeed_entries', 'urgency'),
             createdAt: createdAt.build(),
+            readAt: _readAt?.build(),
+            dismissedAt: _dismissedAt?.build(),
             item: BuiltValueNullFieldError.checkNotNull(
                 item, r'GInboxFeedData_inboxFeed_entries', 'item'),
           );
@@ -1323,6 +1391,10 @@ class GInboxFeedData_inboxFeed_entriesBuilder
       try {
         _$failedField = 'createdAt';
         createdAt.build();
+        _$failedField = 'readAt';
+        _readAt?.build();
+        _$failedField = 'dismissedAt';
+        _dismissedAt?.build();
       } catch (e) {
         throw BuiltValueNestedFieldError(
             r'GInboxFeedData_inboxFeed_entries', _$failedField, e.toString());

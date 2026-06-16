@@ -29,8 +29,8 @@ void main() {
   ProviderContainer containerWith(List<TaskRef> raw) => ProviderContainer(
         overrides: [
           // Both `active` and `all` map to serverStateName == null, so this one
-          // override backs both views — proving they share a single fetch.
-          rawTasksProvider.overrideWith((ref, serverState) async => raw),
+          // override backs both views — proving they share a single stream.
+          rawTasksProvider.overrideWith((ref, serverState) => Stream.value(raw)),
         ],
       );
 
@@ -38,7 +38,11 @@ void main() {
     final c = containerWith(mixed);
     addTearDown(c.dispose);
 
-    final all = await c.read(tasksListProvider(TasksFilter.all).future);
+    // Keep the stream alive (Riverpod 3 disposes unlistened providers) and
+    // await its first emission before reading the derived view.
+    c.listen(rawTasksProvider(null), (_, __) {});
+    await c.read(rawTasksProvider(null).future);
+    final all = c.read(tasksListProvider(TasksFilter.all)).requireValue;
     expect(all.map((t) => t.id), ['a', 'b', 'c', 'd', 'e', 'f']);
   });
 
@@ -46,7 +50,9 @@ void main() {
     final c = containerWith(mixed);
     addTearDown(c.dispose);
 
-    final active = await c.read(tasksListProvider(TasksFilter.active).future);
+    c.listen(rawTasksProvider(null), (_, __) {});
+    await c.read(rawTasksProvider(null).future);
+    final active = c.read(tasksListProvider(TasksFilter.active)).requireValue;
     expect(active.map((t) => t.id), ['a', 'b', 'd']);
     expect(active.every((t) => !t.isTerminal), isTrue);
   });
@@ -55,8 +61,10 @@ void main() {
     final c = containerWith(mixed);
     addTearDown(c.dispose);
 
-    final all = await c.read(tasksListProvider(TasksFilter.all).future);
-    final active = await c.read(tasksListProvider(TasksFilter.active).future);
+    c.listen(rawTasksProvider(null), (_, __) {});
+    await c.read(rawTasksProvider(null).future);
+    final all = c.read(tasksListProvider(TasksFilter.all)).requireValue;
+    final active = c.read(tasksListProvider(TasksFilter.active)).requireValue;
 
     final allIds = all.map((t) => t.id).toSet();
     for (final t in active) {

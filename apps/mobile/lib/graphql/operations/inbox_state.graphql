@@ -1,0 +1,21 @@
+# Per-message inbox state on the first-class inbox_messages row. markInboxRead is
+# fired (best-effort) when the owner taps through to a message's detail surface;
+# dismissInboxMessage backs swipe-to-dismiss. Both return the updated state so
+# the normalized cache updates the tile by id.
+mutation MarkInboxRead($id: ID!) {
+  markInboxRead(id: $id) {
+    id
+    seenAt
+    readAt
+    dismissedAt
+  }
+}
+
+mutation DismissInboxMessage($id: ID!) {
+  dismissInboxMessage(id: $id) {
+    id
+    seenAt
+    readAt
+    dismissedAt
+  }
+}

@@ -69,6 +69,10 @@ Serializers _$serializers = (Serializers().toBuilder()
       ..add(GDismissFeedbackData_dismissFeedback.serializer)
       ..add(GDismissFeedbackReq.serializer)
       ..add(GDismissFeedbackVars.serializer)
+      ..add(GDismissInboxMessageData.serializer)
+      ..add(GDismissInboxMessageData_dismissInboxMessage.serializer)
+      ..add(GDismissInboxMessageReq.serializer)
+      ..add(GDismissInboxMessageVars.serializer)
       ..add(GDismissProposedTaskData.serializer)
       ..add(GDismissProposedTaskData_dismissProposedTask.serializer)
       ..add(GDismissProposedTaskReq.serializer)
@@ -79,6 +83,8 @@ Serializers _$serializers = (Serializers().toBuilder()
       ..add(GEnableConnectorVars.serializer)
       ..add(GFeedbackRequestData.serializer)
       ..add(GFeedbackRequestData_pendingDecision__asFeedbackRequest.serializer)
+      ..add(GFeedbackRequestData_pendingDecision__asFeedbackRequest_context
+          .serializer)
       ..add(GFeedbackRequestData_pendingDecision__asFeedbackRequest_messages
           .serializer)
       ..add(GFeedbackRequestData_pendingDecision__asFeedbackRequest_task
@@ -91,7 +97,27 @@ Serializers _$serializers = (Serializers().toBuilder()
       ..add(GGuidanceScope.serializer)
       ..add(GInboxEntryArrivedData.serializer)
       ..add(GInboxEntryArrivedData_inboxEntryArrived.serializer)
-      ..add(GInboxEntryArrivedData_inboxEntryArrived_item.serializer)
+      ..add(GInboxEntryArrivedData_inboxEntryArrived_item__asActionableTask
+          .serializer)
+      ..add(GInboxEntryArrivedData_inboxEntryArrived_item__asActionableTask_task
+          .serializer)
+      ..add(GInboxEntryArrivedData_inboxEntryArrived_item__asAgentAssignment
+          .serializer)
+      ..add(
+          GInboxEntryArrivedData_inboxEntryArrived_item__asAgentAssignment_task
+              .serializer)
+      ..add(GInboxEntryArrivedData_inboxEntryArrived_item__asAgentQuestion
+          .serializer)
+      ..add(GInboxEntryArrivedData_inboxEntryArrived_item__asApprovalRequest
+          .serializer)
+      ..add(GInboxEntryArrivedData_inboxEntryArrived_item__asFeedbackRequest
+          .serializer)
+      ..add(
+          GInboxEntryArrivedData_inboxEntryArrived_item__asFeedbackRequest_task
+              .serializer)
+      ..add(GInboxEntryArrivedData_inboxEntryArrived_item__asPromotionProposal
+          .serializer)
+      ..add(GInboxEntryArrivedData_inboxEntryArrived_item__base.serializer)
       ..add(GInboxEntryArrivedReq.serializer)
       ..add(GInboxEntryArrivedVars.serializer)
       ..add(GInboxFeedData.serializer)
@@ -113,6 +139,10 @@ Serializers _$serializers = (Serializers().toBuilder()
       ..add(GInboxFeedData_inboxFeed_entries_item__base.serializer)
       ..add(GInboxFeedReq.serializer)
       ..add(GInboxFeedVars.serializer)
+      ..add(GMarkInboxReadData.serializer)
+      ..add(GMarkInboxReadData_markInboxRead.serializer)
+      ..add(GMarkInboxReadReq.serializer)
+      ..add(GMarkInboxReadVars.serializer)
       ..add(GPairDeviceData.serializer)
       ..add(GPairDeviceData_pairDevice.serializer)
       ..add(GPairDeviceData_pairDevice_session.serializer)
@@ -170,6 +200,9 @@ Serializers _$serializers = (Serializers().toBuilder()
       ..add(GSetTaskCategoryVars.serializer)
       ..add(GTaskChangedData.serializer)
       ..add(GTaskChangedData_taskChanged.serializer)
+      ..add(GTaskChangedData_taskChanged_openAssignment.serializer)
+      ..add(GTaskChangedData_taskChanged_stageSlots.serializer)
+      ..add(GTaskChangedData_taskChanged_stageSlots_occupant.serializer)
       ..add(GTaskChangedReq.serializer)
       ..add(GTaskChangedVars.serializer)
       ..add(GTaskDetailData.serializer)
@@ -241,6 +274,10 @@ Serializers _$serializers = (Serializers().toBuilder()
               GSendFeedbackMessageData_sendFeedbackMessage_messages>())
       ..addBuilderFactory(
           const FullType(BuiltList,
+              const [const FullType(GTaskChangedData_taskChanged_stageSlots)]),
+          () => ListBuilder<GTaskChangedData_taskChanged_stageSlots>())
+      ..addBuilderFactory(
+          const FullType(BuiltList,
               const [const FullType(GTaskDetailData_task_stageSlots)]),
           () => ListBuilder<GTaskDetailData_task_stageSlots>())
       ..addBuilderFactory(
@@ -259,6 +296,12 @@ Serializers _$serializers = (Serializers().toBuilder()
           const FullType(BuiltList,
               const [const FullType(GTasksData_tasks_edges_node_stageSlots)]),
           () => ListBuilder<GTasksData_tasks_edges_node_stageSlots>())
+      ..addBuilderFactory(
+          const FullType(BuiltList, const [const FullType(String)]),
+          () => ListBuilder<String>())
+      ..addBuilderFactory(
+          const FullType(BuiltList, const [const FullType(String)]),
+          () => ListBuilder<String>())
       ..addBuilderFactory(
           const FullType(BuiltList, const [const FullType(String)]),
           () => ListBuilder<String>())

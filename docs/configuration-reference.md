@@ -98,6 +98,12 @@ systemd `CREDENTIALS_DIRECTORY`).
 | `gatescript.max_timeout_ms` | int | `1000` | yes | restart | Max gate-script execution timeout (ms) |
 | `gatescript.runner` | string | `wazero` | — | bootstrap | Gate-script runner: wazero, log |
 
+## inbox
+
+| Key | Type | Default | DB-configurable | Takes effect | Description |
+|---|---|---|---|---|---|
+| `inbox.reconcile_cron` | string | `*/15 * * * *` | yes | restart | Inbox-projection reconcile-sweep cron cadence (applies on restart) |
+
 ## intake
 
 | Key | Type | Default | DB-configurable | Takes effect | Description |
@@ -111,7 +117,7 @@ systemd `CREDENTIALS_DIRECTORY`).
 | Key | Type | Default | DB-configurable | Takes effect | Description |
 |---|---|---|---|---|---|
 | `log.format` | string | `json` | yes | restart | Log format: json |
-| `log.level` | string | `info` | yes | hot | Log level: debug, info, warn, error |
+| `log.level` | string | `info` | yes | hot | Log level: trace, debug, info, warn, error |
 
 ## overseer
 

@@ -38,7 +38,7 @@ var Registry = []KeyDef{
 	{Key: "database.url", Type: "string", Default: "", Description: "PostgreSQL connection DSN", Reload: ReloadBootstrap, Sensitive: true, DBConfigurable: false, ReadonlyReason: "Database connection cannot change at runtime"},
 
 	// Logging.
-	{Key: "log.level", Type: "string", Default: "info", Description: "Log level: debug, info, warn, error", Reload: ReloadHot, DBConfigurable: true, HotReloadable: true},
+	{Key: "log.level", Type: "string", Default: "info", Description: "Log level: trace, debug, info, warn, error", Reload: ReloadHot, DBConfigurable: true, HotReloadable: true},
 	{Key: "log.format", Type: "string", Default: "json", Description: "Log format: json", Reload: ReloadRestart, DBConfigurable: true},
 
 	// Gate / agent budgets — hot.
@@ -79,6 +79,9 @@ var Registry = []KeyDef{
 	{Key: "calibration.demotion_decrement", Type: "float64", Default: 0.25, Description: "Trust-score decrement per bad signal", Reload: ReloadHot, DBConfigurable: true, HotReloadable: true},
 	{Key: "calibration.sweep_cron", Type: "string", Default: "0 * * * *", Description: "Promotion-sweep cron cadence (applies on restart)", Reload: ReloadRestart, DBConfigurable: true},
 	{Key: "calibration.intake_tighten_k", Type: "float64", Default: 0.02, Description: "Per-dismissal intake threshold-tightening coefficient", Reload: ReloadHot, DBConfigurable: true, HotReloadable: true},
+
+	// Inbox projection.
+	{Key: "inbox.reconcile_cron", Type: "string", Default: "*/15 * * * *", Description: "Inbox-projection reconcile-sweep cron cadence (applies on restart)", Reload: ReloadRestart, DBConfigurable: true},
 
 	// Intake (Gmail OAuth) — credentials read at boot.
 	{Key: "intake.gmail_client_id", Type: "string", Default: "", Description: "Gmail OAuth client ID", Reload: ReloadBootstrap, DBConfigurable: false},

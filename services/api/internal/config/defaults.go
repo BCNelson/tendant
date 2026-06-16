@@ -54,6 +54,9 @@ func DefaultConfig() Config {
 			SweepCron:         "0 * * * *",
 			IntakeTightenK:    0.02,
 		},
+		Inbox: InboxConfig{
+			ReconcileCron: "*/15 * * * *",
+		},
 		Embedding: EmbeddingConfig{
 			// Disabled by default (triage uses the full-taxonomy fallback). The
 			// other fields pre-fill the Ollama dev setup so enabling embeddings

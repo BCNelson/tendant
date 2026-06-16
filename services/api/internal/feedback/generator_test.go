@@ -2,23 +2,38 @@ package feedback
 
 import (
 	"context"
+	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 
 	"github.com/bcnelson/tendant/services/api/internal/llm"
 )
 
-// fakeClient is a deterministic llm.Client that returns a canned Response,
-// capturing the Request it was handed so tests can assert on the wire shape.
+// fakeClient is a deterministic llm.Client. With resps set it returns one queued
+// Response per Chat call (and records every Request in gots), driving a
+// multi-call gather→finalize sequence; otherwise it returns the single resp.
 type fakeClient struct {
-	resp llm.Response
-	err  error
-	got  llm.Request
+	resp  llm.Response
+	resps []llm.Response
+	err   error
+	got   llm.Request
+	gots  []llm.Request
+	i     int
 }
 
 func (f *fakeClient) Provider() string { return "fake" }
 func (f *fakeClient) Model() string    { return "fake-model" }
 func (f *fakeClient) Chat(_ context.Context, req llm.Request) (llm.Response, error) {
 	f.got = req
+	f.gots = append(f.gots, req)
+	if len(f.resps) > 0 {
+		r := f.resps[f.i]
+		if f.i < len(f.resps)-1 {
+			f.i++
+		}
+		return r, f.err
+	}
 	return f.resp, f.err
 }
 
@@ -101,9 +116,9 @@ func TestLLMConverser_Reply_SalvagesPlainText(t *testing.T) {
 	// model's words arrive only in Content. The converser must surface them
 	// (non-empty reply) so the resolver does not substitute its canned fallback.
 	fc := &fakeClient{resp: llm.Response{Content: "What would you change next time?"}}
-	c := NewLLMConverser(fc)
+	c := NewLLMConverser(fc, nil)
 
-	reply, draft, err := c.Reply(context.Background(), TaskSummary{Title: "Write a poem"}, []Turn{
+	reply, draft, _, err := c.Reply(context.Background(), TaskSummary{Title: "Write a poem"}, []Turn{
 		{Role: "agent", Content: "How did it go?"},
 		{Role: "user", Content: "The agent didn't write the poem itself."},
 	})
@@ -138,22 +153,101 @@ func TestLLMConverser_Reply_SalvagesPlainText(t *testing.T) {
 	}
 }
 
+// fakeRetriever is a deterministic Retriever for the gather-loop test.
+type fakeRetriever struct {
+	digest   TaskContext
+	outcomes string
+}
+
+func (f *fakeRetriever) Digest(context.Context, uuid.UUID) (TaskContext, error) {
+	return f.digest, nil
+}
+func (f *fakeRetriever) ToolOutcomes(context.Context, uuid.UUID) (string, error) {
+	return f.outcomes, nil
+}
+func (f *fakeRetriever) AgentTranscript(context.Context, uuid.UUID) (string, error) {
+	return `{"runs":[]}`, nil
+}
+func (f *fakeRetriever) AuditTrail(context.Context, uuid.UUID) (string, error) {
+	return `{"audit":[]}`, nil
+}
+func (f *fakeRetriever) ExistingGuidance(context.Context) (string, error) {
+	return `{"guidance":[]}`, nil
+}
+
+func TestLLMConverser_GatherThenFinalize(t *testing.T) {
+	// Round 1 (gather): the model asks for tool outcomes. Round 2 (gather): it
+	// emits plain text and no tool call, ending the gather phase. Round 3
+	// (finalize): the forced feedback_turn yields the structured result.
+	sc := &fakeClient{resps: []llm.Response{
+		{ToolCalls: []llm.ToolCall{{Name: ToolGetToolOutcomes, Arguments: "{}"}}},
+		{Content: "Let me wrap up."},
+		{ToolCalls: []llm.ToolCall{toolCall(`{"reply":"I see send-email was flagged.","draft_guidance":"Double-check recipients before sending email."}`)}},
+	}}
+	ret := &fakeRetriever{
+		digest:   TaskContext{ToolsRun: 1, ToolsFlagged: 1, Summary: "1 tool call(s) (1 flagged bad)"},
+		outcomes: `{"outcomes":[{"tool":"send-email","outcome":"bad"}]}`,
+	}
+	c := NewLLMConverser(sc, ret)
+
+	reply, draft, consulted, err := c.Open(context.Background(), TaskSummary{TaskID: uuid.New(), Title: "Email the team"})
+	if err != nil {
+		t.Fatalf("Open error: %v", err)
+	}
+	if reply != "I see send-email was flagged." {
+		t.Errorf("reply = %q", reply)
+	}
+	if draft != "Double-check recipients before sending email." {
+		t.Errorf("draft = %q", draft)
+	}
+	if len(consulted) != 1 || consulted[0] != ToolGetToolOutcomes {
+		t.Errorf("consulted = %v, want [%s]", consulted, ToolGetToolOutcomes)
+	}
+
+	// Three Chat calls: two gather rounds + finalize.
+	if len(sc.gots) != 3 {
+		t.Fatalf("got %d Chat calls, want 3 (2 gather + finalize)", len(sc.gots))
+	}
+	// The seed must carry the front-loaded digest.
+	if seed := sc.gots[0].Messages[0].Content; !strings.Contains(seed, "[TASK_CONTEXT]") || !strings.Contains(seed, "flagged bad") {
+		t.Errorf("seed missing digest: %q", seed)
+	}
+	// The finalize request must include the tool result fed back as a user turn.
+	last := sc.gots[2].Messages
+	var sawResult bool
+	for _, m := range last {
+		if strings.Contains(m.Content, "[CONTEXT:"+ToolGetToolOutcomes+"]") && strings.Contains(m.Content, "send-email") {
+			sawResult = true
+		}
+	}
+	if !sawResult {
+		t.Errorf("finalize messages missing fed-back context result: %+v", last)
+	}
+	// Finalize forces the structured tool.
+	if sc.gots[2].ForceTool != "feedback_turn" {
+		t.Errorf("finalize ForceTool = %q, want feedback_turn", sc.gots[2].ForceTool)
+	}
+}
+
 func TestStubConverser(t *testing.T) {
 	var s StubConverser
 	if s.Label() != "stub" {
 		t.Errorf("Label = %q, want stub", s.Label())
 	}
 
-	open, draft, err := s.Open(context.Background(), TaskSummary{})
+	open, draft, consulted, err := s.Open(context.Background(), TaskSummary{})
 	if err != nil || open == "" {
 		t.Fatalf("Open = (%q, %q, %v)", open, draft, err)
 	}
 	if draft != "" {
 		t.Errorf("Open draft = %q, want empty", draft)
 	}
+	if consulted != nil {
+		t.Errorf("Open consulted = %v, want nil (stub uses no tools)", consulted)
+	}
 
 	// Reply echoes the most recent user message as the draft.
-	reply, draft, err := s.Reply(context.Background(), TaskSummary{}, []Turn{
+	reply, draft, _, err := s.Reply(context.Background(), TaskSummary{}, []Turn{
 		{Role: "agent", Content: "opening"},
 		{Role: "user", Content: "be more concise"},
 	})

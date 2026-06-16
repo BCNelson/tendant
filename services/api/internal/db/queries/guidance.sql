@@ -31,6 +31,16 @@ UPDATE agent_guidance
 RETURNING id, note, status, scope, agent_config_id, source_decision_id,
           source_task_id, created_at, activated_at;
 
+-- name: ListAllActiveGuidance :many
+-- Every active guidance note regardless of scope (global + all agent-scoped),
+-- oldest-first. Read by the post-completion feedback agent so it can build on —
+-- and avoid duplicating — standing guidance that already exists.
+SELECT id, note, status, scope, agent_config_id, source_decision_id,
+       source_task_id, created_at, activated_at
+FROM agent_guidance
+WHERE status = 'active'
+ORDER BY created_at ASC, id ASC;
+
 -- name: ActiveGuidanceForAgent :many
 -- Hot path: the agent runner loads global + this-agent active notes to inject
 -- into the system prompt. Oldest-first so guidance reads chronologically.

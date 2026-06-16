@@ -253,7 +253,7 @@ func dispatchAndRecord(ctx context.Context, d *envDeps, decisionID uuid.UUID, en
 		dispatchErrStr = execErr.Error()
 	}
 
-	return pgx.BeginFunc(ctx, d.pool, func(tx pgx.Tx) error {
+	if err := pgx.BeginFunc(ctx, d.pool, func(tx pgx.Tx) error {
 		// Audit: decision_resolved → tool_dispatched → tool_outcome_recorded.
 		parent, perr := latestTransitionIDInTx(ctx, tx, taskID)
 		if perr != nil {
@@ -321,15 +321,24 @@ func dispatchAndRecord(ctx context.Context, d *envDeps, decisionID uuid.UUID, en
 			return werr
 		}
 
-		// Propagate provider errors back up so DBOS marks the step failed
-		// and retries (per its default policy) — but only AFTER the bad
-		// outcome row + audit chain landed. This is the calibration story:
-		// the ledger captures the failure for Phase 8.
-		if execErr != nil {
-			return fmt.Errorf("tool dispatch failed: %w", execErr)
-		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	// Propagate provider errors back up so DBOS marks the step failed and
+	// retries (per its default policy) — but only AFTER the bad outcome row +
+	// audit chain have COMMITTED. Returning execErr from inside BeginFunc above
+	// would roll the whole tx back (the outcome + demotion would never land, and
+	// DBOS would retry indefinitely on a permanent provider failure). On the
+	// retry the idempotency guard above sees the decision already dispatched and
+	// returns without re-executing, so the step then succeeds with exactly one
+	// bad outcome recorded. This is the calibration story: the ledger captures
+	// the failure for Phase 8.
+	if execErr != nil {
+		return fmt.Errorf("tool dispatch failed: %w", execErr)
+	}
+	return nil
 }
 
 // latestTransitionIDInTx mirrors chain.latestTransitionIDInTx; duplicated

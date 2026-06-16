@@ -253,6 +253,180 @@ func TestRunner_HandoffToHuman(t *testing.T) {
 	}
 }
 
+// TestRunner_HandoffEmittedAsContent reproduces the real-world break: a small /
+// local model (e.g. Ollama llama3.2:3b) emits the handoff_to_human call as JSON
+// text in its message content instead of a structured tool_calls entry. Before
+// the content-fallback recovery the runner read this as a finished stage result
+// and silently completed a task the agent meant to escalate. The runner must
+// recover the call and fail-close to a human, exactly as if it had arrived
+// structured.
+func TestRunner_HandoffEmittedAsContent(t *testing.T) {
+	auditor := &mockAuditor{}
+	client := &LogAgentClient{
+		Fixtures: []ChatResponse{
+			{
+				// Verbatim shape observed in the DB: tool call as content, no tool_calls.
+				Content: `{"name":"handoff_to_human","parameters":{"reason":"this task needs a phone call and I have no tool for that"}}`,
+			},
+		},
+	}
+
+	runner := &Runner{
+		Client:     client,
+		Gate:       &mockGate{verdict: GateVerdict{Decision: "approve"}},
+		Dispatcher: &mockDispatcher{result: `{"ok":true}`},
+		Auditor:    auditor,
+		Queries:    nil, // empty allowlist ⇒ resolveAllowlist never touches the DB
+		MaxIter:    10,
+		Budget:     100,
+	}
+
+	rc := RunConfig{
+		Config: db.AgentConfig{
+			ID:            uuid.New(),
+			Name:          "general-executor",
+			Stage:         "execution",
+			ToolAllowlist: json.RawMessage(`[]`),
+		},
+		TaskID:    uuid.New(),
+		TaskTitle: "Call the dentist to reschedule",
+	}
+
+	result, err := runner.Run(ctx(t), rc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !result.FailCloseToHuman {
+		t.Error("content-emitted handoff must fail-close to human, not complete")
+	}
+	if result.FailReason != "agent_handoff" {
+		t.Errorf("FailReason = %q, want agent_handoff", result.FailReason)
+	}
+	if result.HandoffReason == "" || !containsStr(result.HandoffReason, "phone call") {
+		t.Errorf("HandoffReason did not carry the agent's reason: %q", result.HandoffReason)
+	}
+	if result.Findings != nil {
+		t.Error("content-emitted handoff must not be misread as findings")
+	}
+	if !auditor.hasKind("agent_handoff") {
+		t.Error("expected agent_handoff audit entry")
+	}
+}
+
+// TestRunner_ContentFindingsNotMisreadAsToolCall guards the fallback's
+// precision: a normal findings answer (no "name" of an offered tool) must still
+// be treated as a completed stage result, never recovered as a call.
+func TestRunner_ContentFindingsNotMisreadAsToolCall(t *testing.T) {
+	client := &LogAgentClient{
+		Fixtures: []ChatResponse{
+			{Content: `{"findings":{"structured":{"stakes_score":2},"free_text":"done"}}`},
+		},
+	}
+	runner := &Runner{
+		Client:  client,
+		Gate:    &mockGate{verdict: GateVerdict{Decision: "approve"}},
+		Auditor: &mockAuditor{},
+		MaxIter: 10,
+		Budget:  100,
+	}
+	rc := RunConfig{
+		Config: db.AgentConfig{
+			ID:            uuid.New(),
+			Name:          "general-executor",
+			Stage:         "execution",
+			ToolAllowlist: json.RawMessage(`[]`),
+		},
+		TaskID:    uuid.New(),
+		TaskTitle: "Summarize the notes",
+	}
+
+	result, err := runner.Run(ctx(t), rc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.FailCloseToHuman {
+		t.Error("a normal findings answer must not fail-close to human")
+	}
+	if result.Findings == nil {
+		t.Fatal("expected findings to be parsed from the completion")
+	}
+}
+
+// TestRunner_NudgesSuspectedFailedToolCall covers the failed-tool-call filter:
+// when a model emits something that looks like a tool call but names a tool we
+// never offered (hallucinated), the runner must NOT accept it as a completion —
+// it audits the attempt, nudges the model, and on the model's corrected retry
+// proceeds normally (here the retry is a clean findings answer).
+func TestRunner_NudgesSuspectedFailedToolCall(t *testing.T) {
+	auditor := &mockAuditor{}
+	client := &LogAgentClient{
+		Fixtures: []ChatResponse{
+			// First turn: a botched call to a tool that was never offered.
+			{Content: `{"name":"write_poem","arguments":{"topic":"fire"}}`},
+			// Second turn (after the nudge): a proper findings completion.
+			{Content: `{"findings":{"structured":{"stakes_score":1},"free_text":"poem written"}}`},
+		},
+	}
+	runner := &Runner{
+		Client:  client,
+		Gate:    &mockGate{verdict: GateVerdict{Decision: "approve"}},
+		Auditor: auditor,
+		MaxIter: 10,
+		Budget:  100,
+	}
+	rc := RunConfig{
+		Config: db.AgentConfig{
+			ID:            uuid.New(),
+			Name:          "general-executor",
+			Stage:         "execution",
+			ToolAllowlist: json.RawMessage(`[]`),
+		},
+		TaskID:    uuid.New(),
+		TaskTitle: "Write a poem about fire",
+	}
+
+	result, err := runner.Run(ctx(t), rc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !auditor.hasKind("agent_suspected_tool_attempt") {
+		t.Error("expected an agent_suspected_tool_attempt audit entry")
+	}
+	if result.FailCloseToHuman {
+		t.Error("model recovered on retry; should not fail-close")
+	}
+	if result.Findings == nil || result.Findings.FreeText != "poem written" {
+		t.Errorf("expected the corrected completion to be parsed, got %+v", result.Findings)
+	}
+}
+
+func TestSuspectedToolCallAttempt(t *testing.T) {
+	known := map[string]bool{"send_email": true, HandoffToolName: true}
+	cases := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{"hallucinated json call", `{"name":"write_poem","arguments":{"x":1}}`, true},
+		{"tool_call markup", "<tool_call>{\"name\":\"x\"}</tool_call>", true},
+		{"python tag", "<|python_tag|>send_email(...)", true},
+		{"fenced tool_code", "```tool_code\nsend_email()\n```", true},
+		{"malformed referencing known", `{"name": "send_email", "parameters": {`, true},
+		{"normal findings", `{"findings":{"structured":{"stakes_score":1},"free_text":"ok"}}`, false},
+		{"plain prose", "I have completed the task and sent the summary.", false},
+		{"empty", "   ", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, got := suspectedToolCallAttempt(tc.content, known)
+			if got != tc.want {
+				t.Errorf("suspectedToolCallAttempt(%q) = %v, want %v", tc.content, got, tc.want)
+			}
+		})
+	}
+}
+
 func containsStr(s, sub string) bool { return strings.Contains(s, sub) }
 
 func TestRunner_FloorTripsRequestDecision(t *testing.T) {

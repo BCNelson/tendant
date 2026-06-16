@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/bcnelson/tendant/services/api/internal/slogx"
 )
 
 // openaiClient speaks the OpenAI Chat Completions protocol. Because the wire
@@ -84,6 +87,7 @@ type openaiResp struct {
 				} `json:"function"`
 			} `json:"tool_calls"`
 		} `json:"message"`
+		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 	Usage struct {
 		PromptTokens     int `json:"prompt_tokens"`
@@ -162,6 +166,17 @@ func (c *openaiClient) Chat(ctx context.Context, req Request) (Response, error) 
 		return Response{}, fmt.Errorf("%w: openai status=%d body=%s", ErrTransient, resp.StatusCode, string(respBody))
 	}
 
+	// Trace the raw response verbatim so tool-call argument corruption can be
+	// attributed: a value already truncated here (e.g. severed at an
+	// apostrophe) is the upstream parser's doing, since we store arguments as-is
+	// below; finish_reason=="length" instead points at a token-cap cutoff. Off
+	// by default (TRACE) — bodies carry prompt + model output, so keep it dev-only.
+	slog.Log(ctx, slogx.LevelTrace, "llm.openai: raw response",
+		"model", model,
+		"status", resp.StatusCode,
+		"body", string(respBody),
+	)
+
 	var decoded openaiResp
 	if err := json.Unmarshal(respBody, &decoded); err != nil {
 		return Response{}, fmt.Errorf("%w: openai decode: %v", ErrTransient, err)
@@ -181,6 +196,11 @@ func (c *openaiClient) Chat(ctx context.Context, req Request) (Response, error) 
 				Name:      tc.Function.Name,
 				Arguments: tc.Function.Arguments,
 			})
+			slog.Log(ctx, slogx.LevelTrace, "llm.openai: tool call decoded",
+				"name", tc.Function.Name,
+				"finish_reason", decoded.Choices[0].FinishReason,
+				"arguments", tc.Function.Arguments,
+			)
 		}
 	}
 	return out, nil

@@ -13,18 +13,20 @@ wired for the operator edge.
 direnv allow
 
 # Bring up Postgres + the core: migrates, seeds owner, serves /graphql + /healthz.
-make up                  # equivalent: just up
+devenv up                # Postgres + the live-reloading core (air), → :8080
 curl -fsS localhost:8080/healthz   # → 200 OK
 
 # Tests (Docker required for testcontainers).
 just test
 ```
 
-`just up` (and `just dev` below) start the **devenv Postgres** (process-compose)
-if it isn't already running. For the full foreground process view, run
-`devenv up` in its own terminal; stop it with `devenv processes stop postgres`
-(or Ctrl-C). The devenv Postgres listens on `127.0.0.1:5432` with a superuser
-role named after your OS user, which is why `DATABASE_URL` carries no user.
+`devenv up` owns the long-running processes — the **devenv Postgres** plus the
+Go core under `air`. Run it in its own terminal; stop it with Ctrl-C (or
+`devenv processes stop postgres` for just the database). The just/make recipes
+are one-shot tasks only (build, test, lint, generate, seed, reset) — none of
+them start a server. The devenv Postgres listens on `127.0.0.1:5432` with a
+superuser role named after your OS user, which is why `DATABASE_URL` carries no
+user.
 
 ## Full local stack (LLM via Ollama)
 
@@ -46,8 +48,8 @@ just app                 # flutter run (pick a device)
 
 `devenv up` runs the processes in the foreground (Ctrl-C stops them; `devenv up
 -D` detaches). The `tendant` process waits for Postgres's readiness probe before
-migrating. `just dev` is the lighter alternative — the same core in the
-foreground **without** reload (`go run`), still wired to Ollama.
+migrating, then runs the core under `air` live-reload (rebuilds + restarts on
+`.go` changes).
 
 The overseer forces structured tool-call output, so pick a tool-capable model
 (`llama3.2:3b`, `qwen2.5:3b` — avoid sub-1B models for grading). If Ollama is
@@ -76,7 +78,7 @@ The active feature plan lives at `specs/001-foundations-scaffolding/plan.md`.
 
 The device-pairing flow authenticates with a static password set at server
 boot via `TENDANT_PASSWORD` (or `[auth] password` in `tendant.toml`).
-`compose.yaml` ships a fixed dev value so `make up` produces a reproducible
+`tendant.dev.toml` ships a fixed dev value so `devenv up` produces a reproducible
 pairing experience locally. The password is **reusable** — present it to the
 `pairDevice` mutation to mint a per-device, revocable session token; pair as
 many devices as you like. For production deployments:

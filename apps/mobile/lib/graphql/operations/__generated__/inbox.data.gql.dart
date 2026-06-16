@@ -88,8 +88,11 @@ abstract class GInboxFeedData_inboxFeed_entries
   String get G__typename;
   String get id;
   String get kind;
+  String get messageType;
   double get urgency;
   _i2.GTime get createdAt;
+  _i2.GTime? get readAt;
+  _i2.GTime? get dismissedAt;
   GInboxFeedData_inboxFeed_entries_item get item;
   static Serializer<GInboxFeedData_inboxFeed_entries> get serializer =>
       _$gInboxFeedDataInboxFeedEntriesSerializer;

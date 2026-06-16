@@ -17,6 +17,15 @@ query FeedbackRequest($id: ID!) {
         content
         createdAt
       }
+      context {
+        toolsRun
+        toolsFlagged
+        agentStages
+        handoffReason
+        activeGuidanceCount
+        consulted
+        summary
+      }
     }
   }
 }

@@ -36,11 +36,48 @@ type chainEnv struct {
 	queries *db.Queries
 }
 
+// chainEnvConfig carries optional overrides for newChainEnv. The zero value
+// reproduces the historical default boot (human-only routing + the
+// send-email-only registry) so existing no-arg callers are unaffected.
+type chainEnvConfig struct {
+	// registry, when non-nil, replaces the default send-email-only tool
+	// registry. Used by toolflow tests that need a failing provider.
+	registry *tools.Registry
+	// agentChain, when non-nil, is called after the pool/queries/registry are
+	// ready to build the chain router + stage runner (and the owner global URI
+	// addressed on human assignments). Used by the agent→tool e2e to wire a real
+	// router + runner in place of HumanOnlyRouter.
+	agentChain func(pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry) (chain.Router, chain.StageRunner, string)
+}
+
+// chainEnvOpt mutates a chainEnvConfig. Pass to newChainEnv.
+type chainEnvOpt func(*chainEnvConfig)
+
+// withToolRegistry overrides the tool registry the tool-call workflow dispatches
+// through (e.g. to inject a provider that fails, driving an outcome=bad path).
+func withToolRegistry(r *tools.Registry) chainEnvOpt {
+	return func(c *chainEnvConfig) { c.registry = r }
+}
+
+// withAgentChain wires a real chain router + stage runner (instead of the
+// human-only default) so a config agent drives a stage. The builder receives the
+// booted pool/queries and the resolved tool registry and returns the router,
+// runner, and the owner global URI to address human assignments to.
+func withAgentChain(build func(pool *pgxpool.Pool, q *db.Queries, registry *tools.Registry) (chain.Router, chain.StageRunner, string)) chainEnvOpt {
+	return func(c *chainEnvConfig) { c.agentChain = build }
+}
+
 // newChainEnv boots a fresh testcontainers Postgres + DBOS context for a
 // test. The executor ID is randomized so parallel/sequential tests don't
-// share recovery state.
-func newChainEnv(t *testing.T) *chainEnv {
+// share recovery state. Options override the registry and/or the chain wiring;
+// with no options it reproduces the historical human-only boot.
+func newChainEnv(t *testing.T, opts ...chainEnvOpt) *chainEnv {
 	t.Helper()
+	cfg := &chainEnvConfig{}
+	for _, o := range opts {
+		o(cfg)
+	}
+
 	ctx := context.Background()
 	pool := testutil.TestDB(t)
 	dsn := pool.Config().ConnConfig.ConnString()
@@ -48,14 +85,29 @@ func newChainEnv(t *testing.T) *chainEnv {
 	q := db.New(pool)
 	require.NoError(t, core.SeedOwner(ctx, q))
 
+	// Phase 3 tool registry. Default is send-email-only; tests may inject one
+	// with a failing provider via withToolRegistry.
+	registry := cfg.registry
+	if registry == nil {
+		registry = tools.NewRegistry()
+		registry.Register(tools.NewSendEmail(nil))
+	}
+
+	// Chain wiring: human-only by default, or a real router+runner when an agent
+	// chain builder is supplied.
+	var chainRouter chain.Router = chain.HumanOnlyRouter{}
+	var chainRunner chain.StageRunner
+	ownerURI := ""
+	if cfg.agentChain != nil {
+		chainRouter, chainRunner, ownerURI = cfg.agentChain(pool, q, registry)
+	}
+
 	executorID := "test-" + uuid.New().String()
 	dctx, err := durable.Init(ctx, pool, executorID)
 	require.NoError(t, err)
-	durable.RegisterChainWorkflow(dctx, pool, q, chain.HumanOnlyRouter{}, nil, "", nil, nil)
+	durable.RegisterChainWorkflow(dctx, pool, q, chainRouter, chainRunner, ownerURI, nil, nil)
 	// Phase 3 tool-call workflow + send-email tool row. Idempotent on every
 	// test boot; harmless for Phase 1 tests that don't exercise the path.
-	registry := tools.NewRegistry()
-	registry.Register(tools.NewSendEmail(nil))
 	durable.RegisterToolCallWorkflow(dctx, pool, q, registry, calibration.New(pool, calibration.DefaultConfig(), nil))
 	require.NoError(t, tools.SeedSendEmail(ctx, q))
 	// Phase 7: register the intake poll workflow + connector registry so the

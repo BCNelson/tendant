@@ -166,6 +166,27 @@ type FeedbackRequest implements PendingDecision {
   # pre-fills (the owner can edit it before accepting). Null/empty until the
   # conversation yields a durable lesson.
   draftGuidance: String
+  # A read-only digest of what happened on the completed task — the same context
+  # the feedback agent saw, surfaced so the owner understands the basis for its
+  # questions and guidance. Null when the digest cannot be built.
+  context: FeedbackContext
+}
+
+# FeedbackContext is the compact, read-only summary of a completed task that the
+# feedback agent grounds its conversation in: how many tools ran (and how many
+# were flagged), which agent stages executed, whether the task was handed off,
+# how much standing guidance already exists, and which read-only context tools
+# the agent actually consulted this conversation.
+type FeedbackContext {
+  toolsRun: Int!
+  toolsFlagged: Int!
+  agentStages: [String!]!
+  handoffReason: String
+  activeGuidanceCount: Int!
+  # Read-only context tools the agent called (e.g. "get_task_outcomes").
+  consulted: [String!]!
+  # One-line human-readable digest.
+  summary: String!
 }
 
 # A feedback-authored standing-guidance note, injected verbatim into the
@@ -199,8 +220,18 @@ union InboxItem = ApprovalRequest | AgentQuestion | PromotionProposal | AgentAss
 type InboxEntry {
   id: ID!
   kind: String!
+  # Phase 9 additive: the fine-grained message type carried on the first-class
+  # inbox_messages row — the single discriminator the client dispatches a detail
+  # page on (approval_request | agent_question | promotion_proposal |
+  # feedback_request | agent_assignment | actionable_task | …). Strictly more
+  # specific than `kind`, which only names the source table.
+  messageType: String!
   createdAt: Time!
   urgency: Float!
+  # Phase 9 additive: per-message state from inbox_messages. Null until the
+  # owner reads / dismisses the message (see markInboxRead / dismissInboxMessage).
+  readAt: Time
+  dismissedAt: Time
   item: InboxItem!
 }
 
@@ -208,6 +239,16 @@ type InboxFeedPage {
   entries: [InboxEntry!]!
   # Opaque keyset cursor for the next page; null when this is the last page.
   nextCursor: String
+}
+
+# Phase 9 additive: the per-message state of a first-class inbox_messages row,
+# returned by the read/dismiss mutations so the client can update one tile
+# without re-fetching the feed.
+type InboxMessageState {
+  id: ID!
+  seenAt: Time
+  readAt: Time
+  dismissedAt: Time
 }
 
 # ----- Notifications (subscription type) --------------------------------
@@ -239,6 +280,13 @@ extend type Mutation {
 
   registerDeviceToken(token: String!, platform: DevicePlatform!): Boolean!
   unregisterDeviceToken(token: String!): Boolean!
+
+  # Phase 9 additive: per-message inbox state on the first-class inbox_messages
+  # row. markInboxRead stamps read/seen; dismissInboxMessage soft-dismisses the
+  # message from the active inbox WITHOUT resolving the underlying source row
+  # (the action it represents is unaffected). Both are recipient-scoped.
+  markInboxRead(id: ID!): InboxMessageState!
+  dismissInboxMessage(id: ID!): InboxMessageState!
 
   approveArtifact(decisionId: ID!): PendingDecision!
   rejectApproval(decisionId: ID!, reason: String): PendingDecision!

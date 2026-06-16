@@ -173,3 +173,44 @@ func (q *Queries) ListAgentGuidanceByStatus(ctx context.Context, status string) 
 	}
 	return items, nil
 }
+
+const listAllActiveGuidance = `-- name: ListAllActiveGuidance :many
+SELECT id, note, status, scope, agent_config_id, source_decision_id,
+       source_task_id, created_at, activated_at
+FROM agent_guidance
+WHERE status = 'active'
+ORDER BY created_at ASC, id ASC
+`
+
+// Every active guidance note regardless of scope (global + all agent-scoped),
+// oldest-first. Read by the post-completion feedback agent so it can build on —
+// and avoid duplicating — standing guidance that already exists.
+func (q *Queries) ListAllActiveGuidance(ctx context.Context) ([]AgentGuidance, error) {
+	rows, err := q.db.Query(ctx, listAllActiveGuidance)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AgentGuidance
+	for rows.Next() {
+		var i AgentGuidance
+		if err := rows.Scan(
+			&i.ID,
+			&i.Note,
+			&i.Status,
+			&i.Scope,
+			&i.AgentConfigID,
+			&i.SourceDecisionID,
+			&i.SourceTaskID,
+			&i.CreatedAt,
+			&i.ActivatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

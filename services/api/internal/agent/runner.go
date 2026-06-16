@@ -189,6 +189,15 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 		modelTools = append(modelTools, handoffToolDef)
 	}
 
+	// Names of every tool actually offered to the model this run. Used to
+	// recover a tool call a model emitted as plain JSON text in its content
+	// (see extractToolCallsFromContent) — only objects naming one of these are
+	// recovered, so a normal findings answer is never misread as a call.
+	knownTools := make(map[string]bool, len(modelTools))
+	for _, t := range modelTools {
+		knownTools[t.Name] = true
+	}
+
 	// Build system prompt from config, then append any owner feedback guidance
 	// (global + this-agent active notes) under a labeled [OWNER_FEEDBACK]
 	// section. The notes are owner-accepted verbatim text (see internal/feedback).
@@ -246,6 +255,7 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 	}
 
 	var gateCallCount int
+	var nudgeCount int
 	var totalTokensIn, totalTokensOut int
 
 	for iter := range r.MaxIter {
@@ -264,6 +274,17 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 		totalTokensIn += resp.TokensIn
 		totalTokensOut += resp.TokensOut
 
+		// Recover a tool call the model emitted as JSON text in its content
+		// instead of a structured tool_calls entry (common with small/local
+		// models). Without this an honest handoff_to_human — or any offered
+		// tool — reads as a finished stage result and the task wrongly completes.
+		if len(resp.ToolCalls) == 0 {
+			if recovered := extractToolCallsFromContent(resp.Content, knownTools); len(recovered) > 0 {
+				resp.ToolCalls = recovered
+				resp.Content = ""
+			}
+		}
+
 		// Record the assistant turn (content + any proposed tool calls) before
 		// branching, so the final answer is captured even on the early exit.
 		assistantTurn := transcriptTurn{Role: "assistant", Content: resp.Content}
@@ -273,8 +294,32 @@ func (r *Runner) Run(ctx context.Context, rc RunConfig) (StageResult, error) {
 		}
 		transcript = append(transcript, assistantTurn)
 
-		// No tool calls → agent is done, extract StageResult.
+		// No usable tool call. Before accepting the content as a finished
+		// result, check whether it nonetheless looks like a botched tool-call
+		// attempt the recovery above could not salvage — a hallucinated/unknown
+		// tool name, malformed call JSON, or a wrapper syntax we don't parse.
+		// If so, don't let it pass as a completion: audit it and nudge the model
+		// to re-emit a proper structured call, up to a small cap. Past the cap
+		// (or when the content is a genuine answer) we fall through to the normal
+		// done-path so the model isn't trapped in a nudge loop.
 		if len(resp.ToolCalls) == 0 {
+			if detail, suspected := suspectedToolCallAttempt(resp.Content, knownTools); suspected && nudgeCount < maxToolCallNudges {
+				nudgeCount++
+				slog.WarnContext(ctx, "agent: suspected failed tool-call attempt; nudging",
+					"stage", rc.Config.Stage, "detail", detail, "nudge", nudgeCount)
+				if r.Auditor != nil {
+					_ = r.Auditor.WriteAudit(ctx, rc.TaskID, "agent_suspected_tool_attempt", map[string]any{
+						"stage":  rc.Config.Stage,
+						"detail": detail,
+						"nudge":  nudgeCount,
+					})
+				}
+				messages = append(messages, Message{Role: "assistant", Content: resp.Content})
+				recordToolResult(toolCallNudgeMessage)
+				continue
+			}
+
+			// Genuine completion → extract StageResult.
 			result := parseStageResult(resp.Content)
 			r.auditFinish(ctx, rc, iter+1, totalTokensIn, totalTokensOut, transcript)
 			return result, nil
@@ -464,6 +509,151 @@ func buildTaskPrompt(rc RunConfig) string {
 		"record it in required_capabilities. Always produce your assessment from the information available; " +
 		"escalation to a human is not your job at this stage."
 	return prompt
+}
+
+// maxToolCallNudges bounds how many times one stage run will nudge the model to
+// re-emit a malformed/unrecoverable tool-call attempt as a proper structured
+// call before giving up and letting the loop terminate normally. Kept small so
+// a model that repeats the same broken output can't burn the whole iteration
+// budget on nudges.
+const maxToolCallNudges = 2
+
+// toolCallNudgeMessage is the corrective tool_result fed back to a model that
+// appears to have tried to call a tool but produced no valid call. It is
+// stage-agnostic: execution agents fall back to handoff_to_human, assess/enrich
+// stages fall back to emitting findings — both are "your stage's instructions".
+const toolCallNudgeMessage = `It looks like you tried to call a tool, but it was not a valid tool call, so nothing was executed. ` +
+	`If you want to use a tool, re-issue it as a proper tool call using only the tools available to you — do not write the call as plain text. ` +
+	`If you cannot proceed with the available tools, follow your stage's instructions for that case.`
+
+// toolCallMarkers are wrapper/markup tokens models emit when they intend a tool
+// call but don't produce a structured tool_calls entry. Their presence in
+// otherwise-final content is a strong signal a tool call was attempted and
+// dropped. Matched case-insensitively.
+var toolCallMarkers = []string{
+	"<tool_call>", "</tool_call>", "tool_call", "<function", "function_call",
+	"<|python_tag|>", "```tool_code", "```tool", "[tool_call]", "functools[",
+}
+
+// suspectedToolCallAttempt reports whether final assistant content — one that
+// produced no usable tool call, structured or recovered — nonetheless looks like
+// a botched tool-call attempt: a hallucinated/unknown tool name, malformed call
+// JSON, or a tool-call wrapper syntax we don't parse. It is intentionally
+// conservative so a normal findings answer or plain prose never trips it (the
+// JSON probe requires both a "name" and an argument bag, which a findings object
+// lacks). The returned string is a short human-readable detail for the audit
+// trail. Callers should run this only after extractToolCallsFromContent failed.
+func suspectedToolCallAttempt(content string, known map[string]bool) (string, bool) {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return "", false
+	}
+	lower := strings.ToLower(trimmed)
+	for _, marker := range toolCallMarkers {
+		if strings.Contains(lower, marker) {
+			return "tool-call markup in content: " + marker, true
+		}
+	}
+	// A JSON object naming a tool with an argument bag is a call. Recovery runs
+	// first, so if we're here the name is one we did NOT offer (hallucinated).
+	for _, candidate := range toolCallJSONCandidates(trimmed) {
+		var probe struct {
+			Name       string          `json:"name"`
+			Parameters json.RawMessage `json:"parameters"`
+			Arguments  json.RawMessage `json:"arguments"`
+		}
+		if err := json.Unmarshal([]byte(candidate), &probe); err != nil {
+			continue
+		}
+		if probe.Name != "" && (len(probe.Parameters) > 0 || len(probe.Arguments) > 0) {
+			return "json tool call to unknown tool '" + probe.Name + "'", true
+		}
+	}
+	// Call scaffolding that name-drops an offered tool but failed both structured
+	// parsing and JSON recovery (e.g. truncated or comma-broken JSON).
+	if strings.Contains(lower, `"name"`) && (strings.Contains(lower, `"parameters"`) || strings.Contains(lower, `"arguments"`)) {
+		for name := range known {
+			if name != "" && strings.Contains(trimmed, name) {
+				return "malformed tool call referencing '" + name + "'", true
+			}
+		}
+	}
+	return "", false
+}
+
+// extractToolCallsFromContent recovers a tool call that a model emitted as JSON
+// text in its message content instead of as a structured tool_calls entry.
+// Small / local models (e.g. Ollama-served llama3.2) frequently do this, which
+// would otherwise make the runner mistake an honest handoff_to_human — or any
+// offered tool — for a finished stage result and silently complete a task the
+// agent meant to escalate. Only objects whose "name" matches a tool actually
+// offered to the model (known) are recovered, so a genuine {"findings":...}
+// answer is never misread as a call. Returns nil when no known tool call is
+// present. The model's call shape varies ("parameters" vs "arguments"); both
+// are accepted, and a missing/empty argument object becomes "{}".
+func extractToolCallsFromContent(content string, known map[string]bool) []ToolCall {
+	for _, candidate := range toolCallJSONCandidates(content) {
+		var probe struct {
+			Name       string          `json:"name"`
+			Parameters json.RawMessage `json:"parameters"`
+			Arguments  json.RawMessage `json:"arguments"`
+		}
+		if err := json.Unmarshal([]byte(candidate), &probe); err != nil {
+			continue
+		}
+		if probe.Name == "" || !known[probe.Name] {
+			continue
+		}
+		payload := probe.Parameters
+		if len(payload) == 0 {
+			payload = probe.Arguments
+		}
+		if len(payload) == 0 {
+			payload = json.RawMessage("{}")
+		}
+		return []ToolCall{{Name: probe.Name, Payload: string(payload)}}
+	}
+	return nil
+}
+
+// toolCallJSONCandidates yields progressively more permissive JSON slices of a
+// model's content to probe for a tool-call object: the trimmed content, the
+// same with a surrounding markdown code fence removed, and the first
+// brace-delimited {...} substring (handles a call wrapped in prose).
+func toolCallJSONCandidates(content string) []string {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return nil
+	}
+	candidates := []string{trimmed}
+	if fenced := stripCodeFence(trimmed); fenced != trimmed {
+		candidates = append(candidates, fenced)
+	}
+	if start := strings.IndexByte(trimmed, '{'); start >= 0 {
+		if end := strings.LastIndexByte(trimmed, '}'); end > start {
+			if inner := trimmed[start : end+1]; inner != trimmed {
+				candidates = append(candidates, inner)
+			}
+		}
+	}
+	return candidates
+}
+
+// stripCodeFence removes a single leading ```/```json fence and trailing ```
+// from s, returning s unchanged when it is not fenced.
+func stripCodeFence(s string) string {
+	if !strings.HasPrefix(s, "```") {
+		return s
+	}
+	s = strings.TrimPrefix(s, "```")
+	if nl := strings.IndexByte(s, '\n'); nl >= 0 {
+		// Drop the optional language tag on the opening fence line (e.g. "json").
+		if lang := strings.TrimSpace(s[:nl]); lang == "" || !strings.ContainsAny(lang, "{}") {
+			s = s[nl+1:]
+		}
+	}
+	s = strings.TrimSuffix(strings.TrimRight(s, " \n\t"), "```")
+	return strings.TrimSpace(s)
 }
 
 // parseHandoffReason extracts the agent's stated reason from the handoff tool

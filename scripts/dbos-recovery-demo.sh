@@ -5,8 +5,8 @@
 #   - "resumed past the block" appears in run 2
 #   - run 2 exits cleanly
 #
-# Prereqs: Postgres running and DATABASE_URL exported (e.g. via `just up`
-# without the in-process serve — easiest: have a separate `make up` running).
+# Prereqs: Postgres running and DATABASE_URL exported — easiest: have `devenv up`
+# running in another terminal (the devenv shell exports DATABASE_URL).
 # For CI we'd flip to a testcontainers-backed Go test, but the spec asks for
 # the kill -9 binary path.
 

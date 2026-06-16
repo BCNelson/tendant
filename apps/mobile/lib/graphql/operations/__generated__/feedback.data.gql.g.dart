@@ -20,6 +20,9 @@ Serializer<GFeedbackRequestData_pendingDecision__asFeedbackRequest_task>
 Serializer<GFeedbackRequestData_pendingDecision__asFeedbackRequest_messages>
     _$gFeedbackRequestDataPendingDecisionAsFeedbackRequestMessagesSerializer =
     _$GFeedbackRequestData_pendingDecision__asFeedbackRequest_messagesSerializer();
+Serializer<GFeedbackRequestData_pendingDecision__asFeedbackRequest_context>
+    _$gFeedbackRequestDataPendingDecisionAsFeedbackRequestContextSerializer =
+    _$GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextSerializer();
 Serializer<GSendFeedbackMessageData> _$gSendFeedbackMessageDataSerializer =
     _$GSendFeedbackMessageDataSerializer();
 Serializer<GSendFeedbackMessageData_sendFeedbackMessage>
@@ -205,6 +208,14 @@ class _$GFeedbackRequestData_pendingDecision__asFeedbackRequestSerializer
         ..add(serializers.serialize(value,
             specifiedType: const FullType(String)));
     }
+    value = object.context;
+    if (value != null) {
+      result
+        ..add('context')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(
+                GFeedbackRequestData_pendingDecision__asFeedbackRequest_context)));
+    }
     return result;
   }
 
@@ -249,6 +260,12 @@ class _$GFeedbackRequestData_pendingDecision__asFeedbackRequestSerializer
                 const FullType(
                     GFeedbackRequestData_pendingDecision__asFeedbackRequest_messages)
               ]))! as BuiltList<Object?>);
+          break;
+        case 'context':
+          result.context.replace(serializers.deserialize(value,
+                  specifiedType: const FullType(
+                      GFeedbackRequestData_pendingDecision__asFeedbackRequest_context))!
+              as GFeedbackRequestData_pendingDecision__asFeedbackRequest_context);
           break;
       }
     }
@@ -388,6 +405,115 @@ class _$GFeedbackRequestData_pendingDecision__asFeedbackRequest_messagesSerializ
         case 'createdAt':
           result.createdAt.replace(serializers.deserialize(value,
               specifiedType: const FullType(_i2.GTime))! as _i2.GTime);
+          break;
+      }
+    }
+
+    return result.build();
+  }
+}
+
+class _$GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextSerializer
+    implements
+        StructuredSerializer<
+            GFeedbackRequestData_pendingDecision__asFeedbackRequest_context> {
+  @override
+  final Iterable<Type> types = const [
+    GFeedbackRequestData_pendingDecision__asFeedbackRequest_context,
+    _$GFeedbackRequestData_pendingDecision__asFeedbackRequest_context
+  ];
+  @override
+  final String wireName =
+      'GFeedbackRequestData_pendingDecision__asFeedbackRequest_context';
+
+  @override
+  Iterable<Object?> serialize(Serializers serializers,
+      GFeedbackRequestData_pendingDecision__asFeedbackRequest_context object,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result = <Object?>[
+      '__typename',
+      serializers.serialize(object.G__typename,
+          specifiedType: const FullType(String)),
+      'toolsRun',
+      serializers.serialize(object.toolsRun,
+          specifiedType: const FullType(int)),
+      'toolsFlagged',
+      serializers.serialize(object.toolsFlagged,
+          specifiedType: const FullType(int)),
+      'agentStages',
+      serializers.serialize(object.agentStages,
+          specifiedType:
+              const FullType(BuiltList, const [const FullType(String)])),
+      'activeGuidanceCount',
+      serializers.serialize(object.activeGuidanceCount,
+          specifiedType: const FullType(int)),
+      'consulted',
+      serializers.serialize(object.consulted,
+          specifiedType:
+              const FullType(BuiltList, const [const FullType(String)])),
+      'summary',
+      serializers.serialize(object.summary,
+          specifiedType: const FullType(String)),
+    ];
+    Object? value;
+    value = object.handoffReason;
+    if (value != null) {
+      result
+        ..add('handoffReason')
+        ..add(serializers.serialize(value,
+            specifiedType: const FullType(String)));
+    }
+    return result;
+  }
+
+  @override
+  GFeedbackRequestData_pendingDecision__asFeedbackRequest_context deserialize(
+      Serializers serializers, Iterable<Object?> serialized,
+      {FullType specifiedType = FullType.unspecified}) {
+    final result =
+        GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder();
+
+    final iterator = serialized.iterator;
+    while (iterator.moveNext()) {
+      final key = iterator.current! as String;
+      iterator.moveNext();
+      final Object? value = iterator.current;
+      switch (key) {
+        case '__typename':
+          result.G__typename = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
+          break;
+        case 'toolsRun':
+          result.toolsRun = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
+          break;
+        case 'toolsFlagged':
+          result.toolsFlagged = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
+          break;
+        case 'agentStages':
+          result.agentStages.replace(serializers.deserialize(value,
+                  specifiedType: const FullType(
+                      BuiltList, const [const FullType(String)]))!
+              as BuiltList<Object?>);
+          break;
+        case 'handoffReason':
+          result.handoffReason = serializers.deserialize(value,
+              specifiedType: const FullType(String)) as String?;
+          break;
+        case 'activeGuidanceCount':
+          result.activeGuidanceCount = serializers.deserialize(value,
+              specifiedType: const FullType(int))! as int;
+          break;
+        case 'consulted':
+          result.consulted.replace(serializers.deserialize(value,
+                  specifiedType: const FullType(
+                      BuiltList, const [const FullType(String)]))!
+              as BuiltList<Object?>);
+          break;
+        case 'summary':
+          result.summary = serializers.deserialize(value,
+              specifiedType: const FullType(String))! as String;
           break;
       }
     }
@@ -1102,6 +1228,9 @@ class _$GFeedbackRequestData_pendingDecision__asFeedbackRequest
   final BuiltList<
           GFeedbackRequestData_pendingDecision__asFeedbackRequest_messages>
       messages;
+  @override
+  final GFeedbackRequestData_pendingDecision__asFeedbackRequest_context?
+      context;
 
   factory _$GFeedbackRequestData_pendingDecision__asFeedbackRequest(
           [void Function(
@@ -1117,7 +1246,8 @@ class _$GFeedbackRequestData_pendingDecision__asFeedbackRequest
       required this.createdAt,
       this.draftGuidance,
       required this.task,
-      required this.messages})
+      required this.messages,
+      this.context})
       : super._();
   @override
   GFeedbackRequestData_pendingDecision__asFeedbackRequest rebuild(
@@ -1140,7 +1270,8 @@ class _$GFeedbackRequestData_pendingDecision__asFeedbackRequest
         createdAt == other.createdAt &&
         draftGuidance == other.draftGuidance &&
         task == other.task &&
-        messages == other.messages;
+        messages == other.messages &&
+        context == other.context;
   }
 
   @override
@@ -1152,6 +1283,7 @@ class _$GFeedbackRequestData_pendingDecision__asFeedbackRequest
     _$hash = $jc(_$hash, draftGuidance.hashCode);
     _$hash = $jc(_$hash, task.hashCode);
     _$hash = $jc(_$hash, messages.hashCode);
+    _$hash = $jc(_$hash, context.hashCode);
     _$hash = $jf(_$hash);
     return _$hash;
   }
@@ -1165,7 +1297,8 @@ class _$GFeedbackRequestData_pendingDecision__asFeedbackRequest
           ..add('createdAt', createdAt)
           ..add('draftGuidance', draftGuidance)
           ..add('task', task)
-          ..add('messages', messages))
+          ..add('messages', messages)
+          ..add('context', context))
         .toString();
   }
 }
@@ -1213,6 +1346,16 @@ class GFeedbackRequestData_pendingDecision__asFeedbackRequestBuilder
               messages) =>
       _$this._messages = messages;
 
+  GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder?
+      _context;
+  GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder
+      get context => _$this._context ??=
+          GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder();
+  set context(
+          GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder?
+              context) =>
+      _$this._context = context;
+
   GFeedbackRequestData_pendingDecision__asFeedbackRequestBuilder() {
     GFeedbackRequestData_pendingDecision__asFeedbackRequest._initializeBuilder(
         this);
@@ -1227,6 +1370,7 @@ class GFeedbackRequestData_pendingDecision__asFeedbackRequestBuilder
       _draftGuidance = $v.draftGuidance;
       _task = $v.task.toBuilder();
       _messages = $v.messages.toBuilder();
+      _context = $v.context?.toBuilder();
       _$v = null;
     }
     return this;
@@ -1265,6 +1409,7 @@ class GFeedbackRequestData_pendingDecision__asFeedbackRequestBuilder
             draftGuidance: draftGuidance,
             task: task.build(),
             messages: messages.build(),
+            context: _context?.build(),
           );
     } catch (_) {
       late String _$failedField;
@@ -1276,6 +1421,8 @@ class GFeedbackRequestData_pendingDecision__asFeedbackRequestBuilder
         task.build();
         _$failedField = 'messages';
         messages.build();
+        _$failedField = 'context';
+        _context?.build();
       } catch (e) {
         throw BuiltValueNestedFieldError(
             r'GFeedbackRequestData_pendingDecision__asFeedbackRequest',
@@ -1602,6 +1749,237 @@ class GFeedbackRequestData_pendingDecision__asFeedbackRequest_messagesBuilder
       } catch (e) {
         throw BuiltValueNestedFieldError(
             r'GFeedbackRequestData_pendingDecision__asFeedbackRequest_messages',
+            _$failedField,
+            e.toString());
+      }
+      rethrow;
+    }
+    replace(_$result);
+    return _$result;
+  }
+}
+
+class _$GFeedbackRequestData_pendingDecision__asFeedbackRequest_context
+    extends GFeedbackRequestData_pendingDecision__asFeedbackRequest_context {
+  @override
+  final String G__typename;
+  @override
+  final int toolsRun;
+  @override
+  final int toolsFlagged;
+  @override
+  final BuiltList<String> agentStages;
+  @override
+  final String? handoffReason;
+  @override
+  final int activeGuidanceCount;
+  @override
+  final BuiltList<String> consulted;
+  @override
+  final String summary;
+
+  factory _$GFeedbackRequestData_pendingDecision__asFeedbackRequest_context(
+          [void Function(
+                  GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder)?
+              updates]) =>
+      (GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder()
+            ..update(updates))
+          ._build();
+
+  _$GFeedbackRequestData_pendingDecision__asFeedbackRequest_context._(
+      {required this.G__typename,
+      required this.toolsRun,
+      required this.toolsFlagged,
+      required this.agentStages,
+      this.handoffReason,
+      required this.activeGuidanceCount,
+      required this.consulted,
+      required this.summary})
+      : super._();
+  @override
+  GFeedbackRequestData_pendingDecision__asFeedbackRequest_context rebuild(
+          void Function(
+                  GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder)
+              updates) =>
+      (toBuilder()..update(updates)).build();
+
+  @override
+  GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder
+      toBuilder() =>
+          GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder()
+            ..replace(this);
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) return true;
+    return other
+            is GFeedbackRequestData_pendingDecision__asFeedbackRequest_context &&
+        G__typename == other.G__typename &&
+        toolsRun == other.toolsRun &&
+        toolsFlagged == other.toolsFlagged &&
+        agentStages == other.agentStages &&
+        handoffReason == other.handoffReason &&
+        activeGuidanceCount == other.activeGuidanceCount &&
+        consulted == other.consulted &&
+        summary == other.summary;
+  }
+
+  @override
+  int get hashCode {
+    var _$hash = 0;
+    _$hash = $jc(_$hash, G__typename.hashCode);
+    _$hash = $jc(_$hash, toolsRun.hashCode);
+    _$hash = $jc(_$hash, toolsFlagged.hashCode);
+    _$hash = $jc(_$hash, agentStages.hashCode);
+    _$hash = $jc(_$hash, handoffReason.hashCode);
+    _$hash = $jc(_$hash, activeGuidanceCount.hashCode);
+    _$hash = $jc(_$hash, consulted.hashCode);
+    _$hash = $jc(_$hash, summary.hashCode);
+    _$hash = $jf(_$hash);
+    return _$hash;
+  }
+
+  @override
+  String toString() {
+    return (newBuiltValueToStringHelper(
+            r'GFeedbackRequestData_pendingDecision__asFeedbackRequest_context')
+          ..add('G__typename', G__typename)
+          ..add('toolsRun', toolsRun)
+          ..add('toolsFlagged', toolsFlagged)
+          ..add('agentStages', agentStages)
+          ..add('handoffReason', handoffReason)
+          ..add('activeGuidanceCount', activeGuidanceCount)
+          ..add('consulted', consulted)
+          ..add('summary', summary))
+        .toString();
+  }
+}
+
+class GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder
+    implements
+        Builder<GFeedbackRequestData_pendingDecision__asFeedbackRequest_context,
+            GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder> {
+  _$GFeedbackRequestData_pendingDecision__asFeedbackRequest_context? _$v;
+
+  String? _G__typename;
+  String? get G__typename => _$this._G__typename;
+  set G__typename(String? G__typename) => _$this._G__typename = G__typename;
+
+  int? _toolsRun;
+  int? get toolsRun => _$this._toolsRun;
+  set toolsRun(int? toolsRun) => _$this._toolsRun = toolsRun;
+
+  int? _toolsFlagged;
+  int? get toolsFlagged => _$this._toolsFlagged;
+  set toolsFlagged(int? toolsFlagged) => _$this._toolsFlagged = toolsFlagged;
+
+  ListBuilder<String>? _agentStages;
+  ListBuilder<String> get agentStages =>
+      _$this._agentStages ??= ListBuilder<String>();
+  set agentStages(ListBuilder<String>? agentStages) =>
+      _$this._agentStages = agentStages;
+
+  String? _handoffReason;
+  String? get handoffReason => _$this._handoffReason;
+  set handoffReason(String? handoffReason) =>
+      _$this._handoffReason = handoffReason;
+
+  int? _activeGuidanceCount;
+  int? get activeGuidanceCount => _$this._activeGuidanceCount;
+  set activeGuidanceCount(int? activeGuidanceCount) =>
+      _$this._activeGuidanceCount = activeGuidanceCount;
+
+  ListBuilder<String>? _consulted;
+  ListBuilder<String> get consulted =>
+      _$this._consulted ??= ListBuilder<String>();
+  set consulted(ListBuilder<String>? consulted) =>
+      _$this._consulted = consulted;
+
+  String? _summary;
+  String? get summary => _$this._summary;
+  set summary(String? summary) => _$this._summary = summary;
+
+  GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder() {
+    GFeedbackRequestData_pendingDecision__asFeedbackRequest_context
+        ._initializeBuilder(this);
+  }
+
+  GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder
+      get _$this {
+    final $v = _$v;
+    if ($v != null) {
+      _G__typename = $v.G__typename;
+      _toolsRun = $v.toolsRun;
+      _toolsFlagged = $v.toolsFlagged;
+      _agentStages = $v.agentStages.toBuilder();
+      _handoffReason = $v.handoffReason;
+      _activeGuidanceCount = $v.activeGuidanceCount;
+      _consulted = $v.consulted.toBuilder();
+      _summary = $v.summary;
+      _$v = null;
+    }
+    return this;
+  }
+
+  @override
+  void replace(
+      GFeedbackRequestData_pendingDecision__asFeedbackRequest_context other) {
+    _$v = other
+        as _$GFeedbackRequestData_pendingDecision__asFeedbackRequest_context;
+  }
+
+  @override
+  void update(
+      void Function(
+              GFeedbackRequestData_pendingDecision__asFeedbackRequest_contextBuilder)?
+          updates) {
+    if (updates != null) updates(this);
+  }
+
+  @override
+  GFeedbackRequestData_pendingDecision__asFeedbackRequest_context build() =>
+      _build();
+
+  _$GFeedbackRequestData_pendingDecision__asFeedbackRequest_context _build() {
+    _$GFeedbackRequestData_pendingDecision__asFeedbackRequest_context _$result;
+    try {
+      _$result = _$v ??
+          _$GFeedbackRequestData_pendingDecision__asFeedbackRequest_context._(
+            G__typename: BuiltValueNullFieldError.checkNotNull(
+                G__typename,
+                r'GFeedbackRequestData_pendingDecision__asFeedbackRequest_context',
+                'G__typename'),
+            toolsRun: BuiltValueNullFieldError.checkNotNull(
+                toolsRun,
+                r'GFeedbackRequestData_pendingDecision__asFeedbackRequest_context',
+                'toolsRun'),
+            toolsFlagged: BuiltValueNullFieldError.checkNotNull(
+                toolsFlagged,
+                r'GFeedbackRequestData_pendingDecision__asFeedbackRequest_context',
+                'toolsFlagged'),
+            agentStages: agentStages.build(),
+            handoffReason: handoffReason,
+            activeGuidanceCount: BuiltValueNullFieldError.checkNotNull(
+                activeGuidanceCount,
+                r'GFeedbackRequestData_pendingDecision__asFeedbackRequest_context',
+                'activeGuidanceCount'),
+            consulted: consulted.build(),
+            summary: BuiltValueNullFieldError.checkNotNull(
+                summary,
+                r'GFeedbackRequestData_pendingDecision__asFeedbackRequest_context',
+                'summary'),
+          );
+    } catch (_) {
+      late String _$failedField;
+      try {
+        _$failedField = 'agentStages';
+        agentStages.build();
+
+        _$failedField = 'consulted';
+        consulted.build();
+      } catch (e) {
+        throw BuiltValueNestedFieldError(
+            r'GFeedbackRequestData_pendingDecision__asFeedbackRequest_context',
             _$failedField,
             e.toString());
       }

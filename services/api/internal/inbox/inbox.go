@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/bcnelson/tendant/services/api/internal/db"
 )
@@ -27,6 +28,13 @@ type Item struct {
 	// Score is the blended urgency the feed is ranked by (ListFeed only; zero
 	// for the legacy chronological List path).
 	Score float64
+	// MessageType is the fine-grained discriminator from the first-class
+	// inbox_messages row (ListFeed only; empty for the legacy List path).
+	MessageType string
+	// ReadAt / DismissedAt are the per-message state from inbox_messages
+	// (ListFeed only; nil when unset or on the legacy List path).
+	ReadAt      *time.Time
+	DismissedAt *time.Time
 }
 
 // MaxLimit caps the per-page size at the value spec'd in data-model § rules.
@@ -179,11 +187,14 @@ func ListFeed(ctx context.Context, q *db.Queries, viewerGlobalURI, cursor string
 	items := make([]Item, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, Item{
-			Kind:      r.Kind,
-			ID:        r.ID,
-			TaskID:    r.TaskID,
-			CreatedAt: r.CreatedAt,
-			Score:     r.Score,
+			Kind:        r.Kind,
+			ID:          r.ID,
+			TaskID:      r.TaskID,
+			CreatedAt:   r.CreatedAt,
+			Score:       r.Score,
+			MessageType: r.MessageType,
+			ReadAt:      tsPtr(r.ReadAt),
+			DismissedAt: tsPtr(r.DismissedAt),
 		})
 	}
 	next := ""
@@ -232,6 +243,17 @@ func BlendedUrgency(priority string, dueAt *time.Time, stakes float64, createdAt
 	}
 	s += age
 	return s
+}
+
+// tsPtr maps a pgtype.Timestamptz (read_at / dismissed_at from ListInboxFeed) to
+// a *time.Time — nil when SQL NULL — so the resolver emits a null GraphQL field
+// for "unread" / "not dismissed".
+func tsPtr(ts pgtype.Timestamptz) *time.Time {
+	if !ts.Valid {
+		return nil
+	}
+	t := ts.Time
+	return &t
 }
 
 // ErrNotFound is returned by Assemble when a row referenced by an Item is

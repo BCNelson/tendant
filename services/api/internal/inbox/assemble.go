@@ -21,6 +21,9 @@ type AssembledItem struct {
 	ID              uuid.UUID
 	CreatedAt       time.Time
 	Score           float64
+	MessageType     string // fine-grained inbox_messages discriminator
+	ReadAt          *time.Time
+	DismissedAt     *time.Time
 	PendingDecision *db.PendingDecision
 	AgentAssignment *db.AgentAssignment
 	Task            *db.Task // kind == "task" (ActionableTask)
@@ -32,7 +35,15 @@ type AssembledItem struct {
 func Assemble(ctx context.Context, q *db.Queries, items []Item) ([]AssembledItem, error) {
 	out := make([]AssembledItem, 0, len(items))
 	for _, it := range items {
-		base := AssembledItem{Kind: it.Kind, ID: it.ID, CreatedAt: it.CreatedAt, Score: it.Score}
+		base := AssembledItem{
+			Kind:        it.Kind,
+			ID:          it.ID,
+			CreatedAt:   it.CreatedAt,
+			Score:       it.Score,
+			MessageType: it.MessageType,
+			ReadAt:      it.ReadAt,
+			DismissedAt: it.DismissedAt,
+		}
 		switch it.Kind {
 		case "pending_decision":
 			row, err := q.GetPendingDecisionByID(ctx, it.ID)

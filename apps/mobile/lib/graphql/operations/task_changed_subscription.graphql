@@ -1,7 +1,26 @@
+# Data-carrying task change. Selects the SAME fields the Tasks list and task
+# header use, so a pushed Task merges into the normalized cache by id and those
+# views re-render automatically — no tick, no manual refetch.
 subscription TaskChanged($taskId: ID) {
   taskChanged(taskId: $taskId) {
     id
+    title
     state
     currentStage
+    autonomy
+    priority
+    dueAt
+    openAssignment {
+      id
+    }
+    stageSlots {
+      stage
+      isHuman
+      occupant {
+        id
+        name
+        model
+      }
+    }
   }
 }

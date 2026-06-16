@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:ferry/ferry.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +12,32 @@ import 'package:gql_websocket_link/gql_websocket_link.dart';
 import '../auth/auth_link.dart';
 import '../auth/session_store.dart';
 import '../server/server_address.dart';
+import '../../graphql/__generated__/schema.schema.gql.dart' show possibleTypesMap;
+
+/// wsReconnectSignalProvider fires once whenever the subscription websocket
+/// (re)connects AFTER its initial connection. The refetch coordinator listens
+/// to it and reconciles the read models: the server's pg_notify is NOT durable,
+/// so events that fired while the socket was down are not replayed on
+/// resubscribe — a reconnect must be followed by a refetch to catch arrivals
+/// missed during the gap. Closed with the ProviderScope.
+final wsReconnectSignalProvider = Provider<StreamController<void>>((ref) {
+  final controller = StreamController<void>.broadcast();
+  ref.onDispose(controller.close);
+  return controller;
+});
+
+/// _cappedBackoff is the websocket reconnect wait: exponential but capped at
+/// ~16s with jitter, so an extended outage doesn't push the next reconnect
+/// minutes/hours away (the package default doubles unbounded). Paired with a
+/// very high retryAttempts so the socket reconnects effectively forever instead
+/// of erroring out after a handful of blips (the old retryAttempts: 5 left the
+/// subscription permanently dead until a manual page refresh).
+Future<void> _cappedBackoff(int retries) async {
+  final exp = retries.clamp(0, 4); // cap the exponent: 1,2,4,8,16 (×1000ms)
+  final base = 1000 * (1 << exp);
+  final jitter = Random().nextInt(500);
+  await Future<void>.delayed(Duration(milliseconds: base + jitter));
+}
 
 /// _fallbackBase is the per-platform default origin used only when no server
 /// address has been resolved yet (the router gates the app onto the
@@ -68,6 +97,11 @@ final ferryClientProvider = Provider<Client>((ref) {
   // addError-on-a-closed-controller (which surfaced as unhandled
   // "Cannot add event after closing" exceptions on navigation/disconnect).
   final wsEndpoint = ref.watch(graphqlWsEndpointProvider);
+  final reconnectSignal = ref.watch(wsReconnectSignalProvider);
+  // Skip the very first `connected` (initial connect, not a reconnect); every
+  // subsequent one means the socket dropped and came back — fire the signal so
+  // the refetch coordinator reconciles arrivals missed while it was down.
+  var hasConnectedOnce = false;
   final wsLink = TransportWebSocketLink(
     TransportWsClientOptions(
       socketMaker: WebSocketMaker.url(() => wsEndpoint),
@@ -76,9 +110,23 @@ final ferryClientProvider = Provider<Client>((ref) {
       connectionParams: () => <String, Object?>{
         if (token() != null) 'authorization': 'Bearer ${token()}',
       },
-      // Recover live subscriptions across transient network drops (the legacy
-      // link defaulted to autoReconnect: true).
-      retryAttempts: 5,
+      // Reconnect effectively forever (mobile networks blip constantly). The
+      // old retryAttempts: 5 made the client ERROR OUT after 5 abnormal
+      // closures and stop reconnecting — the subscription then stayed dead
+      // until a manual page refresh, which is the "item didn't show up until I
+      // refreshed" bug. Pair the high cap with a capped backoff.
+      retryAttempts: 1 << 30,
+      retryWait: _cappedBackoff,
+      eventHandlers: [
+        TransportWsEventHandler<void>(
+          connected: (_, __) {
+            if (hasConnectedOnce) {
+              if (!reconnectSignal.isClosed) reconnectSignal.add(null);
+            }
+            hasConnectedOnce = true;
+          },
+        ),
+      ],
     ),
   );
   final transportLink = Link.split(_isSubscription, wsLink, httpLink);
@@ -87,20 +135,27 @@ final ferryClientProvider = Provider<Client>((ref) {
     AuthLink(token),
     transportLink,
   ]);
-  // GraphQL is never served from cache. Ferry's built-in query default is
-  // CacheFirst, which surfaced stale reads — and the normalized cache's
-  // identical-value dedup is what forced the subscription `tick` workarounds in
-  // bootstrap.dart. This app's freshness comes from network round-trips plus the
-  // live subscriptions; durable offline writes ride the Drift outbox, not this
-  // cache. So make NoCache the single, app-wide default: every query, mutation,
-  // and subscription resolves from the link and neither reads nor writes the
-  // normalized store. New operations inherit this — no per-request fetchPolicy.
+  // The normalized cache is the client's single source of truth (gold-standard
+  // GraphQL). `possibleTypesMap` (generated) lets it normalize the InboxItem
+  // union and the PendingDecision/Principal interfaces by id. Every entity with
+  // an `id` is keyed automatically, so a data-carrying subscription push merges
+  // into the same record a query reads — and any watching request re-emits with
+  // no tick counter and no manual refetch.
+  final cache = Cache(possibleTypes: possibleTypesMap);
   return Client(
     link: link,
+    cache: cache,
     defaultFetchPolicies: const {
-      OperationType.query: FetchPolicy.NoCache,
-      OperationType.mutation: FetchPolicy.NoCache,
-      OperationType.subscription: FetchPolicy.NoCache,
+      // Render instantly from cache, then revalidate over the network. A
+      // watched query also re-emits whenever a referenced entity changes in the
+      // cache (e.g. from a subscription merge) — this is what makes realtime
+      // updates automatic instead of relying on event delivery.
+      OperationType.query: FetchPolicy.CacheAndNetwork,
+      // Mutations always hit the network; their full responses write through to
+      // the cache so the read models update.
+      OperationType.mutation: FetchPolicy.NetworkOnly,
+      // Subscription pushes are merged into the cache by id.
+      OperationType.subscription: FetchPolicy.CacheAndNetwork,
     },
   );
 });

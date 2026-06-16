@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -18,16 +19,25 @@ import (
 // Channel is the Phase 0 pg_notify channel.
 const Channel = "tendant_events"
 
+// Reconnect backoff bounds for the supervised LISTEN loop.
+const (
+	minReconnectBackoff = 250 * time.Millisecond
+	maxReconnectBackoff = 5 * time.Second
+)
+
 // CanFunc is the auth re-check signature; in production it is auth.Can.
 // Test code may pass a stub.
 type CanFunc func(ctx context.Context, p *auth.Principal, action string, target any) bool
 
 // Dispatcher owns one dedicated pgx.Conn that LISTENs on the Phase 0
 // notify channel and fans events out to in-process Subscribers. Per
-// subscriber: Match → Can re-check → non-blocking send.
+// subscriber: Match → Can re-check → non-blocking send. The LISTEN conn is
+// supervised: if it errors, Run re-acquires a conn, re-LISTENs, and resumes,
+// so a transient DB blip never permanently stops realtime for everyone.
 type Dispatcher struct {
 	mu     sync.RWMutex
 	subs   map[*Subscriber]struct{}
+	pool   *pgxpool.Pool
 	conn   *pgx.Conn
 	q      *db.Queries
 	canFn  CanFunc
@@ -35,49 +45,79 @@ type Dispatcher struct {
 	done   chan struct{}
 }
 
-// New acquires a dedicated pgx.Conn from the pool, issues LISTEN, and returns
-// the Dispatcher. Call Run on the returned dispatcher in a goroutine to start
-// processing notifications.
+// New constructs the Dispatcher and establishes the initial LISTEN conn so a
+// misconfigured channel/credential surfaces at startup. Call Run in a goroutine
+// to start processing notifications (and to supervise reconnects thereafter).
 func New(ctx context.Context, pool *pgxpool.Pool, q *db.Queries, canFn CanFunc) (*Dispatcher, error) {
 	if canFn == nil {
 		canFn = auth.Can
 	}
-	// Acquire a connection and detach it from the pool so we can hold it
-	// for the LISTEN duration. pgxpool.Pool.Acquire returns a Conn that we
-	// hijack with Conn().Hijack() to extract the underlying *pgx.Conn.
-	conn, err := pool.Acquire(ctx)
+	d := &Dispatcher{
+		subs:  map[*Subscriber]struct{}{},
+		pool:  pool,
+		q:     q,
+		canFn: canFn,
+		done:  make(chan struct{}),
+	}
+	if err := d.connect(ctx); err != nil {
+		return nil, err
+	}
+	slog.Info("realtime dispatcher LISTENing", "channel", Channel)
+	return d, nil
+}
+
+// connect acquires a connection from the pool, hijacks it (detaching it from
+// the pool for the LISTEN duration), and issues LISTEN. Sets d.conn on success.
+func (d *Dispatcher) connect(ctx context.Context) error {
+	conn, err := d.pool.Acquire(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("acquire pool conn: %w", err)
+		return fmt.Errorf("acquire pool conn: %w", err)
 	}
 	hijacked := conn.Hijack()
 	if _, err := hijacked.Exec(ctx, "LISTEN "+Channel); err != nil {
 		_ = hijacked.Close(ctx)
-		return nil, fmt.Errorf("LISTEN %s: %w", Channel, err)
+		return fmt.Errorf("LISTEN %s: %w", Channel, err)
 	}
-	slog.Info("realtime dispatcher LISTENing", "channel", Channel)
-	return &Dispatcher{
-		subs:  map[*Subscriber]struct{}{},
-		conn:  hijacked,
-		q:     q,
-		canFn: canFn,
-		done:  make(chan struct{}),
-	}, nil
+	d.conn = hijacked
+	return nil
 }
 
 // Run blocks until ctx is cancelled, processing notifications from the
-// dedicated LISTEN conn. Spawn a goroutine per notification so a slow
-// dispatch never head-of-line-blocks the loop.
+// dedicated LISTEN conn. If the conn errors, it reconnects with backoff and
+// resumes — the relay is "always on" for the process lifetime. Spawn a
+// goroutine per notification so a slow dispatch never head-of-line-blocks.
 func (d *Dispatcher) Run(ctx context.Context) {
 	ctx, d.cancel = context.WithCancel(ctx)
 	defer close(d.done)
+	backoff := minReconnectBackoff
 	for {
+		if d.conn == nil {
+			if err := d.connect(ctx); err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				slog.Warn("dispatcher reconnect failed", "err", err, "retry_in", backoff)
+				if !sleepCtx(ctx, backoff) {
+					return
+				}
+				backoff = min(backoff*2, maxReconnectBackoff)
+				continue
+			}
+			slog.Info("dispatcher re-LISTENing after reconnect", "channel", Channel)
+			backoff = minReconnectBackoff
+		}
 		n, err := d.conn.WaitForNotification(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return
 			}
-			slog.Warn("dispatcher WaitForNotification error", "err", err)
-			return
+			// Connection-level failure: drop the conn and reconnect. Events
+			// missed during the gap are reconciled by the client's
+			// reconnect/foreground refetch.
+			slog.Warn("dispatcher WaitForNotification error; reconnecting", "err", err)
+			_ = d.conn.Close(ctx)
+			d.conn = nil
+			continue
 		}
 		env, perr := parseEnvelope(n.Payload)
 		if perr != nil {
@@ -85,6 +125,18 @@ func (d *Dispatcher) Run(ctx context.Context) {
 			continue
 		}
 		go d.dispatch(ctx, env)
+	}
+}
+
+// sleepCtx sleeps for d, returning false if ctx is cancelled first.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
 	}
 }
 
@@ -117,6 +169,9 @@ func (d *Dispatcher) Register(s *Subscriber) func() {
 
 // dispatch loads the target entity by topic, per-event re-checks auth for
 // every subscriber whose Match accepts the envelope, and non-blocking sends.
+// On a full buffer the subscriber is terminated (not silently dropped) so the
+// client reconnects and refetches — converting a would-be silent gap into a
+// recoverable reconnect.
 func (d *Dispatcher) dispatch(ctx context.Context, env EventEnvelope) {
 	target, ok := d.loadByTopic(ctx, env.Topic, env.ID)
 	if !ok {
@@ -136,7 +191,10 @@ func (d *Dispatcher) dispatch(ctx context.Context, env EventEnvelope) {
 		select {
 		case s.Out <- env:
 		default:
+			// Buffer full: the consumer is too slow / wedged. Terminate it so
+			// the websocket drops and the client reconnects + refetches.
 			s.DroppedCount.Add(1)
+			s.terminate()
 		}
 	}
 }

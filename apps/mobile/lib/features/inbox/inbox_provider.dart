@@ -9,23 +9,31 @@ class InboxEntryRef {
     required this.entryId,
     required this.kind,
     required this.urgency,
-    required this.typename,
+    required this.messageType,
     required this.itemId,
     required this.title,
     required this.subtitle,
+    this.unread = false,
     this.taskId,
     this.priority,
     this.dueAt,
     this.taskState,
   });
 
-  final String entryId; // InboxEntry.id
+  final String entryId; // InboxEntry.id == inbox_messages.id
   final String kind; // pending_decision | agent_assignment | task
   final double urgency; // blended ranking score (descending)
-  final String typename; // item __typename
+
+  /// The fine-grained inbox_messages discriminator — the single value the UI
+  /// dispatches a detail surface on: approval_request | agent_question |
+  /// promotion_proposal | feedback_request | agent_assignment | actionable_task.
+  final String messageType;
   final String itemId;
   final String title;
   final String subtitle;
+
+  /// Per-message state: true when inbox_messages.read_at is still null.
+  final bool unread;
 
   // ActionableTask inline-action metadata (null for the other kinds).
   final String? taskId;
@@ -33,10 +41,10 @@ class InboxEntryRef {
   final DateTime? dueAt;
   final String? taskState;
 
-  bool get isActionableTask => typename == 'ActionableTask';
-  bool get isAssignment => typename == 'AgentAssignment';
-  bool get isApprovalRequest => typename == 'ApprovalRequest';
-  bool get isFeedbackRequest => typename == 'FeedbackRequest';
+  bool get isActionableTask => messageType == 'actionable_task';
+  bool get isAssignment => messageType == 'agent_assignment';
+  bool get isApprovalRequest => messageType == 'approval_request';
+  bool get isFeedbackRequest => messageType == 'feedback_request';
 }
 
 /// One page of the ranked feed: the entries plus the opaque keyset cursor for
@@ -116,6 +124,17 @@ class InboxFeedController extends AsyncNotifier<InboxFeedState> {
     ref.invalidateSelf();
     await future;
   }
+
+  /// Optimistically drop one entry from the in-memory feed (swipe-to-dismiss).
+  /// Updating the data source synchronously keeps Dismissible from asserting on
+  /// the next rebuild; the server dismiss + next refresh make it durable.
+  void removeEntry(String entryId) {
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncData(current.copyWith(
+      entries: current.entries.where((e) => e.entryId != entryId).toList(),
+    ));
+  }
 }
 
 final inboxFeedProvider =
@@ -144,3 +163,25 @@ abstract class ProposedTaskMutator {
 final proposedTaskMutatorProvider = Provider<ProposedTaskMutator>(
   (ref) => throw UnimplementedError('overridden in bootstrap'),
 );
+
+/// Per-message inbox state writes (read / dismiss) on the first-class
+/// inbox_messages row. These are local-state-only and low-stakes — they do not
+/// touch the underlying decision — so they bypass the offline approval floor.
+abstract class InboxStateMutator {
+  Future<void> markRead(String messageId);
+  Future<bool> dismiss(String messageId);
+}
+
+/// No-op default so widget tests render without a backend; bootstrap overrides
+/// it with the Ferry-backed implementation.
+final inboxStateMutatorProvider = Provider<InboxStateMutator>(
+  (ref) => const _NoopInboxStateMutator(),
+);
+
+class _NoopInboxStateMutator implements InboxStateMutator {
+  const _NoopInboxStateMutator();
+  @override
+  Future<void> markRead(String messageId) async {}
+  @override
+  Future<bool> dismiss(String messageId) async => false;
+}

@@ -14,6 +14,40 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const dismissInboxMessage = `-- name: DismissInboxMessage :one
+UPDATE inbox_messages
+   SET dismissed_at = COALESCE(dismissed_at, now())
+ WHERE id = $1
+   AND (recipient IS NULL OR recipient = $2::text)
+RETURNING id, seen_at, read_at, dismissed_at
+`
+
+type DismissInboxMessageParams struct {
+	ID     uuid.UUID `json:"id"`
+	Viewer string    `json:"viewer"`
+}
+
+type DismissInboxMessageRow struct {
+	ID          uuid.UUID          `json:"id"`
+	SeenAt      pgtype.Timestamptz `json:"seen_at"`
+	ReadAt      pgtype.Timestamptz `json:"read_at"`
+	DismissedAt pgtype.Timestamptz `json:"dismissed_at"`
+}
+
+// Soft-dismiss a message from the active inbox without touching the source
+// row's lifecycle. Recipient-scoped like MarkInboxRead.
+func (q *Queries) DismissInboxMessage(ctx context.Context, arg DismissInboxMessageParams) (DismissInboxMessageRow, error) {
+	row := q.db.QueryRow(ctx, dismissInboxMessage, arg.ID, arg.Viewer)
+	var i DismissInboxMessageRow
+	err := row.Scan(
+		&i.ID,
+		&i.SeenAt,
+		&i.ReadAt,
+		&i.DismissedAt,
+	)
+	return i, err
+}
+
 const insertPendingDecision = `-- name: InsertPendingDecision :one
 INSERT INTO pending_decisions (
   task_id, tool_id, kind, payload, disclosure_class,
@@ -118,32 +152,33 @@ func (q *Queries) ListInbox(ctx context.Context, arg ListInboxParams) ([]ListInb
 
 const listInboxFeed = `-- name: ListInboxFeed :many
 WITH feed AS (
-  SELECT pd.id, 'pending_decision'::text AS kind, pd.task_id, pd.created_at,
+  SELECT m.id,
+         CASE m.source_table
+           WHEN 'pending_decisions'  THEN 'pending_decision'
+           WHEN 'agent_assignments'  THEN 'agent_assignment'
+           WHEN 'tasks'              THEN 'task'
+           ELSE m.source_table
+         END::text AS kind,
+         m.message_type, m.task_id, m.created_at, m.read_at, m.dismissed_at,
          t.priority, t.due_at, t.intake_signal_id
-    FROM pending_decisions pd
-    JOIN tasks t ON t.id = pd.task_id
-   WHERE pd.resolved_at IS NULL
-     AND (t.state NOT IN ('done', 'dismissed', 'halted')
-          -- feedback_request decisions are post-completion by design (the chain
-          -- opens them after the task reaches DONE), so the actionable-only
-          -- terminal-state guard must not hide them.
-          OR pd.kind = 'feedback_request')
-  UNION ALL
-  SELECT aa.id, 'agent_assignment'::text AS kind, aa.task_id, aa.created_at,
-         t.priority, t.due_at, t.intake_signal_id
-    FROM agent_assignments aa
-    JOIN tasks t ON t.id = aa.task_id
-   WHERE aa.resolved_at IS NULL
-     AND aa.to_principal = $4::text
-     AND t.state NOT IN ('done', 'dismissed', 'halted')
-  UNION ALL
-  SELECT t.id, 'task'::text AS kind, t.id AS task_id, t.created_at,
-         t.priority, t.due_at, t.intake_signal_id
-    FROM tasks t
-   WHERE t.state = 'proposed'
+    FROM inbox_messages m
+    JOIN tasks t ON t.id = m.task_id
+   WHERE m.resolved_at IS NULL
+     AND m.dismissed_at IS NULL
+     AND (m.recipient IS NULL OR m.recipient = $4::text)
+     AND (
+          (m.source_table = 'pending_decisions'
+             AND (t.state NOT IN ('done', 'dismissed', 'halted')
+                  -- feedback_request decisions are post-completion by design, so
+                  -- the actionable-only terminal-state guard must not hide them.
+                  OR m.message_type = 'feedback_request'))
+       OR (m.source_table = 'agent_assignments'
+             AND t.state NOT IN ('done', 'dismissed', 'halted'))
+       OR (m.source_table = 'tasks' AND t.state = 'proposed')
+     )
 ),
 scored AS (
-  SELECT f.id, f.kind, f.task_id, f.created_at,
+  SELECT f.id, f.kind, f.message_type, f.task_id, f.created_at, f.read_at, f.dismissed_at,
          (
            CASE f.priority
              WHEN 'urgent' THEN 400.0
@@ -165,7 +200,7 @@ scored AS (
     FROM feed f
     LEFT JOIN intake_signals s ON s.id = f.intake_signal_id
 )
-SELECT id, kind, task_id, created_at, score
+SELECT id, kind, message_type, task_id, created_at, read_at, dismissed_at, score
   FROM scored
  WHERE (score, id) < ($1::double precision, $2::uuid)
  ORDER BY score DESC, id DESC
@@ -181,25 +216,36 @@ type ListInboxFeedParams struct {
 }
 
 type ListInboxFeedRow struct {
-	ID        uuid.UUID `json:"id"`
-	Kind      string    `json:"kind"`
-	TaskID    uuid.UUID `json:"task_id"`
-	CreatedAt time.Time `json:"created_at"`
-	Score     float64   `json:"score"`
+	ID          uuid.UUID          `json:"id"`
+	Kind        string             `json:"kind"`
+	MessageType string             `json:"message_type"`
+	TaskID      uuid.UUID          `json:"task_id"`
+	CreatedAt   time.Time          `json:"created_at"`
+	ReadAt      pgtype.Timestamptz `json:"read_at"`
+	DismissedAt pgtype.Timestamptz `json:"dismissed_at"`
+	Score       float64            `json:"score"`
 }
 
-// Ranked, keyset-paginated action feed. Three actionable sources are unioned:
-//   - open pending_decisions whose task is non-terminal
-//   - open agent_assignments routed to the viewer whose task is non-terminal
-//   - PROPOSED tasks (the owner accept/dismiss action item itself)
+// Ranked, keyset-paginated action feed over the first-class inbox_messages
+// spine (migration 00018) — no longer a UNION of the three source tables.
+// inbox_messages.id mirrors the source row id, message_type is the UI's dispatch
+// discriminator, and the per-message read/dismissed state lives on the row.
+// Membership rules that depend on task.state are still applied here (the
+// projection trigger owns only identity + resolved_at):
+//   - pending_decisions are shown while their task is non-terminal, with the
+//     feedback_request post-completion exception;
+//   - agent_assignments are scoped to the viewer + non-terminal task;
+//   - actionable_task rows are shown only while the task is PROPOSED.
 //
 // Each row carries a blended urgency `score` over the PINNED clock @now
 // (owner priority + deadline proximity + intake stakes + age). The clock is
 // pinned in the cursor so a whole scroll session ranks against one fixed @now,
 // keeping the (score, id) keyset stable; the next page passes the last row's
-// SQL-returned score as @cursor_score. Weights are first-guess constants — a
-// candidate to move into config_entries later. Visibility filtering (the
-// actionable-only NOT IN (terminal) clause + to_principal scope) is SQL-side.
+// SQL-returned score as @cursor_score. `kind` is derived from source_table to
+// preserve the legacy assemble vocabulary.
+// read_at / dismissed_at surface as pgtype.Timestamptz (sqlc loses the override
+// tracing a nullable column through two CTE hops); the Go layer maps .Valid to a
+// *time.Time. task_id is NOT NULL so it resolves to uuid.UUID.
 func (q *Queries) ListInboxFeed(ctx context.Context, arg ListInboxFeedParams) ([]ListInboxFeedRow, error) {
 	rows, err := q.db.Query(ctx, listInboxFeed,
 		arg.CursorScore,
@@ -218,8 +264,11 @@ func (q *Queries) ListInboxFeed(ctx context.Context, arg ListInboxFeedParams) ([
 		if err := rows.Scan(
 			&i.ID,
 			&i.Kind,
+			&i.MessageType,
 			&i.TaskID,
 			&i.CreatedAt,
+			&i.ReadAt,
+			&i.DismissedAt,
 			&i.Score,
 		); err != nil {
 			return nil, err
@@ -230,4 +279,91 @@ func (q *Queries) ListInboxFeed(ctx context.Context, arg ListInboxFeedParams) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const markInboxRead = `-- name: MarkInboxRead :one
+UPDATE inbox_messages
+   SET read_at = COALESCE(read_at, now()),
+       seen_at = COALESCE(seen_at, now())
+ WHERE id = $1
+   AND (recipient IS NULL OR recipient = $2::text)
+RETURNING id, seen_at, read_at, dismissed_at
+`
+
+type MarkInboxReadParams struct {
+	ID     uuid.UUID `json:"id"`
+	Viewer string    `json:"viewer"`
+}
+
+type MarkInboxReadRow struct {
+	ID          uuid.UUID          `json:"id"`
+	SeenAt      pgtype.Timestamptz `json:"seen_at"`
+	ReadAt      pgtype.Timestamptz `json:"read_at"`
+	DismissedAt pgtype.Timestamptz `json:"dismissed_at"`
+}
+
+// Stamp read_at (and seen_at) on a viewer's inbox message. Idempotent: a
+// second call keeps the original read_at. Recipient-scoped: a NULL recipient
+// (owner/everyone) is readable by anyone, an assignment only by its recipient.
+func (q *Queries) MarkInboxRead(ctx context.Context, arg MarkInboxReadParams) (MarkInboxReadRow, error) {
+	row := q.db.QueryRow(ctx, markInboxRead, arg.ID, arg.Viewer)
+	var i MarkInboxReadRow
+	err := row.Scan(
+		&i.ID,
+		&i.SeenAt,
+		&i.ReadAt,
+		&i.DismissedAt,
+	)
+	return i, err
+}
+
+const reconcileInboxMessages = `-- name: ReconcileInboxMessages :one
+WITH ins_pd AS (
+  INSERT INTO inbox_messages
+    (id, source_table, message_type, recipient, task_id, created_at, resolved_at)
+  SELECT pd.id, 'pending_decisions', pd.kind::text, NULL, pd.task_id, pd.created_at, pd.resolved_at
+    FROM pending_decisions pd
+   WHERE NOT EXISTS (SELECT 1 FROM inbox_messages m WHERE m.id = pd.id)
+  ON CONFLICT (id) DO NOTHING
+  RETURNING 1
+),
+ins_aa AS (
+  INSERT INTO inbox_messages
+    (id, source_table, message_type, recipient, task_id, created_at, resolved_at)
+  SELECT aa.id, 'agent_assignments', 'agent_assignment', aa.to_principal, aa.task_id, aa.created_at, aa.resolved_at
+    FROM agent_assignments aa
+   WHERE NOT EXISTS (SELECT 1 FROM inbox_messages m WHERE m.id = aa.id)
+  ON CONFLICT (id) DO NOTHING
+  RETURNING 1
+),
+ins_t AS (
+  INSERT INTO inbox_messages
+    (id, source_table, message_type, recipient, task_id, created_at, resolved_at)
+  SELECT t.id, 'tasks', 'actionable_task', NULL, t.id, t.created_at, NULL
+    FROM tasks t
+   WHERE t.state = 'proposed'
+     AND NOT EXISTS (SELECT 1 FROM inbox_messages m WHERE m.id = t.id)
+  ON CONFLICT (id) DO NOTHING
+  RETURNING 1
+)
+SELECT (
+  (SELECT count(*) FROM ins_pd)
+  + (SELECT count(*) FROM ins_aa)
+  + (SELECT count(*) FROM ins_t)
+)::bigint AS repaired
+`
+
+// Defense-in-depth drift repair for the first-class inbox_messages projection.
+// The trg_inbox_project triggers keep inbox_messages in lock-step with the three
+// source tables inside each mutating transaction, so this normally repairs 0
+// rows; a non-zero result means a write bypassed the trigger (trigger disabled,
+// bulk COPY/restore, logic regression) and is itself the alarm. Idempotent —
+// inserts only the projections that are missing, mirroring the trigger's own
+// derivation (all decisions + all assignments + PROPOSED tasks). Returns the
+// number of rows repaired this pass.
+func (q *Queries) ReconcileInboxMessages(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, reconcileInboxMessages)
+	var repaired int64
+	err := row.Scan(&repaired)
+	return repaired, err
 }

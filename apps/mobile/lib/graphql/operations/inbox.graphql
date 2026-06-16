@@ -4,8 +4,11 @@ query InboxFeed($first: Int, $after: String) {
     entries {
       id
       kind
+      messageType
       urgency
       createdAt
+      readAt
+      dismissedAt
       item {
         __typename
         ... on ActionableTask {
